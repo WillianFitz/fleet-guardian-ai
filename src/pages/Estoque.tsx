@@ -73,7 +73,6 @@ const Estoque = () => {
             {filtered.length === 0 && <tr><td colSpan={9} className="px-3 sm:px-5 py-10 text-center text-muted-foreground">Nenhuma peça</td></tr>}
           </tbody>
         </table>
-        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
