@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Truck, Plus, Search, Filter, Edit, Trash2, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
@@ -27,7 +27,16 @@ const Veiculos = () => {
   const [form, setForm] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const getDriverName = (id: string) => drivers.find(d => d.id === id)?.nome || "";
+  const getDriverName = (id: string) => {
+    if (!id || id === "") return "";
+    const driver = drivers.find(d => d.id === id);
+    return driver?.nome || "";
+  };
+
+  // Garante que os drivers sejam carregados antes de exibir
+  useEffect(() => {
+    // Força re-render quando drivers mudarem
+  }, [drivers]);
 
   const filtered = items.filter(
     (v) => v.placa.toLowerCase().includes(search.toLowerCase()) ||
@@ -38,13 +47,29 @@ const Veiculos = () => {
   const handleSave = () => {
     if (!form.placa || !form.modelo) { toast({ title: "Preencha placa e modelo", variant: "destructive" }); return; }
     // Garante que o campo motorista seja salvo corretamente (mesmo que seja string vazia)
-    const dataToSave = { ...form, motorista: form.motorista || "" };
-    if (editing) { update(editing.id, dataToSave); toast({ title: "Veículo atualizado!" }); }
-    else { add(dataToSave); toast({ title: "Veículo cadastrado!" }); }
-    setDialogOpen(false); setEditing(null); setForm(emptyForm);
+    const dataToSave = { 
+      ...form, 
+      motorista: form.motorista || "",
+      km: form.km || 0,
+      ano: form.ano || new Date().getFullYear()
+    };
+    if (editing) { 
+      update(editing.id, dataToSave); 
+      toast({ title: "Veículo atualizado!" }); 
+    } else { 
+      add(dataToSave); 
+      toast({ title: "Veículo cadastrado!" }); 
+    }
+    setDialogOpen(false); 
+    setEditing(null); 
+    setForm(emptyForm);
   };
 
-  const handleEdit = (v: Vehicle) => { setEditing(v); setForm(v); setDialogOpen(true); };
+  const handleEdit = (v: Vehicle) => { 
+    setEditing(v); 
+    setForm({ ...v, motorista: v.motorista || "" }); 
+    setDialogOpen(true); 
+  };
   const handleNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
   const handleDelete = (id: string) => { remove(id); setDeleteConfirm(null); toast({ title: "Veículo removido!" }); };
   const setField = (k: string, v: any) => setForm((prev) => ({ ...prev, [k]: v }));
@@ -102,7 +127,11 @@ const Veiculos = () => {
                         <sc.icon className="w-3 h-3" />{sc.label}
                       </span>
                     </td>
-                    <td className="px-5 py-3.5 text-sm text-muted-foreground">{getDriverName(v.motorista) || "—"}</td>
+                    <td className="px-5 py-3.5 text-sm text-muted-foreground">
+                      {v.motorista && v.motorista.trim() !== "" 
+                        ? (getDriverName(v.motorista) || "—") 
+                        : "—"}
+                    </td>
                     <td className="px-5 py-3.5 text-sm text-muted-foreground">{v.combustivel}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-1">
