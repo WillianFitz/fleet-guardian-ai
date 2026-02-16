@@ -3,7 +3,7 @@
   "description": "API PHP para emissão e consulta de CT-e via SPED-CTe",
   "type": "project",
   "require": {
-    "php": ">=8.0",
+    "php": ">=8.1",
     "nfephp-org/sped-cte": "^5.0",
     "slim/slim": "^4.0",
     "slim/psr7": "^1.0"
