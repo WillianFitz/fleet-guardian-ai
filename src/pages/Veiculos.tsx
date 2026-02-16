@@ -27,16 +27,27 @@ const Veiculos = () => {
   const [form, setForm] = useState(emptyForm);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  const getDriverName = (id: string) => {
-    if (!id || id === "") return "";
-    const driver = drivers.find(d => d.id === id);
+  const getDriverName = (id: string | null | undefined) => {
+    if (!id || id === "" || id === null || id === undefined) return "";
+    const driver = drivers.find(d => d.id === String(id));
     return driver?.nome || "";
   };
 
-  // Garante que os drivers sejam carregados antes de exibir
+  // Garante que quando o dialog abre para edição, o form seja atualizado corretamente
   useEffect(() => {
-    // Força re-render quando drivers mudarem
-  }, [drivers]);
+    if (dialogOpen) {
+      if (editing) {
+        // Trata null/undefined como string vazia para o campo motorista
+        const motoristaValue = (editing.motorista === null || editing.motorista === undefined) 
+          ? "" 
+          : String(editing.motorista);
+        setForm({ ...editing, motorista: motoristaValue });
+      } else {
+        setForm(emptyForm);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen, editing?.id]);
 
   const filtered = items.filter(
     (v) => v.placa.toLowerCase().includes(search.toLowerCase()) ||
@@ -46,18 +57,48 @@ const Veiculos = () => {
 
   const handleSave = () => {
     if (!form.placa || !form.modelo) { toast({ title: "Preencha placa e modelo", variant: "destructive" }); return; }
-    // Garante que o campo motorista seja salvo corretamente (mesmo que seja string vazia)
-    const dataToSave = { 
-      ...form, 
-      motorista: form.motorista || "",
+    
+    // Garante que o campo motorista seja salvo corretamente
+    // Se form.motorista for null, undefined, ou string vazia, usa string vazia
+    const motoristaValue = (form.motorista === null || form.motorista === undefined || form.motorista === "") 
+      ? "" 
+      : String(form.motorista).trim();
+    
+    console.log("[Veiculos] Salvando veículo:", { 
+      motorista: motoristaValue, 
+      formMotorista: form.motorista,
+      formMotoristaType: typeof form.motorista,
+      editing: editing?.id 
+    });
+    
+    // Cria objeto completo com todos os campos, garantindo que motorista sempre esteja presente
+    const dataToSave: Partial<Vehicle> = { 
+      placa: form.placa,
+      modelo: form.modelo,
+      tipo: form.tipo,
+      categoria: form.categoria,
+      ano: form.ano || new Date().getFullYear(),
       km: form.km || 0,
-      ano: form.ano || new Date().getFullYear()
+      status: form.status,
+      motorista: motoristaValue, // SEMPRE inclui o campo motorista explicitamente
+      chassi: form.chassi || "",
+      renavam: form.renavam || "",
+      cor: form.cor || "",
+      combustivel: form.combustivel || "Diesel S10",
+      createdAt: form.createdAt || new Date().toISOString().split("T")[0]
     };
+    
+    console.log("[Veiculos] Dados a serem salvos:", JSON.stringify(dataToSave, null, 2));
+    console.log("[Veiculos] Campo motorista nos dados:", dataToSave.motorista, "tipo:", typeof dataToSave.motorista);
+    
     if (editing) { 
+      console.log("[Veiculos] Atualizando veículo:", editing.id);
+      console.log("[Veiculos] Veículo antes do update:", editing);
       update(editing.id, dataToSave); 
       toast({ title: "Veículo atualizado!" }); 
     } else { 
-      add(dataToSave); 
+      console.log("[Veiculos] Criando novo veículo");
+      add(dataToSave as Omit<Vehicle, "id">); 
       toast({ title: "Veículo cadastrado!" }); 
     }
     setDialogOpen(false); 
@@ -67,7 +108,12 @@ const Veiculos = () => {
 
   const handleEdit = (v: Vehicle) => { 
     setEditing(v); 
-    setForm({ ...v, motorista: v.motorista || "" }); 
+    // Garante que o campo motorista seja carregado corretamente (trata null como string vazia)
+    const vehicleData = { 
+      ...v, 
+      motorista: (v.motorista === null || v.motorista === undefined) ? "" : String(v.motorista)
+    };
+    setForm(vehicleData); 
     setDialogOpen(true); 
   };
   const handleNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
@@ -128,7 +174,7 @@ const Veiculos = () => {
                       </span>
                     </td>
                     <td className="px-5 py-3.5 text-sm text-muted-foreground">
-                      {v.motorista && v.motorista.trim() !== "" 
+                      {v.motorista && v.motorista !== null && String(v.motorista).trim() !== "" 
                         ? (getDriverName(v.motorista) || "—") 
                         : "—"}
                     </td>
@@ -149,7 +195,13 @@ const Veiculos = () => {
       </div>
 
       {/* Add/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => {
+        setDialogOpen(open);
+        if (!open) {
+          setEditing(null);
+          setForm(emptyForm);
+        }
+      }}>
         <DialogContent className="bg-card border-border max-w-lg">
           <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar Veículo" : "Novo Veículo"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-2">
@@ -173,7 +225,16 @@ const Veiculos = () => {
             ))}
             <div className="col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Motorista</label>
-              <select value={form.motorista || ""} onChange={(e) => setField("motorista", e.target.value)}
+              <select 
+                value={form.motorista && form.motorista !== null && form.motorista !== undefined ? String(form.motorista) : ""} 
+                onChange={(e) => {
+                  const value = e.target.value;
+                  console.log("[Veiculos] Select onChange - valor selecionado:", value, "tipo:", typeof value);
+                  // Garante que o valor seja sempre uma string (mesmo que vazia)
+                  const motoristaValue = value === "" ? "" : String(value);
+                  console.log("[Veiculos] Valor a ser salvo no form:", motoristaValue);
+                  setField("motorista", motoristaValue);
+                }}
                 className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
                 <option value="">Sem motorista</option>
                 {drivers.map((d) => (

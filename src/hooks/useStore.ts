@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { api, isApiConfigured } from "@/lib/api";
 import { toast } from "@/hooks/use-toast";
 
@@ -33,6 +33,27 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
     }
   }, [key, items, apiEnabled]);
 
+  // Normaliza dados de veículos para garantir que motorista seja sempre string
+  const normalizeVehicleData = useMemo(() => {
+    return (item: any): any => {
+      if (key === "vehicles") {
+        // Garante que motorista seja sempre uma string, nunca null ou undefined
+        const normalized = { ...item };
+        if (normalized.motorista === null || normalized.motorista === undefined) {
+          normalized.motorista = "";
+        } else {
+          normalized.motorista = String(normalized.motorista);
+        }
+        console.log(`[useStore] Normalizando veículo ${item.id}:`, { 
+          antes: item.motorista, 
+          depois: normalized.motorista 
+        });
+        return normalized;
+      }
+      return item;
+    };
+  }, [key]);
+
   // Fetch from API on mount (if configured)
   useEffect(() => {
     if (!apiEnabled || hasFetched.current) return;
@@ -42,7 +63,8 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
     api
       .list<T>(key)
       .then((data) => {
-        setItems(data);
+        const normalized = data.map(normalizeVehicleData);
+        setItems(normalized);
       })
       .catch((err) => {
         console.error(`[useStore] Failed to fetch ${key}:`, err.message);
@@ -67,8 +89,9 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
           .create<T>(key, item)
           .then((created) => {
             console.log(`[useStore] Created ${key} successfully:`, created);
+            const normalized = normalizeVehicleData(created);
             setItems((prev) =>
-              prev.map((i) => (i.id === tempId ? { ...created } : i))
+              prev.map((i) => (i.id === tempId ? normalized : i))
             );
           })
           .catch((err) => {
@@ -79,22 +102,39 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
 
       return newItem;
     },
-    [key]
+    [key, normalizeVehicleData]
   );
 
   const update = useCallback(
     (id: string, data: Partial<T>) => {
-      // Optimistic update
-      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...data } : i)));
+      console.log(`[useStore] Updating ${key}/${id}:`, data);
+      
+      // Optimistic update - garante que todos os campos sejam incluídos
+      setItems((prev) => prev.map((i) => {
+        if (i.id === id) {
+          const updated = { ...i, ...data };
+          console.log(`[useStore] Optimistic update result:`, updated);
+          return updated;
+        }
+        return i;
+      }));
 
       // Sync to API
       if (isApiConfigured()) {
-        api.update<T>(key, id, data).catch((err) => {
-          console.error(`[useStore] Failed to update ${key}/${id}:`, err.message);
-        });
+        console.log(`[useStore] Sending update to API for ${key}/${id}:`, data);
+        api.update<T>(key, id, data)
+          .then((updated) => {
+            console.log(`[useStore] API returned updated ${key}/${id}:`, updated);
+            const normalized = normalizeVehicleData(updated);
+            console.log(`[useStore] Normalized data:`, normalized);
+            setItems((prev) => prev.map((i) => (i.id === id ? normalized : i)));
+          })
+          .catch((err) => {
+            console.error(`[useStore] Failed to update ${key}/${id}:`, err.message);
+          });
       }
     },
-    [key]
+    [key, normalizeVehicleData]
   );
 
   const remove = useCallback(
