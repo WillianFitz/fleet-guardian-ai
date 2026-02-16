@@ -101,6 +101,7 @@ const Relatorios = () => {
       // Margens
       const margin = 10;
       const contentWidth = pdfWidth - (margin * 2);
+      const contentHeight = pdfHeight - (margin * 2);
       
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
@@ -109,20 +110,54 @@ const Relatorios = () => {
       const imgScaledHeight = imgHeight * ratio;
       
       // Calcular número de páginas necessárias
-      const contentHeight = pdfHeight - (margin * 2);
-      let heightLeft = imgScaledHeight;
-      let position = 0;
+      const totalPages = Math.ceil(imgScaledHeight / contentHeight);
       
-      // Adicionar primeira página
-      pdf.addImage(imgData, "PNG", margin, margin, imgScaledWidth, imgScaledHeight);
-      heightLeft -= contentHeight;
+      // Criar um canvas temporário para cada página
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      if (!tempCtx) {
+        throw new Error("Não foi possível criar contexto do canvas");
+      }
       
-      // Adicionar páginas adicionais se necessário
-      while (heightLeft >= 0) {
-        position = heightLeft - imgScaledHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", margin, position, imgScaledWidth, imgScaledHeight);
-        heightLeft -= contentHeight;
+      tempCanvas.width = imgWidth;
+      const pageHeightInPixels = Math.ceil(contentHeight / ratio);
+      tempCanvas.height = pageHeightInPixels;
+      
+      // Processar cada página
+      for (let page = 0; page < totalPages; page++) {
+        if (page > 0) {
+          pdf.addPage();
+        }
+        
+        // Calcular a área da imagem original que será exibida nesta página
+        const sourceY = page * pageHeightInPixels;
+        const sourceHeight = Math.min(pageHeightInPixels, imgHeight - sourceY);
+        
+        // Limpar o canvas temporário com fundo branco
+        tempCtx.fillStyle = "#ffffff";
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        // Copiar apenas a parte relevante da imagem original
+        if (sourceHeight > 0) {
+          tempCtx.drawImage(
+            canvas,
+            0, sourceY, imgWidth, sourceHeight,  // Área de origem (x, y, width, height)
+            0, 0, imgWidth, sourceHeight         // Área de destino
+          );
+        }
+        
+        // Converter para imagem e adicionar ao PDF
+        const pageImgData = tempCanvas.toDataURL("image/png", 1.0);
+        const pageImgScaledHeight = sourceHeight * ratio;
+        
+        pdf.addImage(
+          pageImgData,
+          "PNG",
+          margin,
+          margin,
+          imgScaledWidth,
+          pageImgScaledHeight
+        );
       }
 
       const fileName = `Relatorio_${selectedVehicle.placa}_${dateStart}_${dateEnd}.pdf`;
