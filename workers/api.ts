@@ -426,10 +426,41 @@ export default {
         return jsonResponse({ tenantId });
       }
 
+      // Validação de certificado (proxy para API PHP)
+      if (path === "/api/tenants/validar-certificado" && request.method === "POST") {
+        if (!env.CTE_API_URL) {
+          return errorResponse("CTE_API_URL não configurada. Configure a variável de ambiente.", 503);
+        }
+        try {
+          const body = await request.json();
+          const phpResponse = await fetch(`${env.CTE_API_URL}/validar-certificado`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+          const phpData = await phpResponse.json();
+          if (!phpResponse.ok) {
+            return jsonResponse({ error: phpData.error || "Erro ao validar certificado" }, phpResponse.status);
+          }
+          return jsonResponse(phpData);
+        } catch (e: any) {
+          return errorResponse(`Erro ao validar certificado: ${e.message}`, 500);
+        }
+      }
+
       // ===== CTe API PROXY (para backend PHP SPED-CTe) =====
+      // NOTA: Workers não podem assinar XML diretamente, então fazemos proxy para API PHP
+      // A API PHP deve ter o certificado digital e usar nfephp-org/sped-cte
       if (path === "/api/cte/emitir" && request.method === "POST") {
         if (!env.CTE_API_URL) {
-          return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
+          return errorResponse(
+            "CTE_API_URL não configurada no Worker. " +
+            "Configure com: npx wrangler secret put CTE_API_URL\n" +
+            "Digite a URL da sua API PHP que usa nfephp-org/sped-cte",
+            503
+          );
         }
         try {
           const body = await request.json();
@@ -441,13 +472,24 @@ export default {
           const phpUrl = new URL(`${env.CTE_API_URL}/emitir`);
           phpUrl.searchParams.set("ambiente", ambiente);
           
+          // Buscar certificado do tenant
+          const { tenantId } = await getTenantForRequest(request, env);
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, certificado_status FROM tenants WHERE id = ?")
+            .bind(tenantId)
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string; certificado_status?: string }>();
+
+          // Adicionar certificado ao body se existir
+          const phpBodyWithCert = tenant?.certificado_pfx_base64 && tenant?.certificado_password
+            ? { ...phpBody, certificado: { pfxBase64: tenant.certificado_pfx_base64, password: tenant.certificado_password } }
+            : phpBody;
+
           const phpResponse = await fetch(phpUrl.toString(), {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
             },
-            body: JSON.stringify(phpBody),
+            body: JSON.stringify(phpBodyWithCert),
           });
           const phpData = await phpResponse.json();
           if (!phpResponse.ok) {
@@ -473,10 +515,32 @@ export default {
           phpUrl.searchParams.set("chave", chave);
           phpUrl.searchParams.set("ambiente", ambiente);
           
+          // Buscar certificado do tenant para consulta também
+          const { tenantId } = await getTenantForRequest(request, env);
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password FROM tenants WHERE id = ?")
+            .bind(tenantId)
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string }>();
+
+          const headers: Record<string, string> = {
+            ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
+          };
+
+          // Se tiver certificado, enviar no body da requisição
+          let body: string | undefined;
+          if (tenant?.certificado_pfx_base64 && tenant?.certificado_password) {
+            body = JSON.stringify({
+              certificado: {
+                pfxBase64: tenant.certificado_pfx_base64,
+                password: tenant.certificado_password
+              }
+            });
+            headers["Content-Type"] = "application/json";
+          }
+
           const phpResponse = await fetch(phpUrl.toString(), {
-            headers: {
-              ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
-            },
+            method: body ? "POST" : "GET",
+            headers,
+            ...(body ? { body } : {}),
           });
           const phpData = await phpResponse.json();
           if (!phpResponse.ok) {

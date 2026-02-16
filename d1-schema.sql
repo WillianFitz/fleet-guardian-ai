@@ -13,6 +13,11 @@ CREATE TABLE tenants (
   email TEXT,
   endereco TEXT,
   ambiente_cte TEXT CHECK(ambiente_cte IN ('producao','homologacao')) DEFAULT 'homologacao',
+  certificado_pfx_base64 TEXT,
+  certificado_password TEXT,
+  certificado_status TEXT CHECK(certificado_status IN ('nao_configurado','configurado','valido','invalido','expirado')) DEFAULT 'nao_configurado',
+  certificado_valido_ate TEXT,
+  certificado_cnpj TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );

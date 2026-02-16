@@ -10,6 +10,11 @@ export interface Tenant {
   email?: string;
   endereco?: string;
   ambienteCte?: "producao" | "homologacao";
+  certificadoPfxBase64?: string;
+  certificadoPassword?: string;
+  certificadoStatus?: "nao_configurado" | "configurado" | "valido" | "invalido" | "expirado";
+  certificadoValidoAte?: string;
+  certificadoCnpj?: string;
   createdAt?: string;
   updatedAt?: string;
 }

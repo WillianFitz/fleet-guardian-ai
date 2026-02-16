@@ -1,4 +1,4 @@
-import { Settings, Trash2, Database, Building2, Save, Loader2, Shield, AlertCircle } from "lucide-react";
+import { Settings, Trash2, Database, Building2, Save, Loader2, Shield, AlertCircle, Upload, CheckCircle2, XCircle, Clock } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
@@ -9,6 +9,9 @@ const Configuracoes = () => {
   const { tenant, loading, updateTenant } = useTenant();
   const [confirmClear, setConfirmClear] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingCert, setUploadingCert] = useState(false);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certPassword, setCertPassword] = useState("");
   const [form, setForm] = useState({
     nome: "",
     cnpj: "",
@@ -58,6 +61,107 @@ const Configuracoes = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCertFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.pfx') && !file.name.toLowerCase().endsWith('.p12')) {
+        toast({ title: "Arquivo inválido", description: "Apenas arquivos .pfx ou .p12 são aceitos", variant: "destructive" });
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB
+        toast({ title: "Arquivo muito grande", description: "Tamanho máximo: 10MB", variant: "destructive" });
+        return;
+      }
+      setCertFile(file);
+    }
+  };
+
+  const handleUploadCertificado = async () => {
+    if (!certFile || !certPassword) {
+      toast({ title: "Preencha todos os campos", description: "Selecione o arquivo e informe a senha", variant: "destructive" });
+      return;
+    }
+
+    setUploadingCert(true);
+    try {
+      // Converter arquivo para base64
+      const arrayBuffer = await certFile.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+      // Validar certificado (chamar API para validar)
+      let validationResult: any = null;
+      try {
+        const { api, isApiConfigured } = await import("@/lib/api");
+        if (isApiConfigured()) {
+          try {
+            validationResult = await api.create("tenants/validar-certificado", {
+              certificadoPfxBase64: base64,
+              certificadoPassword: certPassword,
+              cnpj: form.cnpj.replace(/\D/g, ''),
+            });
+          } catch (apiError) {
+            console.warn("API de validação não disponível, salvando sem validação:", apiError);
+          }
+        }
+      } catch (error) {
+        console.warn("Erro ao validar certificado:", error);
+      }
+
+      if (validationResult) {
+        if (validationResult.valido) {
+          // Salvar certificado com validação
+          await updateTenant({
+            certificadoPfxBase64: base64,
+            certificadoPassword: certPassword,
+            certificadoStatus: validationResult.expirado ? "expirado" : "valido",
+            certificadoValidoAte: validationResult.validoAte,
+            certificadoCnpj: validationResult.cnpj,
+          });
+          toast({ title: "Certificado configurado e validado com sucesso!" });
+        } else {
+          toast({ title: "Certificado inválido", description: validationResult.mensagem || "Verifique o arquivo e a senha", variant: "destructive" });
+          setUploadingCert(false);
+          return;
+        }
+      } else {
+        // Sem validação disponível, salvar mesmo assim
+        await updateTenant({
+          certificadoPfxBase64: base64,
+          certificadoPassword: certPassword,
+          certificadoStatus: "configurado",
+        });
+        toast({ title: "Certificado salvo. Validação será feita na próxima emissão." });
+      }
+      
+      setCertFile(null);
+      setCertPassword("");
+      // Resetar input file
+      const fileInput = document.getElementById('cert-file') as HTMLInputElement;
+      if (fileInput) fileInput.value = '';
+    } catch (error: any) {
+      console.error("Erro ao salvar certificado:", error);
+      toast({ title: "Erro ao salvar certificado", description: error.message, variant: "destructive" });
+    } finally {
+      setUploadingCert(false);
+    }
+  };
+
+  const getCertStatusInfo = () => {
+    if (!tenant?.certificadoStatus || tenant.certificadoStatus === "nao_configurado") {
+      return { icon: XCircle, text: "Não configurado", color: "text-muted-foreground", bg: "bg-muted" };
+    }
+    if (tenant.certificadoStatus === "valido") {
+      return { icon: CheckCircle2, text: "Válido", color: "text-green-600 dark:text-green-400", bg: "bg-green-500/10" };
+    }
+    if (tenant.certificadoStatus === "expirado") {
+      return { icon: Clock, text: "Expirado", color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" };
+    }
+    if (tenant.certificadoStatus === "invalido") {
+      return { icon: XCircle, text: "Inválido", color: "text-red-600 dark:text-red-400", bg: "bg-red-500/10" };
+    }
+    return { icon: AlertCircle, text: "Configurado", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" };
   };
 
   const handleClearData = () => {
@@ -158,6 +262,115 @@ const Configuracoes = () => {
               className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="glass-card p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
+          <div className="flex items-center gap-3">
+            <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <div>
+              <h3 className="text-xs sm:text-sm font-semibold text-foreground">Certificado Digital CT-e</h3>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                Faça upload do certificado digital (.pfx) para emitir CTes na SEFAZ
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Status do Certificado */}
+        {tenant && (
+          <div className="mb-4 p-3 rounded-lg border border-border">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground">Status do Certificado:</span>
+              {(() => {
+                const statusInfo = getCertStatusInfo();
+                const StatusIcon = statusInfo.icon;
+                return (
+                  <div className={`flex items-center gap-2 px-2 py-1 rounded ${statusInfo.bg}`}>
+                    <StatusIcon className={`w-3 h-3 ${statusInfo.color}`} />
+                    <span className={`text-xs font-medium ${statusInfo.color}`}>{statusInfo.text}</span>
+                  </div>
+                );
+              })()}
+            </div>
+            {tenant.certificadoValidoAte && (
+              <p className="text-xs text-muted-foreground">
+                Válido até: {new Date(tenant.certificadoValidoAte).toLocaleDateString("pt-BR")}
+              </p>
+            )}
+            {tenant.certificadoCnpj && (
+              <p className="text-xs text-muted-foreground">
+                CNPJ do certificado: {tenant.certificadoCnpj}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Upload de Certificado */}
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-2 block">Arquivo do Certificado (.pfx ou .p12)</label>
+            <input
+              id="cert-file"
+              type="file"
+              accept=".pfx,.p12"
+              onChange={handleCertFileChange}
+              className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-primary file:text-primary-foreground hover:file:bg-primary/90 file:cursor-pointer cursor-pointer"
+            />
+            {certFile && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Arquivo selecionado: {certFile.name} ({(certFile.size / 1024).toFixed(2)} KB)
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Senha do Certificado</label>
+            <input
+              type="password"
+              value={certPassword}
+              onChange={(e) => setCertPassword(e.target.value)}
+              placeholder="Digite a senha do certificado"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <button
+            onClick={handleUploadCertificado}
+            disabled={!certFile || !certPassword || uploadingCert}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploadingCert ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Validando...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                {tenant?.certificadoStatus && tenant.certificadoStatus !== "nao_configurado" ? "Atualizar Certificado" : "Upload Certificado"}
+              </>
+            )}
+          </button>
+          {tenant?.certificadoStatus && tenant.certificadoStatus !== "nao_configurado" && (
+            <button
+              onClick={async () => {
+                if (confirm("Tem certeza que deseja remover o certificado?")) {
+                  await updateTenant({
+                    certificadoPfxBase64: null,
+                    certificadoPassword: null,
+                    certificadoStatus: "nao_configurado",
+                    certificadoValidoAte: null,
+                    certificadoCnpj: null,
+                  });
+                  toast({ title: "Certificado removido" });
+                }
+              }}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm bg-destructive/10 text-destructive font-medium hover:bg-destructive/20 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Remover Certificado
+            </button>
+          )}
         </div>
       </div>
 

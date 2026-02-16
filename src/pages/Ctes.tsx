@@ -214,6 +214,37 @@ const Ctes = () => {
         </button>
       </div>
 
+      {tenant?.certificadoStatus === "nao_configurado" && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-red-700 dark:text-red-400" />
+          <div className="flex-1 text-sm text-red-700 dark:text-red-400">
+            <p className="mb-1 font-medium">Certificado digital não configurado</p>
+            <p className="text-xs mb-2">
+              Para emitir CTes na SEFAZ, você precisa fazer upload do certificado digital nas{" "}
+              <Link to="/configuracoes" className="underline font-medium">
+                Configurações da Empresa
+              </Link>.
+            </p>
+          </div>
+        </div>
+      )}
+      
+      {tenant?.certificadoStatus === "expirado" && (
+        <div className="flex items-start gap-3 p-3 rounded-lg bg-orange-500/10 border border-orange-500/30">
+          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-orange-700 dark:text-orange-400" />
+          <div className="flex-1 text-sm text-orange-700 dark:text-orange-400">
+            <p className="mb-1 font-medium">Certificado digital expirado</p>
+            <p className="text-xs mb-2">
+              O certificado expirou em {tenant.certificadoValidoAte ? new Date(tenant.certificadoValidoAte).toLocaleDateString("pt-BR") : ""}. 
+              Faça upload de um novo certificado nas{" "}
+              <Link to="/configuracoes" className="underline font-medium">
+                Configurações
+              </Link>.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
         <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-700 dark:text-blue-400" />
         <div className="flex-1 text-sm text-blue-700 dark:text-blue-400">
@@ -332,12 +363,21 @@ const Ctes = () => {
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      {c.status === "rascunho" && (
+                      {c.status === "rascunho" && tenant?.certificadoStatus === "valido" && (
                         <button
                           onClick={() => handleEmitir(c)}
                           disabled={emitting}
                           className="p-1.5 rounded-md text-muted-foreground hover:text-green-600 hover:bg-green-500/10 transition-colors"
                           title="Emitir na SEFAZ"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      )}
+                      {c.status === "rascunho" && tenant?.certificadoStatus !== "valido" && (
+                        <button
+                          disabled
+                          className="p-1.5 rounded-md text-muted-foreground opacity-50 cursor-not-allowed"
+                          title="Configure certificado digital para emitir"
                         >
                           <Send className="w-4 h-4" />
                         </button>

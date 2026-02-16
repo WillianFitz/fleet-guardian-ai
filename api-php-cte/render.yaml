@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: api-cte-php
+    env: php
+    buildCommand: composer install --no-dev --optimize-autoloader
+    startCommand: php -S 0.0.0.0:$PORT -t .
+    envVars:
+      - key: CERT_PFX_BASE64
+        sync: false
+      - key: CERT_PASSWORD
+        sync: false
+      - key: CTE_CNPJ
+        sync: false
+      - key: CTE_UF
+        sync: false

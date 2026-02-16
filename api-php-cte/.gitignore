@@ -1,0 +1,6 @@
+vendor/
+certs/*.pfx
+certs/*.pem
+config/config.json
+.env
+*.log

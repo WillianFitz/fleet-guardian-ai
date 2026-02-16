@@ -1,0 +1,22 @@
+{
+  "atualizacao": "2026-02-16 12:00:00",
+  "tpAmb": 2,
+  "razaosocial": "SUA EMPRESA LTDA",
+  "siglaUF": "SP",
+  "cnpj": "12.345.678/0001-90",
+  "schemes": "PL_CTe_400",
+  "versao": "4.00",
+  "tokenIBPT": "",
+  "CSC": "",
+  "CSCid": "",
+  "aProxyConf": {
+    "proxyIp": "",
+    "proxyPort": "",
+    "proxyUser": "",
+    "proxyPass": ""
+  },
+  "certificado": {
+    "pfx": "certs/certificado.pfx",
+    "password": "senha_do_certificado"
+  }
+}
