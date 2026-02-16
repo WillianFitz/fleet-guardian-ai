@@ -13,6 +13,14 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\CTeService;
 
+/** Helper: Slim 4 PSR-7 Response não tem withJson(), então criamos um */
+function jsonResponse(Response $response, $data, int $status = 200): Response {
+    $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
+    return $response
+        ->withHeader('Content-Type', 'application/json; charset=utf-8')
+        ->withStatus($status);
+}
+
 $app = AppFactory::create();
 
 // CORS headers
@@ -40,7 +48,7 @@ $app->post('/emitir', function (Request $request, Response $response): Response 
     $body = json_decode($request->getBody()->getContents(), true);
     
     if (!$body) {
-        return $response->withStatus(400)->withJson(['error' => 'Body JSON inválido']);
+        return jsonResponse($response, ['error' => 'Body JSON inválido'], 400);
     }
     
     // Certificado pode vir no body (por tenant) ou usar variável de ambiente (fallback)
@@ -48,9 +56,9 @@ $app->post('/emitir', function (Request $request, Response $response): Response 
     $certPassword = $body['certificado']['password'] ?? getenv('CERT_PASSWORD');
     
     if (!$certPfxBase64 || !$certPassword) {
-        return $response->withStatus(400)->withJson([
+        return jsonResponse($response, [
             'error' => 'Certificado digital não configurado. Faça upload do certificado nas configurações da empresa.'
-        ]);
+        ], 400);
     }
     
     try {
@@ -71,9 +79,9 @@ $app->post('/emitir', function (Request $request, Response $response): Response 
         
         if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
             @unlink($tempCertPath);
-            return $response->withStatus(400)->withJson([
+            return jsonResponse($response, [
                 'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome da empresa nas Configurações do sistema.'
-            ]);
+            ], 400);
         }
         
         // Criar serviço CTe
@@ -85,13 +93,13 @@ $app->post('/emitir', function (Request $request, Response $response): Response 
         // Limpar arquivo temporário
         @unlink($tempCertPath);
         
-        return $response->withJson($resultado);
+        return jsonResponse($response, $resultado);
         
     } catch (\Exception $e) {
-        return $response->withStatus(500)->withJson([
+        return jsonResponse($response, [
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
-        ]);
+        ], 500);
     }
 });
 
@@ -103,7 +111,7 @@ $app->post('/validar-certificado', function (Request $request, Response $respons
     $body = json_decode($request->getBody()->getContents(), true);
     
     if (!$body || !$body['certificadoPfxBase64'] || !$body['certificadoPassword']) {
-        return $response->withStatus(400)->withJson(['error' => 'Certificado e senha são obrigatórios']);
+        return jsonResponse($response, ['error' => 'Certificado e senha são obrigatórios'], 400);
     }
     
     try {
@@ -127,7 +135,7 @@ $app->post('/validar-certificado', function (Request $request, Response $respons
         @unlink($tempCertPath);
         
         if (!$cert) {
-            return $response->withJson([
+            return jsonResponse($response, [
                 'valido' => false,
                 'mensagem' => 'Senha incorreta ou certificado inválido'
             ]);
@@ -149,7 +157,7 @@ $app->post('/validar-certificado', function (Request $request, Response $respons
             }
         }
         
-        return $response->withJson([
+        return jsonResponse($response, [
             'valido' => $valido,
             'expirado' => !$valido,
             'validoAte' => $validoAte,
@@ -158,9 +166,9 @@ $app->post('/validar-certificado', function (Request $request, Response $respons
         ]);
         
     } catch (\Exception $e) {
-        return $response->withStatus(500)->withJson([
+        return jsonResponse($response, [
             'error' => $e->getMessage()
-        ]);
+        ], 500);
     }
 });
 
@@ -174,7 +182,7 @@ $app->get('/consultar', function (Request $request, Response $response): Respons
     $ambiente = $queryParams['ambiente'] ?? 'homologacao';
     
     if (!$chave) {
-        return $response->withStatus(400)->withJson(['error' => 'Parâmetro chave é obrigatório']);
+        return jsonResponse($response, ['error' => 'Parâmetro chave é obrigatório'], 400);
     }
     
     // Certificado vem do Worker no body (já processado)
@@ -187,9 +195,9 @@ $app->get('/consultar', function (Request $request, Response $response): Respons
         $certPassword = $body['certificado']['password'] ?? getenv('CERT_PASSWORD');
         
         if (!$certPfxBase64 || !$certPassword) {
-            return $response->withStatus(400)->withJson([
+            return jsonResponse($response, [
                 'error' => 'Certificado digital não configurado para consulta.'
-            ]);
+            ], 400);
         }
         
         // Decodificar certificado
@@ -206,9 +214,9 @@ $app->get('/consultar', function (Request $request, Response $response): Respons
         
         if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
             @unlink($tempCertPath);
-            return $response->withStatus(400)->withJson([
+            return jsonResponse($response, [
                 'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome da empresa nas Configurações do sistema.'
-            ]);
+            ], 400);
         }
         
         // Criar serviço CTe
@@ -220,19 +228,19 @@ $app->get('/consultar', function (Request $request, Response $response): Respons
         // Limpar arquivo temporário
         @unlink($tempCertPath);
         
-        return $response->withJson($resultado);
+        return jsonResponse($response, $resultado);
         
     } catch (\Exception $e) {
-        return $response->withStatus(500)->withJson([
+        return jsonResponse($response, [
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
-        ]);
+        ], 500);
     }
 });
 
 // Health check
 $app->get('/health', function (Request $request, Response $response): Response {
-    return $response->withJson(['status' => 'ok', 'timestamp' => date('c')]);
+    return jsonResponse($response, ['status' => 'ok', 'timestamp' => date('c')]);
 });
 
 // GET /consultar também pode receber certificado no body (POST)
@@ -243,7 +251,7 @@ $app->post('/consultar', function (Request $request, Response $response): Respon
     $ambiente = $queryParams['ambiente'] ?? $body['ambiente'] ?? 'homologacao';
     
     if (!$chave) {
-        return $response->withStatus(400)->withJson(['error' => 'Parâmetro chave é obrigatório']);
+        return jsonResponse($response, ['error' => 'Parâmetro chave é obrigatório'], 400);
     }
     
     // Certificado pode vir no body
@@ -253,9 +261,9 @@ $app->post('/consultar', function (Request $request, Response $response): Respon
     try {
         // Certificado já vem no body
         if (!$certPfxBase64 || !$certPassword) {
-            return $response->withStatus(400)->withJson([
+            return jsonResponse($response, [
                 'error' => 'Certificado digital não configurado para consulta.'
-            ]);
+            ], 400);
         }
         
         // Decodificar certificado
@@ -272,9 +280,9 @@ $app->post('/consultar', function (Request $request, Response $response): Respon
         
         if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
             @unlink($tempCertPath);
-            return $response->withStatus(400)->withJson([
+            return jsonResponse($response, [
                 'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome da empresa nas Configurações do sistema.'
-            ]);
+            ], 400);
         }
         
         // Criar serviço CTe
@@ -286,9 +294,9 @@ $app->post('/consultar', function (Request $request, Response $response): Respon
         // Limpar arquivo temporário
         @unlink($tempCertPath);
         
-        return $response->withJson($resultado);
+        return jsonResponse($response, $resultado);
     } catch (\Exception $e) {
-        return $response->withStatus(500)->withJson(['error' => $e->getMessage()]);
+        return jsonResponse($response, ['error' => $e->getMessage()], 500);
     }
 });
 
