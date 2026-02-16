@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Wrench, Plus, Clock, CheckCircle, ArrowRight, Edit, Trash2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
-import { MaintenanceOrder } from "@/types/fleet";
-import { demoMaintenanceOrders } from "@/data/demoData";
+import { MaintenanceOrder, Vehicle } from "@/types/fleet";
+import { demoMaintenanceOrders, demoVehicles } from "@/data/demoData";
 import { toast } from "@/hooks/use-toast";
 
 const statusStyles: Record<string, string> = { aberta: "bg-warning/10 text-warning", em_andamento: "bg-info/10 text-info", concluida: "bg-success/10 text-success", cancelada: "bg-muted text-muted-foreground" };
@@ -16,6 +16,7 @@ const emptyForm: Omit<MaintenanceOrder, "id"> = {
 
 const Manutencao = () => {
   const { items, add, update, remove } = useStore<MaintenanceOrder>("maintenance", demoMaintenanceOrders);
+  const { items: vehicles } = useStore<Vehicle>("vehicles", demoVehicles);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<MaintenanceOrder | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -39,6 +40,18 @@ const Manutencao = () => {
   const handleNew = () => { setEditing(null); setForm({ ...emptyForm, numero: nextNum }); setDialogOpen(true); };
   const handleDelete = (id: string) => { remove(id); setDeleteConfirm(null); toast({ title: "OS removida!" }); };
   const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleVehicleSelect = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (vehicle) {
+      setForm(prev => ({
+        ...prev,
+        veiculoId: vehicle.id,
+        veiculoPlaca: vehicle.placa,
+        veiculoModelo: vehicle.modelo,
+      }));
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -92,6 +105,16 @@ const Manutencao = () => {
         <DialogContent className="bg-card border-border max-w-lg">
           <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar OS" : "Nova Ordem de Serviço"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Selecionar Veículo</label>
+              <select value={form.veiculoId || ""} onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
+                <option value="">Selecione um veículo...</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>
+                ))}
+              </select>
+            </div>
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Placa do Veículo</label><input value={form.veiculoPlaca} onChange={e => setField("veiculoPlaca", e.target.value)} placeholder="ABC-1234" className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Modelo</label><input value={form.veiculoModelo} onChange={e => setField("veiculoModelo", e.target.value)} placeholder="Scania R450" className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo</label><select value={form.tipo} onChange={e => setField("tipo", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"><option value="preventiva">Preventiva</option><option value="corretiva">Corretiva</option></select></div>

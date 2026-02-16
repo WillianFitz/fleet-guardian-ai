@@ -4,8 +4,8 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import KpiCard from "@/components/dashboard/KpiCard";
 import useStore from "@/hooks/useStore";
-import { FuelEntry } from "@/types/fleet";
-import { demoFuelEntries } from "@/data/demoData";
+import { FuelEntry, Vehicle, Driver } from "@/types/fleet";
+import { demoFuelEntries, demoVehicles, demoDrivers } from "@/data/demoData";
 import { toast } from "@/hooks/use-toast";
 
 const emptyForm: Omit<FuelEntry, "id"> = {
@@ -14,6 +14,8 @@ const emptyForm: Omit<FuelEntry, "id"> = {
 
 const Abastecimento = () => {
   const { items, add, update, remove } = useStore<FuelEntry>("fuel", demoFuelEntries);
+  const { items: vehicles } = useStore<Vehicle>("vehicles", demoVehicles);
+  const { items: drivers } = useStore<Driver>("drivers", demoDrivers);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FuelEntry | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -39,6 +41,19 @@ const Abastecimento = () => {
   const handleNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
   const handleDelete = (id: string) => { remove(id); setDeleteConfirm(null); toast({ title: "Registro removido!" }); };
   const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleVehicleSelect = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (vehicle) {
+      setForm(prev => ({
+        ...prev,
+        veiculoPlaca: vehicle.placa,
+        motorista: vehicle.motorista ? drivers.find(d => d.id === vehicle.motorista)?.nome || "" : "",
+        tipoCombustivel: vehicle.combustivel || prev.tipoCombustivel,
+        kmAtual: vehicle.km || prev.kmAtual,
+      }));
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -99,6 +114,16 @@ const Abastecimento = () => {
         <DialogContent className="bg-card border-border max-w-lg">
           <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar" : "Novo Abastecimento"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Selecionar Veículo</label>
+              <select value="" onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
+                <option value="">Selecione um veículo...</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>
+                ))}
+              </select>
+            </div>
             {[
               { label: "Placa", key: "veiculoPlaca", placeholder: "ABC-1234" },
               { label: "Motorista", key: "motorista", placeholder: "Nome" },
@@ -107,6 +132,7 @@ const Abastecimento = () => {
               { label: "KM Atual", key: "kmAtual", type: "number" },
               { label: "KM Anterior", key: "kmAnterior", type: "number" },
               { label: "Posto", key: "posto", placeholder: "Nome do posto" },
+              { label: "Tipo Combustível", key: "tipoCombustivel", placeholder: "Diesel S10" },
               { label: "Data", key: "data", type: "date" },
             ].map(f => (
               <div key={f.key}><label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>

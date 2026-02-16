@@ -37,8 +37,10 @@ const Veiculos = () => {
 
   const handleSave = () => {
     if (!form.placa || !form.modelo) { toast({ title: "Preencha placa e modelo", variant: "destructive" }); return; }
-    if (editing) { update(editing.id, form); toast({ title: "Veículo atualizado!" }); }
-    else { add(form); toast({ title: "Veículo cadastrado!" }); }
+    // Garante que o campo motorista seja salvo corretamente (mesmo que seja string vazia)
+    const dataToSave = { ...form, motorista: form.motorista || "" };
+    if (editing) { update(editing.id, dataToSave); toast({ title: "Veículo atualizado!" }); }
+    else { add(dataToSave); toast({ title: "Veículo cadastrado!" }); }
     setDialogOpen(false); setEditing(null); setForm(emptyForm);
   };
 
@@ -142,7 +144,7 @@ const Veiculos = () => {
             ))}
             <div className="col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Motorista</label>
-              <select value={form.motorista} onChange={(e) => setField("motorista", e.target.value)}
+              <select value={form.motorista || ""} onChange={(e) => setField("motorista", e.target.value)}
                 className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
                 <option value="">Sem motorista</option>
                 {drivers.map((d) => (
