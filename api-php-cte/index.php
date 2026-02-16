@@ -11,6 +11,7 @@ require __DIR__ . '/vendor/autoload.php';
 use Slim\Factory\AppFactory;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\CTeService;
 
 $app = AppFactory::create();
 
@@ -60,34 +61,30 @@ $app->post('/emitir', function (Request $request, Response $response): Response 
         $tempCertPath = sys_get_temp_dir() . '/cert_' . uniqid() . '.pfx';
         file_put_contents($tempCertPath, $certPfx);
         
-        // TODO: Implementar emissão usando nfephp-org/sped-cte com certificado
-        // $tools = new \NFePHP\CTe\Tools($config, \NFePHP\Common\Certificate::readPfx($tempCertPath, $certPassword));
-        // $resp = $tools->sefazEnvia($xml, $ambiente === 'producao' ? '1' : '2');
+        // Dados da empresa (podem vir do body ou variáveis de ambiente)
+        $empresaDados = [
+            'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? 'EMPRESA LTDA',
+            'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
+        ];
+        
+        if (empty($empresaDados['cnpj'])) {
+            @unlink($tempCertPath);
+            return $response->withStatus(400)->withJson([
+                'error' => 'CNPJ da empresa não informado. Configure no body ou variável CTE_CNPJ.'
+            ]);
+        }
+        
+        // Criar serviço CTe
+        $cteService = new CTeService($tempCertPath, $certPassword, $empresaDados, $ambiente);
+        
+        // Emitir CT-e
+        $resultado = $cteService->emitir($body);
         
         // Limpar arquivo temporário
         @unlink($tempCertPath);
-        // TODO: Implementar emissão usando nfephp-org/sped-cte
-        // Por enquanto retorna mock para teste
         
-        // Exemplo de como seria:
-        // $cte = new \NFePHP\CTe\Make();
-        // $cte->taginfCte(...);
-        // $cte->monta();
-        // $xml = $cte->getXML();
-        // 
-        // $tools = new \NFePHP\CTe\Tools($config, \NFePHP\Common\Certificate::readPfx($certPfx, $certPass));
-        // $resp = $tools->sefazEnvia($xml, $ambiente === 'producao' ? '1' : '2');
-        
-        // Mock response para teste
-        $mockResponse = [
-            'chave' => '352' . str_pad(rand(100000000, 999999999), 9, '0', STR_PAD_LEFT) . '57' . str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT) . rand(100, 999),
-            'protocolo' => '123456789012345',
-            'xml' => '<?xml version="1.0"?><CTe>...</CTe>',
-            'ambiente' => $ambiente,
-            'message' => 'CTe emitido com sucesso (MOCK - implementar com SPED-CTe)'
-        ];
-        
-        return $response->withJson($mockResponse);
+        return $response->withJson($resultado);
         
     } catch (\Exception $e) {
         return $response->withStatus(500)->withJson([
@@ -183,23 +180,46 @@ $app->get('/consultar', function (Request $request, Response $response): Respons
     // Por enquanto usa mock
     
     try {
-        // TODO: Implementar consulta usando nfephp-org/sped-cte
-        // Por enquanto retorna mock para teste
+        // Certificado pode vir do body (POST) ou variável de ambiente
+        $body = json_decode($request->getBody()->getContents(), true) ?? [];
+        $certPfxBase64 = $body['certificado']['pfxBase64'] ?? getenv('CERT_PFX_BASE64');
+        $certPassword = $body['certificado']['password'] ?? getenv('CERT_PASSWORD');
         
-        // Exemplo de como seria:
-        // $tools = new \NFePHP\CTe\Tools($config, \NFePHP\Common\Certificate::readPfx($certPfx, $certPass));
-        // $resp = $tools->sefazConsulta($chave, $ambiente === 'producao' ? '1' : '2');
+        if (!$certPfxBase64 || !$certPassword) {
+            return $response->withStatus(400)->withJson([
+                'error' => 'Certificado digital não configurado para consulta.'
+            ]);
+        }
         
-        // Mock response para teste
-        $mockResponse = [
-            'status' => '100', // 100 = autorizado
-            'protocolo' => '123456789012345',
-            'xml' => '<?xml version="1.0"?><retConsSitCTe>...</retConsSitCTe>',
-            'ambiente' => $ambiente,
-            'message' => 'Consulta realizada (MOCK - implementar com SPED-CTe)'
+        // Decodificar certificado
+        $certPfx = base64_decode($certPfxBase64);
+        $tempCertPath = sys_get_temp_dir() . '/cert_cons_' . uniqid() . '.pfx';
+        file_put_contents($tempCertPath, $certPfx);
+        
+        // Dados da empresa
+        $empresaDados = [
+            'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? 'EMPRESA LTDA',
+            'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
         ];
         
-        return $response->withJson($mockResponse);
+        if (empty($empresaDados['cnpj'])) {
+            @unlink($tempCertPath);
+            return $response->withStatus(400)->withJson([
+                'error' => 'CNPJ da empresa não informado.'
+            ]);
+        }
+        
+        // Criar serviço CTe
+        $cteService = new CTeService($tempCertPath, $certPassword, $empresaDados, $ambiente);
+        
+        // Consultar CT-e
+        $resultado = $cteService->consultar($chave);
+        
+        // Limpar arquivo temporário
+        @unlink($tempCertPath);
+        
+        return $response->withJson($resultado);
         
     } catch (\Exception $e) {
         return $response->withStatus(500)->withJson([
@@ -230,12 +250,42 @@ $app->post('/consultar', function (Request $request, Response $response): Respon
     $certPassword = $body['certificado']['password'] ?? getenv('CERT_PASSWORD');
     
     try {
-        // TODO: Implementar consulta real com certificado
-        return $response->withJson([
-            'status' => '100',
-            'protocolo' => '123456789012345',
-            'ambiente' => $ambiente
-        ]);
+        // Certificado já vem no body
+        if (!$certPfxBase64 || !$certPassword) {
+            return $response->withStatus(400)->withJson([
+                'error' => 'Certificado digital não configurado para consulta.'
+            ]);
+        }
+        
+        // Decodificar certificado
+        $certPfx = base64_decode($certPfxBase64);
+        $tempCertPath = sys_get_temp_dir() . '/cert_cons_' . uniqid() . '.pfx';
+        file_put_contents($tempCertPath, $certPfx);
+        
+        // Dados da empresa
+        $empresaDados = [
+            'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? 'EMPRESA LTDA',
+            'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
+        ];
+        
+        if (empty($empresaDados['cnpj'])) {
+            @unlink($tempCertPath);
+            return $response->withStatus(400)->withJson([
+                'error' => 'CNPJ da empresa não informado.'
+            ]);
+        }
+        
+        // Criar serviço CTe
+        $cteService = new CTeService($tempCertPath, $certPassword, $empresaDados, $ambiente);
+        
+        // Consultar CT-e
+        $resultado = $cteService->consultar($chave);
+        
+        // Limpar arquivo temporário
+        @unlink($tempCertPath);
+        
+        return $response->withJson($resultado);
     } catch (\Exception $e) {
         return $response->withStatus(500)->withJson(['error' => $e->getMessage()]);
     }

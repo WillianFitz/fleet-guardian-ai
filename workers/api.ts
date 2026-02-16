@@ -472,16 +472,31 @@ export default {
           const phpUrl = new URL(`${env.CTE_API_URL}/emitir`);
           phpUrl.searchParams.set("ambiente", ambiente);
           
-          // Buscar certificado do tenant
+          // Buscar certificado e dados da empresa do tenant
           const { tenantId } = await getTenantForRequest(request, env);
-          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, certificado_status FROM tenants WHERE id = ?")
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, certificado_status, cnpj, nome FROM tenants WHERE id = ?")
             .bind(tenantId)
-            .first<{ certificado_pfx_base64?: string; certificado_password?: string; certificado_status?: string }>();
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string; certificado_status?: string; cnpj?: string; nome?: string }>();
 
-          // Adicionar certificado ao body se existir
-          const phpBodyWithCert = tenant?.certificado_pfx_base64 && tenant?.certificado_password
-            ? { ...phpBody, certificado: { pfxBase64: tenant.certificado_pfx_base64, password: tenant.certificado_password } }
-            : phpBody;
+          // Preparar body com certificado e dados da empresa
+          let phpBodyWithCert = { ...phpBody };
+          
+          if (tenant?.certificado_pfx_base64 && tenant?.certificado_password) {
+            phpBodyWithCert.certificado = {
+              pfxBase64: tenant.certificado_pfx_base64,
+              password: tenant.certificado_password
+            };
+          }
+          
+          // Adicionar dados da empresa (necessário para sped-cte)
+          if (tenant?.cnpj && tenant?.nome) {
+            // Extrair UF do CNPJ ou usar padrão (você pode melhorar isso buscando UF do tenant)
+            phpBodyWithCert.empresa = {
+              cnpj: tenant.cnpj,
+              razaoSocial: tenant.nome,
+              siglaUF: 'SP' // TODO: Adicionar campo uf na tabela tenants ou inferir de outra forma
+            };
+          }
 
           const phpResponse = await fetch(phpUrl.toString(), {
             method: "POST",
@@ -515,25 +530,37 @@ export default {
           phpUrl.searchParams.set("chave", chave);
           phpUrl.searchParams.set("ambiente", ambiente);
           
-          // Buscar certificado do tenant para consulta também
+          // Buscar certificado e dados da empresa do tenant para consulta
           const { tenantId } = await getTenantForRequest(request, env);
-          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password FROM tenants WHERE id = ?")
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, cnpj, nome FROM tenants WHERE id = ?")
             .bind(tenantId)
-            .first<{ certificado_pfx_base64?: string; certificado_password?: string }>();
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string; cnpj?: string; nome?: string }>();
 
           const headers: Record<string, string> = {
             ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
           };
 
-          // Se tiver certificado, enviar no body da requisição
-          let body: string | undefined;
+          // Preparar body com certificado e dados da empresa
+          let bodyData: any = {};
           if (tenant?.certificado_pfx_base64 && tenant?.certificado_password) {
-            body = JSON.stringify({
-              certificado: {
-                pfxBase64: tenant.certificado_pfx_base64,
-                password: tenant.certificado_password
-              }
-            });
+            bodyData.certificado = {
+              pfxBase64: tenant.certificado_pfx_base64,
+              password: tenant.certificado_password
+            };
+          }
+          
+          // Adicionar dados da empresa
+          if (tenant?.cnpj && tenant?.nome) {
+            bodyData.empresa = {
+              cnpj: tenant.cnpj,
+              razaoSocial: tenant.nome,
+              siglaUF: 'SP' // TODO: Adicionar campo uf na tabela tenants
+            };
+          }
+          
+          let body: string | undefined;
+          if (Object.keys(bodyData).length > 0) {
+            body = JSON.stringify(bodyData);
             headers["Content-Type"] = "application/json";
           }
 
