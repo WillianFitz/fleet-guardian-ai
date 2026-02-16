@@ -54,10 +54,10 @@ const Manutencao = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-foreground">Manutenção</h1><p className="text-sm text-muted-foreground mt-1">Ordens de serviço e planejamento</p></div>
-        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"><Plus className="w-4 h-4" />Nova OS</button>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+        <div><h1 className="text-xl sm:text-2xl font-bold text-foreground">Manutenção</h1><p className="text-xs sm:text-sm text-muted-foreground mt-1">Ordens de serviço e planejamento</p></div>
+        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"><Plus className="w-4 h-4" />Nova OS</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -78,20 +78,20 @@ const Manutencao = () => {
           const safePrioridade = os.prioridade && prioridadeStyles[os.prioridade] ? os.prioridade : "media";
           const prioridadeCls = prioridadeStyles[safePrioridade];
           return (
-          <div key={os.id} className="glass-card p-4 flex items-center gap-4 hover:border-primary/20 transition-all group animate-slide-in" style={{ animationDelay: `${i * 60}ms` }}>
+          <div key={os.id} className="glass-card p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 hover:border-primary/20 transition-all group animate-slide-in" style={{ animationDelay: `${i * 60}ms` }}>
             <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center flex-shrink-0"><Wrench className="w-5 h-5 text-muted-foreground" /></div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
+            <div className="flex-1 min-w-0 w-full sm:w-auto">
+              <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                 <span className="text-xs font-mono text-primary font-medium">{os.numero}</span>
                 <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full uppercase ${os.tipo === "preventiva" ? "bg-info/10 text-info" : "bg-warning/10 text-warning"}`}>{os.tipo}</span>
               </div>
               <p className="text-sm font-medium text-foreground">{os.descricao}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{os.veiculoModelo} • {os.veiculoPlaca}</p>
             </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 flex-wrap w-full sm:w-auto">
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase ${prioridadeCls}`}>{safePrioridade}</span>
               <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusCls}`}>{statusLabel}</span>
-              {os.custo > 0 && <span className="text-sm font-mono text-foreground">R$ {os.custo.toLocaleString("pt-BR")}</span>}
+              {os.custo > 0 && <span className="text-xs sm:text-sm font-mono text-foreground">R$ {os.custo.toLocaleString("pt-BR")}</span>}
               <span className="text-xs text-muted-foreground">{os.data}</span>
               <button onClick={() => handleEdit(os)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Edit className="w-4 h-4" /></button>
               <button onClick={() => setDeleteConfirm(os.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"><Trash2 className="w-4 h-4" /></button>
@@ -102,10 +102,10 @@ const Manutencao = () => {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar OS" : "Nova Ordem de Serviço"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            <div className="col-span-2">
+        <DialogContent className="bg-card border-border max-w-lg mx-4">
+          <DialogHeader><DialogTitle className="text-sm sm:text-base text-foreground">{editing ? "Editar OS" : "Nova Ordem de Serviço"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div className="col-span-1 sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Selecionar Veículo</label>
               <select value={form.veiculoId || ""} onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
                 className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
@@ -121,8 +121,8 @@ const Manutencao = () => {
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Prioridade</label><select value={form.prioridade} onChange={e => setField("prioridade", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label><select value={form.status} onChange={e => setField("status", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"><option value="aberta">Aberta</option><option value="em_andamento">Em Andamento</option><option value="concluida">Concluída</option><option value="cancelada">Cancelada</option></select></div>
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Custo (R$)</label><input type="number" value={form.custo} onChange={e => setField("custo", Number(e.target.value))} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
-            <div className="col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Descrição</label><input value={form.descricao} onChange={e => setField("descricao", e.target.value)} placeholder="Descreva o serviço" className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
-            <div className="col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Oficina</label><input value={form.oficina} onChange={e => setField("oficina", e.target.value)} placeholder="Nome da oficina" className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
+            <div className="col-span-1 sm:col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Descrição</label><input value={form.descricao} onChange={e => setField("descricao", e.target.value)} placeholder="Descreva o serviço" className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
+            <div className="col-span-1 sm:col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Oficina</label><input value={form.oficina} onChange={e => setField("oficina", e.target.value)} placeholder="Nome da oficina" className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <button onClick={() => setDialogOpen(false)} className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancelar</button>

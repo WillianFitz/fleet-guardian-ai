@@ -48,10 +48,10 @@ const Seguros = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-foreground">Seguros</h1><p className="text-sm text-muted-foreground mt-1">Gestão de apólices</p></div>
-        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"><Plus className="w-4 h-4" />Novo Seguro</button>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+        <div><h1 className="text-xl sm:text-2xl font-bold text-foreground">Seguros</h1><p className="text-xs sm:text-sm text-muted-foreground mt-1">Gestão de apólices</p></div>
+        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"><Plus className="w-4 h-4" />Novo Seguro</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -61,8 +61,9 @@ const Seguros = () => {
       </div>
 
       <div className="glass-card overflow-hidden">
-        <table className="w-full">
-          <thead><tr className="border-b border-border">{["Apólice", "Seguradora", "Veículo", "Tipo", "Prêmio", "Franquia", "Vigência", "Status", "Ações"].map(h => <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">{h}</th>)}</tr></thead>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
+            <thead><tr className="border-b border-border">{["Apólice", "Seguradora", "Veículo", "Tipo", "Prêmio", "Franquia", "Vigência", "Status", "Ações"].map(h => <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 sm:px-5 py-2 sm:py-3">{h}</th>)}</tr></thead>
           <tbody>
             {items.map(i => {
               const safeStatus = i.status && statusStyles[i.status] ? i.status : "ativa";
@@ -83,16 +84,17 @@ const Seguros = () => {
                 </div></td>
               </tr>
             )})}
-            {items.length === 0 && <tr><td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">Nenhum seguro</td></tr>}
+            {items.length === 0 && <tr><td colSpan={9} className="px-3 sm:px-5 py-10 text-center text-muted-foreground">Nenhum seguro</td></tr>}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar" : "Novo Seguro"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            <div className="col-span-2">
+        <DialogContent className="bg-card border-border max-w-lg mx-4">
+          <DialogHeader><DialogTitle className="text-sm sm:text-base text-foreground">{editing ? "Editar" : "Novo Seguro"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+            <div className="col-span-1 sm:col-span-2">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Selecionar Veículo</label>
               <select value="" onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
                 className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
@@ -113,7 +115,7 @@ const Seguros = () => {
                 <input type={f.type || "text"} value={(form as any)[f.key] ?? ""} onChange={e => setField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)} placeholder={f.placeholder}
                   className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>
             ))}
-            <div className="col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label><select value={form.status} onChange={e => setField("status", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"><option value="ativa">Ativa</option><option value="vencida">Vencida</option><option value="cancelada">Cancelada</option></select></div>
+            <div className="col-span-1 sm:col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label><select value={form.status} onChange={e => setField("status", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"><option value="ativa">Ativa</option><option value="vencida">Vencida</option><option value="cancelada">Cancelada</option></select></div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <button onClick={() => setDialogOpen(false)} className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancelar</button>

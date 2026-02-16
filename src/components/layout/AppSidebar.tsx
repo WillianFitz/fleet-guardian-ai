@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Truck, LayoutDashboard, Wrench, Fuel, DollarSign, Users, Package,
   ShieldCheck, FileText, CircleDot, AlertTriangle, ParkingCircle,
-  ChevronLeft, ChevronRight, Settings, Brain, BarChart3, Car, FileBarChart
+  ChevronLeft, ChevronRight, Settings, Brain, BarChart3, Car, FileBarChart, Menu, X
 } from "lucide-react";
 
 const menuGroups = [
@@ -47,14 +47,35 @@ const menuGroups = [
 
 const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 
   return (
-    <aside
-      className={`fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-all duration-300 ${
-        collapsed ? "w-16" : "w-60"
-      }`}
-    >
+    <>
+      {/* Mobile menu button */}
+      <button
+        onClick={() => setMobileOpen(!mobileOpen)}
+        className="lg:hidden fixed top-4 left-4 z-[60] p-2 rounded-lg bg-card border border-border text-foreground hover:bg-muted transition-colors"
+      >
+        {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 z-[55]"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col z-50 transition-all duration-300 ${
+          collapsed ? "w-16" : "w-60"
+        } ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        } lg:flex`}
+      >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
@@ -81,9 +102,10 @@ const AppSidebar = () => {
               {group.items.map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
-                  <Link
+                    <Link
                     key={item.path}
                     to={item.path}
+                    onClick={() => setMobileOpen(false)}
                     className={`flex items-center gap-3 px-2.5 py-2 rounded-md text-sm transition-all group ${
                       isActive
                         ? "bg-primary/10 text-primary"
@@ -112,6 +134,7 @@ const AppSidebar = () => {
         {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
       </button>
     </aside>
+    </>
   );
 };
 

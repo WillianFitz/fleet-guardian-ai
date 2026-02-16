@@ -58,12 +58,12 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
-      <div className="w-full max-w-3xl mx-4 glass-card border border-slate-800/60 shadow-2xl shadow-primary/10 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
-        <div className="relative hidden md:flex flex-col justify-between bg-gradient-to-br from-primary/10 via-slate-900 to-slate-950 p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-4">
+      <div className="w-full max-w-3xl glass-card border border-slate-800/60 shadow-2xl shadow-primary/10 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+        <div className="relative hidden md:flex flex-col justify-between bg-gradient-to-br from-primary/10 via-slate-900 to-slate-950 p-6 md:p-8">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Fleet Guardian AI</h1>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <h1 className="text-xl md:text-2xl font-bold text-foreground">Fleet Guardian AI</h1>
+            <p className="mt-2 text-xs md:text-sm text-muted-foreground">
               Plataforma completa para gestão de frotas com insights inteligentes, manutenção
               preditiva e controle financeiro unificado.
             </p>
@@ -84,12 +84,12 @@ const Login = () => {
           </div>
         </div>
 
-        <div className="p-6 md:p-8 bg-slate-950/90">
-          <div className="flex gap-2 mb-6">
+        <div className="p-4 sm:p-6 md:p-8 bg-slate-950/90">
+          <div className="flex gap-2 mb-4 sm:mb-6">
             <button
               type="button"
               onClick={() => setMode("login")}
-              className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                 mode === "login"
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -112,7 +112,7 @@ const Login = () => {
 
           {mode === "login" ? (
             <>
-              <h2 className="text-lg font-semibold text-foreground mb-4">Acessar sua conta</h2>
+              <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4">Acessar sua conta</h2>
               <div className="space-y-3">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">
@@ -150,7 +150,7 @@ const Login = () => {
             </>
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-foreground mb-4">
+              <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4">
                 Criar nova empresa
               </h2>
               <div className="space-y-3">
@@ -199,7 +199,7 @@ const Login = () => {
                     placeholder="voce@empresa.com.br"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">
                       Senha

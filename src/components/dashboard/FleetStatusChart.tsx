@@ -16,17 +16,17 @@ const FleetStatusChart = () => {
   const total = vehicles.length;
 
   return (
-    <div className="glass-card p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">Status da Frota</h3>
+    <div className="glass-card p-4 sm:p-5">
+      <h3 className="text-xs sm:text-sm font-semibold text-foreground mb-4">Status da Frota</h3>
       {total === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <Truck className="w-8 h-8 text-muted-foreground/40 mb-3" />
-          <p className="text-sm text-muted-foreground">Nenhum veículo cadastrado</p>
-          <p className="text-xs text-muted-foreground/60 mt-1">Cadastre veículos para ver o gráfico de status</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Nenhum veículo cadastrado</p>
+          <p className="text-[10px] sm:text-xs text-muted-foreground/60 mt-1">Cadastre veículos para ver o gráfico de status</p>
         </div>
       ) : (
-        <div className="flex items-center gap-6">
-          <div className="w-40 h-40 relative">
+        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+          <div className="w-32 h-32 sm:w-40 sm:h-40 relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie data={statusData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value" strokeWidth={0}>
@@ -36,11 +36,11 @@ const FleetStatusChart = () => {
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold font-mono text-foreground">{total}</span>
+              <span className="text-xl sm:text-2xl font-bold font-mono text-foreground">{total}</span>
               <span className="text-[10px] text-muted-foreground">veículos</span>
             </div>
           </div>
-          <div className="flex-1 space-y-2.5">
+          <div className="flex-1 space-y-2.5 w-full sm:w-auto">
             {statusData.map((item) => (
               <div key={item.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-2"><div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} /><span className="text-xs text-muted-foreground">{item.name}</span></div>

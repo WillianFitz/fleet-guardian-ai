@@ -83,17 +83,20 @@ const Relatorios = () => {
       const element = reportRef.current;
       if (!element) return;
 
+      // Esperar um pouco para garantir que o conteúdo está renderizado
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: "#ffffff",
-        windowWidth: element.scrollWidth,
-        windowHeight: element.scrollHeight,
+        width: element.scrollWidth,
+        height: element.scrollHeight,
         allowTaint: true,
+        removeContainer: false,
       });
 
-      const imgData = canvas.toDataURL("image/png", 1.0);
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -105,23 +108,17 @@ const Relatorios = () => {
       
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
+      
+      // Calcular escala para caber na largura
       const ratio = contentWidth / imgWidth;
       const imgScaledWidth = imgWidth * ratio;
       const imgScaledHeight = imgHeight * ratio;
       
-      // Calcular número de páginas necessárias
-      const totalPages = Math.ceil(imgScaledHeight / contentHeight);
-      
-      // Criar um canvas temporário para cada página
-      const tempCanvas = document.createElement("canvas");
-      const tempCtx = tempCanvas.getContext("2d");
-      if (!tempCtx) {
-        throw new Error("Não foi possível criar contexto do canvas");
-      }
-      
-      tempCanvas.width = imgWidth;
+      // Calcular altura em pixels equivalente à altura do conteúdo do PDF
       const pageHeightInPixels = Math.ceil(contentHeight / ratio);
-      tempCanvas.height = pageHeightInPixels;
+      
+      // Calcular número de páginas necessárias
+      const totalPages = Math.ceil(imgHeight / pageHeightInPixels);
       
       // Processar cada página
       for (let page = 0; page < totalPages; page++) {
@@ -133,18 +130,26 @@ const Relatorios = () => {
         const sourceY = page * pageHeightInPixels;
         const sourceHeight = Math.min(pageHeightInPixels, imgHeight - sourceY);
         
-        // Limpar o canvas temporário com fundo branco
+        // Criar canvas temporário para esta página
+        const tempCanvas = document.createElement("canvas");
+        const tempCtx = tempCanvas.getContext("2d");
+        if (!tempCtx) {
+          throw new Error("Não foi possível criar contexto do canvas");
+        }
+        
+        tempCanvas.width = imgWidth;
+        tempCanvas.height = sourceHeight;
+        
+        // Preencher com fundo branco
         tempCtx.fillStyle = "#ffffff";
         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
         
         // Copiar apenas a parte relevante da imagem original
-        if (sourceHeight > 0) {
-          tempCtx.drawImage(
-            canvas,
-            0, sourceY, imgWidth, sourceHeight,  // Área de origem (x, y, width, height)
-            0, 0, imgWidth, sourceHeight         // Área de destino
-          );
-        }
+        tempCtx.drawImage(
+          canvas,
+          0, sourceY, imgWidth, sourceHeight,  // Área de origem
+          0, 0, imgWidth, sourceHeight          // Área de destino
+        );
         
         // Converter para imagem e adicionar ao PDF
         const pageImgData = tempCanvas.toDataURL("image/png", 1.0);
@@ -180,8 +185,8 @@ const Relatorios = () => {
         </div>
       </div>
 
-      <div className="glass-card p-6 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="glass-card p-4 sm:p-6 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block flex items-center gap-2">
               <Truck className="w-4 h-4" />
@@ -241,11 +246,9 @@ const Relatorios = () => {
       {selectedVehicle && (
         <div 
           ref={reportRef} 
-          className="bg-white text-gray-900" 
+          className="bg-white text-gray-900 w-full max-w-[210mm] mx-auto" 
           style={{ 
-            width: "210mm", 
             minHeight: "297mm",
-            margin: "0 auto", 
             padding: "20mm", 
             fontFamily: "Arial, sans-serif",
             backgroundColor: "#ffffff",
@@ -255,19 +258,19 @@ const Relatorios = () => {
         >
           {/* Cabeçalho */}
           <div className="mb-8 pb-6 border-b-4 border-blue-600">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-4xl font-bold text-blue-900 mb-1">RELATÓRIO DE VEÍCULO</h1>
-                <p className="text-sm text-gray-600">Fleet Guardian AI - Sistema de Gestão de Frotas</p>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
+              <div className="flex-1">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-900 mb-1">RELATÓRIO DE VEÍCULO</h1>
+                <p className="text-xs sm:text-sm text-gray-600">Fleet Guardian AI - Sistema de Gestão de Frotas</p>
               </div>
-              <div className="text-right">
-                <div className="bg-blue-600 text-white px-4 py-2 rounded">
+              <div className="text-left sm:text-right">
+                <div className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded">
                   <p className="text-xs font-semibold uppercase">Placa</p>
-                  <p className="text-2xl font-bold">{selectedVehicle.placa}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{selectedVehicle.placa}</p>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-6 text-sm mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 text-sm mt-4">
               <div className="bg-gray-50 p-3 rounded">
                 <p className="text-xs text-gray-600 uppercase mb-1">Modelo</p>
                 <p className="font-bold text-base">{selectedVehicle.modelo}</p>
@@ -291,8 +294,8 @@ const Relatorios = () => {
 
           {/* Resumo de Custos */}
           <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4 text-blue-900 pb-2 border-b-2 border-blue-600">RESUMO DE CUSTOS</h2>
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <h2 className="text-xl sm:text-2xl font-bold mb-4 text-blue-900 pb-2 border-b-2 border-blue-600">RESUMO DE CUSTOS</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 p-4 rounded-lg border-2 border-yellow-400">
                 <div className="flex items-center justify-between mb-2">
                   <p className="font-bold text-sm text-gray-700 uppercase">Combustível</p>
@@ -328,8 +331,9 @@ const Relatorios = () => {
           {/* Abastecimentos */}
           {filteredFuel.length > 0 && (
             <div className="mb-8" style={pageBreakStyle}>
-              <h2 className="text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">ABASTECIMENTOS</h2>
-              <table className="w-full text-sm border-collapse">
+              <h2 className="text-lg sm:text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">ABASTECIMENTOS</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-blue-600 text-white">
                     <th className="border border-blue-800 px-3 py-2 text-left font-bold">Data</th>
@@ -359,8 +363,9 @@ const Relatorios = () => {
           {/* Manutenções */}
           {filteredMaintenance.length > 0 && (
             <div className="mb-8" style={pageBreakStyle}>
-              <h2 className="text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">MANUTENÇÕES</h2>
-              <table className="w-full text-sm border-collapse">
+              <h2 className="text-lg sm:text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">MANUTENÇÕES</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-orange-600 text-white">
                     <th className="border border-orange-800 px-3 py-2 text-left font-bold">OS</th>
@@ -396,14 +401,16 @@ const Relatorios = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
           {/* Despesas */}
           {filteredExpenses.length > 0 && (
             <div className="mb-8" style={pageBreakStyle}>
-              <h2 className="text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">DESPESAS</h2>
-              <table className="w-full text-sm border-collapse">
+              <h2 className="text-lg sm:text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">DESPESAS</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-purple-600 text-white">
                     <th className="border border-purple-800 px-3 py-2 text-left font-bold">Data</th>
@@ -435,14 +442,16 @@ const Relatorios = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
           {/* Pneus */}
           {filteredTires.length > 0 && (
             <div className="mb-8" style={pageBreakStyle}>
-              <h2 className="text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">PNEUS</h2>
-              <table className="w-full text-sm border-collapse">
+              <h2 className="text-lg sm:text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">PNEUS</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-teal-600 text-white">
                     <th className="border border-teal-800 px-3 py-2 text-left font-bold">Código</th>
@@ -481,14 +490,16 @@ const Relatorios = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
           {/* Licenciamentos */}
           {filteredLicenses.length > 0 && (
             <div className="mb-8" style={pageBreakStyle}>
-              <h2 className="text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">LICENCIAMENTOS</h2>
-              <table className="w-full text-sm border-collapse">
+              <h2 className="text-lg sm:text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">LICENCIAMENTOS</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-indigo-600 text-white">
                     <th className="border border-indigo-800 px-3 py-2 text-left font-bold">Tipo</th>
@@ -519,14 +530,16 @@ const Relatorios = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
           {/* Seguros */}
           {filteredInsurances.length > 0 && (
             <div className="mb-8" style={pageBreakStyle}>
-              <h2 className="text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">SEGUROS</h2>
-              <table className="w-full text-sm border-collapse">
+              <h2 className="text-lg sm:text-xl font-bold mb-3 text-blue-900 pb-2 border-b-2 border-blue-600">SEGUROS</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm border-collapse min-w-[600px]">
                 <thead>
                   <tr className="bg-green-600 text-white">
                     <th className="border border-green-800 px-3 py-2 text-left font-bold">Apólice</th>

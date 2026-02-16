@@ -30,8 +30,8 @@ const Kpis = () => {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div><h1 className="text-2xl font-bold text-foreground">KPIs da Frota</h1><p className="text-sm text-muted-foreground mt-1">Indicadores-chave de desempenho</p></div>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div><h1 className="text-xl sm:text-2xl font-bold text-foreground">KPIs da Frota</h1><p className="text-xs sm:text-sm text-muted-foreground mt-1">Indicadores-chave de desempenho</p></div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard icon={Truck} title="Veículos Ativos" value={`${operando}/${vehicles.length}`} variant="default" />
@@ -48,10 +48,10 @@ const Kpis = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="glass-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Distribuição de Custos</h3>
-          <div className="flex items-center gap-6">
-            <div className="w-40 h-40 relative">
+        <div className="glass-card p-4 sm:p-5">
+          <h3 className="text-xs sm:text-sm font-semibold text-foreground mb-4">Distribuição de Custos</h3>
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+            <div className="w-32 h-32 sm:w-40 sm:h-40 relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart><Pie data={custoData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value" strokeWidth={0}>
                   {custoData.map((e, i) => <Cell key={i} fill={e.color} />)}
@@ -73,8 +73,8 @@ const Kpis = () => {
           </div>
         </div>
 
-        <div className="glass-card p-5">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Resumo Operacional</h3>
+        <div className="glass-card p-4 sm:p-5">
+          <h3 className="text-xs sm:text-sm font-semibold text-foreground mb-4">Resumo Operacional</h3>
           <div className="space-y-3">
             {[
               { label: "KM Total da Frota", value: `${(totalKm/1000).toFixed(0)}k km` },

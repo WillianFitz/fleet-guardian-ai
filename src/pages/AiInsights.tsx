@@ -26,33 +26,33 @@ const AiInsights = () => {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">IA & Insights</h1>
-        <p className="text-sm text-muted-foreground mt-1">Análise inteligente automática da frota</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">IA & Insights</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">Análise inteligente automática da frota</p>
       </div>
 
-      <div className="glass-card p-5 glow-amber">
+      <div className="glass-card p-4 sm:p-5 glow-amber">
         <div className="flex items-center gap-2 mb-2">
-          <Brain className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-semibold text-foreground">Resumo Inteligente</h2>
+          <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+          <h2 className="text-base sm:text-lg font-semibold text-foreground">Resumo Inteligente</h2>
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Sua frota possui <span className="text-foreground font-medium">{vehicles.length} veículos</span>, dos quais <span className="text-success font-medium">{vehicles.filter(v => v.status === "operando").length} em operação</span>, <span className="text-warning font-medium">{vehicles.filter(v => v.status === "manutencao").length} em manutenção</span> e <span className="text-destructive font-medium">{parados} parado(s)</span>. O consumo médio é de <span className="text-foreground font-medium">{avgConsumo} km/l</span> com custo total em manutenção de <span className="text-foreground font-medium">R$ {totalCustoManut.toLocaleString("pt-BR")}</span>.
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {insights.map((insight, i) => (
-          <div key={i} className="glass-card p-5 hover:border-primary/20 transition-all animate-slide-in" style={{ animationDelay: `${i * 100}ms` }}>
-            <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <insight.icon className="w-5 h-5 text-primary" />
+          <div key={i} className="glass-card p-4 sm:p-5 hover:border-primary/20 transition-all animate-slide-in" style={{ animationDelay: `${i * 100}ms` }}>
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <insight.icon className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
               </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-foreground mb-1">{insight.title}</h3>
-                <p className="text-sm text-muted-foreground">{insight.desc}</p>
-                <span className="inline-block mt-2 text-xs font-mono font-medium text-primary bg-primary/10 px-3 py-1 rounded-full">{insight.impact}</span>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xs sm:text-sm font-semibold text-foreground mb-1">{insight.title}</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground">{insight.desc}</p>
+                <span className="inline-block mt-2 text-xs font-mono font-medium text-primary bg-primary/10 px-2 sm:px-3 py-1 rounded-full">{insight.impact}</span>
               </div>
             </div>
           </div>

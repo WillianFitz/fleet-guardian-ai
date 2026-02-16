@@ -1,4 +1,4 @@
-import { Bell, Search, User, AlertTriangle } from "lucide-react";
+import { Bell, Search, User, AlertTriangle, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
@@ -9,13 +9,24 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const AppHeader = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { tenant } = useTenant();
   const { notifications, unreadCount } = useNotifications();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -42,9 +53,9 @@ const AppHeader = () => {
   };
 
   return (
-    <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-      <div className="flex items-center gap-3 flex-1">
-        <div className="relative max-w-md w-full">
+    <header className="h-16 border-b border-border flex items-center justify-between px-3 sm:px-4 md:px-6 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+        <div className="relative max-w-md w-full hidden sm:block">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
@@ -54,11 +65,11 @@ const AppHeader = () => {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
           <PopoverTrigger asChild>
             <button className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-              <Bell className="w-5 h-5" />
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full animate-pulse" />
               )}
@@ -109,14 +120,32 @@ const AppHeader = () => {
           </PopoverContent>
         </Popover>
 
-        <div className="flex items-center gap-3 pl-4 border-l border-border">
-          <div className="text-right">
+        <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-4 border-l border-border">
+          <div className="text-right hidden md:block">
             <p className="text-sm font-medium text-foreground">{user?.nome || "Admin"}</p>
             <p className="text-xs text-muted-foreground">{tenant?.nome || "Carregando..."}</p>
           </div>
-          <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
-            <User className="w-5 h-5 text-primary" />
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-primary/20 flex items-center justify-center hover:bg-primary/30 transition-colors">
+                <User className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5 border-b border-border">
+                <p className="text-sm font-medium text-foreground">{user?.nome || "Admin"}</p>
+                <p className="text-xs text-muted-foreground">{user?.email}</p>
+                <p className="text-xs text-muted-foreground">{tenant?.nome || "Carregando..."}</p>
+              </div>
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-destructive focus:text-destructive cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

@@ -108,13 +108,13 @@ const Veiculos = () => {
   const setField = (k: string, v: any) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Veículos</h1>
-          <p className="text-sm text-muted-foreground mt-1">{items.length} veículos cadastrados</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Veículos</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">{items.length} veículos cadastrados</p>
         </div>
-        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center">
           <Plus className="w-4 h-4" /> Novo Veículo
         </button>
       </div>
@@ -129,11 +129,11 @@ const Veiculos = () => {
 
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[700px]">
             <thead>
               <tr className="border-b border-border">
                 {["Veículo", "Tipo", "KM", "Status", "Motorista", "Combustível", "Ações"].map(h => (
-                  <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">{h}</th>
+                  <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 sm:px-5 py-2 sm:py-3">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -175,7 +175,7 @@ const Veiculos = () => {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && <tr><td colSpan={7} className="px-5 py-10 text-center text-muted-foreground">Nenhum veículo encontrado</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={7} className="px-3 sm:px-5 py-10 text-center text-muted-foreground">Nenhum veículo encontrado</td></tr>}
             </tbody>
           </table>
         </div>
@@ -189,11 +189,11 @@ const Veiculos = () => {
           setForm(emptyForm);
         }
       }}>
-        <DialogContent className="bg-card border-border max-w-lg">
+        <DialogContent className="bg-card border-border max-w-lg mx-4">
           <DialogHeader>
-            <DialogTitle className="text-foreground">{editing ? "Editar Veículo" : "Novo Veículo"}</DialogTitle>
+            <DialogTitle className="text-sm sm:text-base text-foreground">{editing ? "Editar Veículo" : "Novo Veículo"}</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
             {[
               { label: "Placa", key: "placa", placeholder: "ABC-1234" },
               { label: "Modelo", key: "modelo", placeholder: "Scania R450" },

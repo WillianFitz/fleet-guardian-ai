@@ -22,10 +22,10 @@ const Index = () => {
   const motoristasAtivos = drivers.filter(d => d.status === "ativo").length;
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">
           Visão geral da frota • {new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
         </p>
       </div>

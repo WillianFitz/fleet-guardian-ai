@@ -21,10 +21,10 @@ const CostChart = () => {
   ];
 
   return (
-    <div className="glass-card p-5">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-foreground">Custos Operacionais</h3>
-        <div className="flex items-center gap-4 text-[10px]">
+    <div className="glass-card p-4 sm:p-5">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0 mb-4">
+        <h3 className="text-xs sm:text-sm font-semibold text-foreground">Custos Operacionais</h3>
+        <div className="flex items-center gap-2 sm:gap-4 text-[10px] flex-wrap">
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-primary" /><span className="text-muted-foreground">Combustível</span></div>
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-info" /><span className="text-muted-foreground">Manutenção</span></div>
           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-sm bg-success" /><span className="text-muted-foreground">Despesas</span></div>
@@ -37,7 +37,7 @@ const CostChart = () => {
           <p className="text-xs text-muted-foreground/60 mt-1">Registre abastecimentos, manutenções ou despesas para ver o gráfico</p>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={200}>
           <BarChart data={data} barGap={2}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 14%)" vertical={false} />
             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "hsl(215 20% 55%)", fontSize: 11 }} />

@@ -36,10 +36,10 @@ const Estoque = () => {
   const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-foreground">Estoque</h1><p className="text-sm text-muted-foreground mt-1">{items.length} itens cadastrados</p></div>
-        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"><Plus className="w-4 h-4" />Nova Peça</button>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+        <div><h1 className="text-xl sm:text-2xl font-bold text-foreground">Estoque</h1><p className="text-xs sm:text-sm text-muted-foreground mt-1">{items.length} itens cadastrados</p></div>
+        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"><Plus className="w-4 h-4" />Nova Peça</button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -70,15 +70,16 @@ const Estoque = () => {
                 </div></td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">Nenhuma peça</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={9} className="px-3 sm:px-5 py-10 text-center text-muted-foreground">Nenhuma peça</td></tr>}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar Peça" : "Nova Peça"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-2">
+        <DialogContent className="bg-card border-border max-w-lg mx-4">
+          <DialogHeader><DialogTitle className="text-sm sm:text-base text-foreground">{editing ? "Editar Peça" : "Nova Peça"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
             {[
               { label: "Código", key: "codigo", placeholder: "FLT-001" },
               { label: "Categoria", key: "categoria", placeholder: "Filtros" },
@@ -90,7 +91,7 @@ const Estoque = () => {
               { label: "Localização", key: "localizacao", placeholder: "Prateleira A1" },
               { label: "Fornecedor", key: "fornecedor", placeholder: "Nome" },
             ].map(f => (
-              <div key={f.key} className={f.span ? "col-span-2" : ""}>
+              <div key={f.key} className={f.span ? "col-span-1 sm:col-span-2" : ""}>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
                 <input type={f.type || "text"} value={(form as any)[f.key] ?? ""} onChange={e => setField(f.key, f.type === "number" ? Number(e.target.value) : e.target.value)} placeholder={f.placeholder}
                   className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" /></div>

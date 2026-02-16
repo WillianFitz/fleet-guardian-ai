@@ -48,10 +48,10 @@ const Motoristas = () => {
   });
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-2xl font-bold text-foreground">Motoristas</h1><p className="text-sm text-muted-foreground mt-1">{items.length} motoristas cadastrados</p></div>
-        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"><Plus className="w-4 h-4" />Novo Motorista</button>
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+        <div><h1 className="text-xl sm:text-2xl font-bold text-foreground">Motoristas</h1><p className="text-xs sm:text-sm text-muted-foreground mt-1">{items.length} motoristas cadastrados</p></div>
+        <button onClick={handleNew} className="flex items-center gap-2 bg-primary text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"><Plus className="w-4 h-4" />Novo Motorista</button>
       </div>
 
       {cnhAlerts.length > 0 && (
@@ -65,8 +65,9 @@ const Motoristas = () => {
       </div>
 
       <div className="glass-card overflow-hidden">
-        <table className="w-full">
-          <thead><tr className="border-b border-border">{["Motorista", "CPF", "CNH", "Cat.", "Venc. CNH", "Telefone", "Status", "Ações"].map(h => <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">{h}</th>)}</tr></thead>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[800px]">
+            <thead><tr className="border-b border-border">{["Motorista", "CPF", "CNH", "Cat.", "Venc. CNH", "Telefone", "Status", "Ações"].map(h => <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 sm:px-5 py-2 sm:py-3">{h}</th>)}</tr></thead>
           <tbody>
             {filtered.map((d, i) => {
               // Garante que sempre exista um status válido (protege contra dados vindos da API sem status)
@@ -95,15 +96,16 @@ const Motoristas = () => {
                 </tr>
               );
             })}
-            {filtered.length === 0 && <tr><td colSpan={8} className="px-5 py-10 text-center text-muted-foreground">Nenhum motorista</td></tr>}
+            {filtered.length === 0 && <tr><td colSpan={8} className="px-3 sm:px-5 py-10 text-center text-muted-foreground">Nenhum motorista</td></tr>}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar Motorista" : "Novo Motorista"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-3 mt-2">
+        <DialogContent className="bg-card border-border max-w-lg mx-4">
+          <DialogHeader><DialogTitle className="text-sm sm:text-base text-foreground">{editing ? "Editar Motorista" : "Novo Motorista"}</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
             {[
               { label: "Nome Completo", key: "nome", span: true },
               { label: "CPF", key: "cpf", placeholder: "000.000.000-00" },
@@ -121,7 +123,7 @@ const Motoristas = () => {
                   className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" />
               </div>
             ))}
-            <div className="col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label>
+            <div className="col-span-1 sm:col-span-2"><label className="text-xs font-medium text-muted-foreground mb-1 block">Status</label>
               <select value={form.status} onChange={e => setField("status", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
                 <option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="ferias">Férias</option><option value="afastado">Afastado</option>
               </select></div>

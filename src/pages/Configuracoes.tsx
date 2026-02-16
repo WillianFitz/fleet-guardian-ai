@@ -67,22 +67,22 @@ const Configuracoes = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Configurações</h1>
-        <p className="text-sm text-muted-foreground mt-1">Gerencie as configurações da empresa e do sistema</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-foreground">Configurações</h1>
+        <p className="text-xs sm:text-sm text-muted-foreground mt-1">Gerencie as configurações da empresa e do sistema</p>
       </div>
 
-      <div className="glass-card p-5">
-        <div className="flex items-center justify-between mb-4">
+      <div className="glass-card p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
           <div className="flex items-center gap-3">
-            <Building2 className="w-5 h-5 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">Dados da Empresa</h3>
+            <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <h3 className="text-xs sm:text-sm font-semibold text-foreground">Dados da Empresa</h3>
           </div>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto justify-center"
           >
             {saving ? (
               <>
@@ -148,29 +148,29 @@ const Configuracoes = () => {
       </div>
 
       {!isApiConfigured() && (
-        <div className="glass-card p-5">
+        <div className="glass-card p-4 sm:p-5">
           <div className="flex items-center gap-3 mb-4">
-            <Database className="w-5 h-5 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">Banco de Dados</h3>
+            <Database className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <h3 className="text-xs sm:text-sm font-semibold text-foreground">Banco de Dados</h3>
           </div>
-          <p className="text-sm text-muted-foreground mb-4">
+          <p className="text-xs sm:text-sm text-muted-foreground mb-4">
             Os dados estão armazenados localmente (localStorage). Para produção, configure a API para Cloudflare Workers + D1.
           </p>
           <button
             onClick={() => setConfirmClear(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm bg-destructive text-destructive-foreground font-medium hover:bg-destructive/90 transition-colors w-full sm:w-auto justify-center"
           >
             <Trash2 className="w-4 h-4" /> Limpar Todos os Dados
           </button>
         </div>
       )}
 
-      <div className="glass-card p-5">
+      <div className="glass-card p-4 sm:p-5">
         <div className="flex items-center gap-3 mb-4">
-          <Settings className="w-5 h-5 text-primary" />
-          <h3 className="text-sm font-semibold text-foreground">Informações do Sistema</h3>
+          <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+          <h3 className="text-xs sm:text-sm font-semibold text-foreground">Informações do Sistema</h3>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
           <div>
             <span className="text-muted-foreground">Versão:</span>
             <span className="text-foreground font-medium ml-2">1.0.0</span>
@@ -193,11 +193,11 @@ const Configuracoes = () => {
       </div>
 
       <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
-        <DialogContent className="bg-card border-border max-w-sm">
+        <DialogContent className="bg-card border-border max-w-sm mx-4">
           <DialogHeader>
-            <DialogTitle className="text-foreground">Confirmar Limpeza</DialogTitle>
+            <DialogTitle className="text-sm sm:text-base text-foreground">Confirmar Limpeza</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">Tem certeza? Todos os cadastros serão apagados permanentemente.</p>
+          <p className="text-xs sm:text-sm text-muted-foreground">Tem certeza? Todos os cadastros serão apagados permanentemente.</p>
           <div className="flex justify-end gap-2 mt-4">
             <button
               onClick={() => setConfirmClear(false)}
