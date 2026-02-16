@@ -2,8 +2,8 @@ import { useState } from "react";
 import { CircleDot, Plus, Edit, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
-import { Tire } from "@/types/fleet";
-import { demoTires } from "@/data/demoData";
+import { Tire, Vehicle } from "@/types/fleet";
+import { demoTires, demoVehicles } from "@/data/demoData";
 import { toast } from "@/hooks/use-toast";
 import KpiCard from "@/components/dashboard/KpiCard";
 
@@ -20,6 +20,7 @@ const emptyForm: Omit<Tire, "id"> = {
 
 const Pneus = () => {
   const { items, add, update, remove } = useStore<Tire>("tires", demoTires);
+  const { items: vehicles } = useStore<Vehicle>("vehicles", demoVehicles);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Tire | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -42,6 +43,16 @@ const Pneus = () => {
   const handleNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true); };
   const handleDelete = (id: string) => { remove(id); setDeleteConfirm(null); toast({ title: "Pneu removido!" }); };
   const setField = (k: string, v: any) => setForm(prev => ({ ...prev, [k]: v }));
+
+  const handleVehicleSelect = (vehicleId: string) => {
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (vehicle) {
+      setForm(prev => ({
+        ...prev,
+        veiculoPlaca: vehicle.placa,
+      }));
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -92,6 +103,16 @@ const Pneus = () => {
         <DialogContent className="bg-card border-border max-w-lg">
           <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar Pneu" : "Novo Pneu"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Selecionar Veículo</label>
+              <select value={vehicles.find(v => v.placa === form.veiculoPlaca)?.id || ""} onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
+                <option value="">Selecione um veículo...</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>{v.placa} — {v.modelo}</option>
+                ))}
+              </select>
+            </div>
             {[
               { label: "Código", key: "codigo", placeholder: "PN-001" },
               { label: "Marca", key: "marca", placeholder: "Bridgestone" },

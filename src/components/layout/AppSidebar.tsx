@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Truck, LayoutDashboard, Wrench, Fuel, DollarSign, Users, Package,
   ShieldCheck, FileText, CircleDot, AlertTriangle, ParkingCircle,
-  ChevronLeft, ChevronRight, Settings, Brain, BarChart3, Car
+  ChevronLeft, ChevronRight, Settings, Brain, BarChart3, Car, FileBarChart
 } from "lucide-react";
 
 const menuGroups = [
@@ -13,6 +13,7 @@ const menuGroups = [
       { icon: LayoutDashboard, label: "Dashboard", path: "/" },
       { icon: Brain, label: "IA & Insights", path: "/ai-insights" },
       { icon: BarChart3, label: "KPIs", path: "/kpis" },
+      { icon: FileBarChart, label: "Relatórios", path: "/relatorios" },
     ],
   },
   {
