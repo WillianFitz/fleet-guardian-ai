@@ -61,17 +61,18 @@ $app->post('/emitir', function (Request $request, Response $response): Response 
         $tempCertPath = sys_get_temp_dir() . '/cert_' . uniqid() . '.pfx';
         file_put_contents($tempCertPath, $certPfx);
         
-        // Dados da empresa (podem vir do body ou variáveis de ambiente)
+        // Dados da empresa vêm do Worker (banco de dados do sistema)
+        // Variáveis de ambiente são apenas fallback (não necessário se Worker enviar)
         $empresaDados = [
             'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
-            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? 'EMPRESA LTDA',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? '',
             'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
         ];
         
-        if (empty($empresaDados['cnpj'])) {
+        if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
             @unlink($tempCertPath);
             return $response->withStatus(400)->withJson([
-                'error' => 'CNPJ da empresa não informado. Configure no body ou variável CTE_CNPJ.'
+                'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome da empresa nas Configurações do sistema.'
             ]);
         }
         
@@ -196,17 +197,17 @@ $app->get('/consultar', function (Request $request, Response $response): Respons
         $tempCertPath = sys_get_temp_dir() . '/cert_cons_' . uniqid() . '.pfx';
         file_put_contents($tempCertPath, $certPfx);
         
-        // Dados da empresa
+        // Dados da empresa vêm do Worker (banco de dados do sistema)
         $empresaDados = [
             'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
-            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? 'EMPRESA LTDA',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? '',
             'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
         ];
         
-        if (empty($empresaDados['cnpj'])) {
+        if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
             @unlink($tempCertPath);
             return $response->withStatus(400)->withJson([
-                'error' => 'CNPJ da empresa não informado.'
+                'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome da empresa nas Configurações do sistema.'
             ]);
         }
         
@@ -262,17 +263,17 @@ $app->post('/consultar', function (Request $request, Response $response): Respon
         $tempCertPath = sys_get_temp_dir() . '/cert_cons_' . uniqid() . '.pfx';
         file_put_contents($tempCertPath, $certPfx);
         
-        // Dados da empresa
+        // Dados da empresa vêm do Worker (banco de dados do sistema)
         $empresaDados = [
             'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
-            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? 'EMPRESA LTDA',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? '',
             'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
         ];
         
-        if (empty($empresaDados['cnpj'])) {
+        if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
             @unlink($tempCertPath);
             return $response->withStatus(400)->withJson([
-                'error' => 'CNPJ da empresa não informado.'
+                'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome da empresa nas Configurações do sistema.'
             ]);
         }
         

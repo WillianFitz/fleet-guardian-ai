@@ -38,19 +38,16 @@ git push
 
 ### 3. Configurar Variáveis de Ambiente
 
-No painel do Railway, vá em **Variables** e adicione:
+**✅ NÃO É NECESSÁRIO** configurar CNPJ, Razão Social ou UF no Railway!
 
-```
-CTE_CNPJ=12345678000190
-CTE_RAZAO_SOCIAL=SUA EMPRESA LTDA
-CTE_UF=SP
-```
+O sistema busca automaticamente do banco de dados quando você cadastra a empresa no frontend.
 
-**Opcional** (se não enviar certificado pelo Worker):
-```
-CERT_PFX_BASE64=<seu_certificado_em_base64>
-CERT_PASSWORD=<senha_do_certificado>
-```
+**Variáveis de ambiente são opcionais** (apenas fallback se necessário):
+- `CTE_CNPJ` - apenas se não usar dados do banco
+- `CTE_RAZAO_SOCIAL` - apenas se não usar dados do banco  
+- `CTE_UF` - apenas se não usar dados do banco
+
+**Você só precisa cadastrar no sistema (frontend)!** 🎉
 
 ### 4. Obter URL da API
 
@@ -77,14 +74,16 @@ Depois faça deploy:
 npx wrangler deploy
 ```
 
-## 🔧 Configuração no Sistema
+## 🔧 Configuração no Sistema (ÚNICO LUGAR!)
 
 ### 1. Cadastrar Empresa
 
+**Tudo é feito aqui, no sistema!** Não precisa cadastrar em mais nenhum lugar.
+
 No sistema Fleet Guardian, vá em **Configurações da Empresa** e preencha:
-- **CNPJ**: Seu CNPJ (ex: 12.345.678/0001-90)
-- **Nome**: Razão Social da empresa
-- **UF**: Estado (SP, RJ, MG, etc.)
+- **CNPJ**: Seu CNPJ (ex: 12.345.678/0001-90) ✅ **OBRIGATÓRIO**
+- **Nome**: Razão Social da empresa ✅ **OBRIGATÓRIO**
+- **UF**: Estado (SP, RJ, MG, etc.) ✅ **OBRIGATÓRIO** (se não aparecer campo UF, execute a migração `d1-migration-tenant-uf.sql`)
 
 ### 2. Upload do Certificado Digital
 

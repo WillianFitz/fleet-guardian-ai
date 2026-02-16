@@ -474,9 +474,9 @@ export default {
           
           // Buscar certificado e dados da empresa do tenant
           const { tenantId } = await getTenantForRequest(request, env);
-          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, certificado_status, cnpj, nome FROM tenants WHERE id = ?")
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, certificado_status, cnpj, nome, uf FROM tenants WHERE id = ?")
             .bind(tenantId)
-            .first<{ certificado_pfx_base64?: string; certificado_password?: string; certificado_status?: string; cnpj?: string; nome?: string }>();
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string; certificado_status?: string; cnpj?: string; nome?: string; uf?: string }>();
 
           // Preparar body com certificado e dados da empresa
           let phpBodyWithCert = { ...phpBody };
@@ -489,14 +489,19 @@ export default {
           }
           
           // Adicionar dados da empresa (necessário para sped-cte)
-          if (tenant?.cnpj && tenant?.nome) {
-            // Extrair UF do CNPJ ou usar padrão (você pode melhorar isso buscando UF do tenant)
-            phpBodyWithCert.empresa = {
-              cnpj: tenant.cnpj,
-              razaoSocial: tenant.nome,
-              siglaUF: 'SP' // TODO: Adicionar campo uf na tabela tenants ou inferir de outra forma
-            };
+          // OBRIGATÓRIO: CNPJ e nome devem estar cadastrados no sistema
+          if (!tenant?.cnpj || !tenant?.nome) {
+            return errorResponse(
+              "Dados da empresa incompletos. Cadastre CNPJ e Nome da empresa nas Configurações.",
+              400
+            );
           }
+          
+          phpBodyWithCert.empresa = {
+            cnpj: tenant.cnpj,
+            razaoSocial: tenant.nome,
+            siglaUF: tenant.uf || 'SP' // Usa UF do banco ou padrão SP
+          };
 
           const phpResponse = await fetch(phpUrl.toString(), {
             method: "POST",
@@ -532,9 +537,9 @@ export default {
           
           // Buscar certificado e dados da empresa do tenant para consulta
           const { tenantId } = await getTenantForRequest(request, env);
-          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, cnpj, nome FROM tenants WHERE id = ?")
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, cnpj, nome, uf FROM tenants WHERE id = ?")
             .bind(tenantId)
-            .first<{ certificado_pfx_base64?: string; certificado_password?: string; cnpj?: string; nome?: string }>();
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string; cnpj?: string; nome?: string; uf?: string }>();
 
           const headers: Record<string, string> = {
             ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
@@ -549,14 +554,19 @@ export default {
             };
           }
           
-          // Adicionar dados da empresa
-          if (tenant?.cnpj && tenant?.nome) {
-            bodyData.empresa = {
-              cnpj: tenant.cnpj,
-              razaoSocial: tenant.nome,
-              siglaUF: 'SP' // TODO: Adicionar campo uf na tabela tenants
-            };
+          // Adicionar dados da empresa (obrigatório)
+          if (!tenant?.cnpj || !tenant?.nome) {
+            return errorResponse(
+              "Dados da empresa incompletos. Cadastre CNPJ e Nome da empresa nas Configurações.",
+              400
+            );
           }
+          
+          bodyData.empresa = {
+            cnpj: tenant.cnpj,
+            razaoSocial: tenant.nome,
+            siglaUF: tenant.uf || 'SP'
+          };
           
           let body: string | undefined;
           if (Object.keys(bodyData).length > 0) {

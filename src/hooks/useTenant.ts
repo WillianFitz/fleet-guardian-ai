@@ -6,6 +6,7 @@ export interface Tenant {
   id: string;
   nome: string;
   cnpj: string;
+  uf?: string;
   telefone?: string;
   email?: string;
   endereco?: string;

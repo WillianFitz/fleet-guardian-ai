@@ -15,6 +15,7 @@ const Configuracoes = () => {
   const [form, setForm] = useState({
     nome: "",
     cnpj: "",
+    uf: "",
     telefone: "",
     email: "",
     endereco: "",
@@ -26,6 +27,7 @@ const Configuracoes = () => {
       setForm({
         nome: tenant.nome || "",
         cnpj: tenant.cnpj || "",
+        uf: (tenant as any).uf || "",
         telefone: tenant.telefone || "",
         email: tenant.email || "",
         endereco: tenant.endereco || "",
@@ -35,8 +37,8 @@ const Configuracoes = () => {
   }, [tenant]);
 
   const handleSave = async () => {
-    if (!form.nome || !form.cnpj) {
-      toast({ title: "Preencha Razão Social e CNPJ", variant: "destructive" });
+    if (!form.nome || !form.cnpj || !form.uf) {
+      toast({ title: "Preencha Razão Social, CNPJ e UF", variant: "destructive" });
       return;
     }
 
@@ -233,6 +235,43 @@ const Configuracoes = () => {
               placeholder="00.000.000/0001-00"
               className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">UF *</label>
+            <select
+              value={form.uf}
+              onChange={(e) => setField("uf", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            >
+              <option value="">Selecione...</option>
+              <option value="AC">AC</option>
+              <option value="AL">AL</option>
+              <option value="AP">AP</option>
+              <option value="AM">AM</option>
+              <option value="BA">BA</option>
+              <option value="CE">CE</option>
+              <option value="DF">DF</option>
+              <option value="ES">ES</option>
+              <option value="GO">GO</option>
+              <option value="MA">MA</option>
+              <option value="MT">MT</option>
+              <option value="MS">MS</option>
+              <option value="MG">MG</option>
+              <option value="PA">PA</option>
+              <option value="PB">PB</option>
+              <option value="PR">PR</option>
+              <option value="PE">PE</option>
+              <option value="PI">PI</option>
+              <option value="RJ">RJ</option>
+              <option value="RN">RN</option>
+              <option value="RS">RS</option>
+              <option value="RO">RO</option>
+              <option value="RR">RR</option>
+              <option value="SC">SC</option>
+              <option value="SP">SP</option>
+              <option value="SE">SE</option>
+              <option value="TO">TO</option>
+            </select>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Telefone</label>
