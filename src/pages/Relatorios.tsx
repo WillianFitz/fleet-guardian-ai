@@ -357,6 +357,7 @@ const Relatorios = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
@@ -571,6 +572,7 @@ const Relatorios = () => {
                   ))}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
