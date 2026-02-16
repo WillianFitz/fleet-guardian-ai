@@ -1,8 +1,48 @@
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, User, AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { useTenant } from "@/hooks/useTenant";
+import { useNotifications } from "@/hooks/useNotifications";
+import { useNavigate } from "react-router-dom";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 const AppHeader = () => {
+  const { user } = useAuth();
+  const { tenant } = useTenant();
+  const { notifications, unreadCount } = useNotifications();
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case "error":
+        return <AlertTriangle className="w-4 h-4 text-destructive" />;
+      case "warning":
+        return <AlertTriangle className="w-4 h-4 text-warning" />;
+      default:
+        return <Bell className="w-4 h-4 text-info" />;
+    }
+  };
+
+  const getNotificationColor = (type: string) => {
+    switch (type) {
+      case "error":
+        return "border-destructive/20 bg-destructive/5";
+      case "warning":
+        return "border-warning/20 bg-warning/5";
+      case "info":
+        return "border-info/20 bg-info/5";
+      default:
+        return "border-border bg-muted/30";
+    }
+  };
+
   return (
-    <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-card/50 backdrop-blur-sm">
+    <header className="h-16 border-b border-border flex items-center justify-between px-6 bg-card/50 backdrop-blur-sm sticky top-0 z-50">
       <div className="flex items-center gap-3 flex-1">
         <div className="relative max-w-md w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -15,15 +55,64 @@ const AppHeader = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-        </button>
+        <Popover open={notificationsOpen} onOpenChange={setNotificationsOpen}>
+          <PopoverTrigger asChild>
+            <button className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full animate-pulse" />
+              )}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-80 p-0" align="end">
+            <div className="p-4 border-b border-border">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-foreground">Notificações</h3>
+                {unreadCount > 0 && (
+                  <span className="text-xs text-muted-foreground">{unreadCount} nova(s)</span>
+                )}
+              </div>
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">
+                  Nenhuma notificação
+                </div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`p-4 hover:bg-muted/30 transition-colors cursor-pointer ${getNotificationColor(notif.type)}`}
+                      onClick={() => {
+                        if (notif.link) {
+                          navigate(notif.link);
+                          setNotificationsOpen(false);
+                        }
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5">{getNotificationIcon(notif.type)}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{notif.title}</p>
+                          <p className="text-xs text-muted-foreground mt-1">{notif.message}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {notif.timestamp.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <div className="flex items-center gap-3 pl-4 border-l border-border">
           <div className="text-right">
-            <p className="text-sm font-medium text-foreground">Admin</p>
-            <p className="text-xs text-muted-foreground">Transportadora XYZ</p>
+            <p className="text-sm font-medium text-foreground">{user?.nome || "Admin"}</p>
+            <p className="text-xs text-muted-foreground">{tenant?.nome || "Carregando..."}</p>
           </div>
           <div className="w-9 h-9 rounded-lg bg-primary/20 flex items-center justify-center">
             <User className="w-5 h-5 text-primary" />

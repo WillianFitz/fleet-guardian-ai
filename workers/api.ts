@@ -119,6 +119,7 @@ const RESOURCE_MAP: Record<string, { table: string; fieldOverrides?: Record<stri
   vehicles: { table: "vehicles", fieldOverrides: { motorista: "motorista_id" } },
   drivers: { table: "drivers" },
   maintenance: { table: "maintenance_orders" },
+  tenants: { table: "tenants" },
   fuel: { table: "fuel_entries" },
   tires: { table: "tires" },
   parts: { table: "parts" },
@@ -253,10 +254,15 @@ async function handleList(
   tenantId: string,
   overrides?: Record<string, string>
 ): Promise<Response> {
-  const { results } = await db
-    .prepare(`SELECT * FROM ${table} WHERE tenant_id = ? ORDER BY created_at DESC`)
-    .bind(tenantId)
-    .all();
+  // Para a tabela tenants, busca pelo ID do tenant diretamente
+  let query: D1PreparedStatement;
+  if (table === "tenants") {
+    query = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(tenantId);
+  } else {
+    query = db.prepare(`SELECT * FROM ${table} WHERE tenant_id = ? ORDER BY created_at DESC`).bind(tenantId);
+  }
+  
+  const { results } = await query.all();
 
   const items = (results || []).map((row) => {
     let camel = objectKeysToCamel(row as Record<string, any>);
@@ -274,10 +280,15 @@ async function handleGet(
   tenantId: string,
   overrides?: Record<string, string>
 ): Promise<Response> {
-  const row = await db
-    .prepare(`SELECT * FROM ${table} WHERE id = ? AND tenant_id = ?`)
-    .bind(id, tenantId)
-    .first();
+  // Para a tabela tenants, busca apenas pelo ID
+  let query: D1PreparedStatement;
+  if (table === "tenants") {
+    query = db.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id);
+  } else {
+    query = db.prepare(`SELECT * FROM ${table} WHERE id = ? AND tenant_id = ?`).bind(id, tenantId);
+  }
+  
+  const row = await query.first();
 
   if (!row) return errorResponse("Not found", 404);
 
@@ -307,7 +318,11 @@ async function handleCreate(
 
   const newId = crypto.randomUUID().replace(/-/g, "");
   snakeData.id = newId;
-  snakeData.tenant_id = tenantId;
+  
+  // Para tenants, não adiciona tenant_id (já é o próprio tenant)
+  if (table !== "tenants") {
+    snakeData.tenant_id = tenantId;
+  }
 
   const columns = Object.keys(snakeData);
   const placeholders = columns.map(() => "?").join(", ");
@@ -348,12 +363,21 @@ async function handleUpdate(
   const sets = Object.keys(snakeData)
     .map((k) => `${k} = ?`)
     .join(", ");
-  const values = [...Object.values(snakeData), id, tenantId];
-
-  await db
-    .prepare(`UPDATE ${table} SET ${sets} WHERE id = ? AND tenant_id = ?`)
-    .bind(...values)
-    .run();
+  
+  // Para tenants, não filtra por tenant_id no WHERE
+  if (table === "tenants") {
+    const values = [...Object.values(snakeData), id];
+    await db
+      .prepare(`UPDATE ${table} SET ${sets} WHERE id = ?`)
+      .bind(...values)
+      .run();
+  } else {
+    const values = [...Object.values(snakeData), id, tenantId];
+    await db
+      .prepare(`UPDATE ${table} SET ${sets} WHERE id = ? AND tenant_id = ?`)
+      .bind(...values)
+      .run();
+  }
 
   const updated = await db.prepare(`SELECT * FROM ${table} WHERE id = ?`).bind(id).first();
   let camel = objectKeysToCamel((updated || { id }) as Record<string, any>);
@@ -506,6 +530,7 @@ export default {
       if (!config) return errorResponse(`Unknown resource: ${resource}`, 404);
 
       // Get tenant ID (via token ou header legado)
+      // Para tenants, não filtra por tenant_id (é a própria tabela de tenants)
       const { tenantId } = await getTenantForRequest(request, env);
 
       switch (request.method) {
