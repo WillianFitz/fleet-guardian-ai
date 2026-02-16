@@ -218,13 +218,30 @@ function applyFieldOverrides(
 ): Record<string, any> {
   if (!overrides) return data;
   const result: Record<string, any> = {};
-  const map = reverse
-    ? Object.fromEntries(Object.entries(overrides).map(([k, v]) => [v, k]))
-    : overrides;
-
-  for (const [key, value] of Object.entries(data)) {
-    result[map[key] || key] = value;
+  
+  if (reverse) {
+    // Quando reverse=true, estamos convertendo de snake_case (banco) para camelCase (frontend)
+    // Mas os dados já foram convertidos para camelCase, então precisamos mapear corretamente
+    // Exemplo: motorista_id (snake) -> motoristaId (camel) -> motorista (override)
+    const reverseMap: Record<string, string> = {};
+    for (const [frontendKey, dbKey] of Object.entries(overrides)) {
+      // Converte a chave do banco (snake_case) para camelCase
+      const dbKeyCamel = snakeToCamel(dbKey);
+      // Mapeia: dbKeyCamel (ex: motoristaId) -> frontendKey (ex: motorista)
+      reverseMap[dbKeyCamel] = frontendKey;
+    }
+    
+    for (const [key, value] of Object.entries(data)) {
+      // Se a chave existe no mapa reverso, usa o nome do frontend, senão mantém a chave original
+      result[reverseMap[key] || key] = value;
+    }
+  } else {
+    // Quando reverse=false, estamos convertendo de camelCase (frontend) para snake_case (banco)
+    for (const [key, value] of Object.entries(data)) {
+      result[overrides[key] || key] = value;
+    }
   }
+  
   return result;
 }
 

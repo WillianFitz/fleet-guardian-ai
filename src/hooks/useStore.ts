@@ -39,13 +39,22 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
       if (key === "vehicles") {
         // Garante que motorista seja sempre uma string, nunca null ou undefined
         const normalized = { ...item };
+        
+        // Trata caso onde a API retorna motoristaId ao invés de motorista (fallback)
+        if (normalized.motoristaId && !normalized.motorista) {
+          normalized.motorista = normalized.motoristaId;
+          delete normalized.motoristaId;
+        }
+        
+        // Normaliza o campo motorista
         if (normalized.motorista === null || normalized.motorista === undefined) {
           normalized.motorista = "";
         } else {
           normalized.motorista = String(normalized.motorista);
         }
+        
         console.log(`[useStore] Normalizando veículo ${item.id}:`, { 
-          antes: item.motorista, 
+          antes: { motorista: item.motorista, motoristaId: item.motoristaId }, 
           depois: normalized.motorista 
         });
         return normalized;
@@ -107,26 +116,14 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
 
   const update = useCallback(
     (id: string, data: Partial<T>) => {
-      console.log(`[useStore] Updating ${key}/${id}:`, data);
-      
       // Optimistic update - garante que todos os campos sejam incluídos
-      setItems((prev) => prev.map((i) => {
-        if (i.id === id) {
-          const updated = { ...i, ...data };
-          console.log(`[useStore] Optimistic update result:`, updated);
-          return updated;
-        }
-        return i;
-      }));
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...data } : i)));
 
       // Sync to API
       if (isApiConfigured()) {
-        console.log(`[useStore] Sending update to API for ${key}/${id}:`, data);
         api.update<T>(key, id, data)
           .then((updated) => {
-            console.log(`[useStore] API returned updated ${key}/${id}:`, updated);
             const normalized = normalizeVehicleData(updated);
-            console.log(`[useStore] Normalized data:`, normalized);
             setItems((prev) => prev.map((i) => (i.id === id ? normalized : i)));
           })
           .catch((err) => {

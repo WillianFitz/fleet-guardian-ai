@@ -64,13 +64,6 @@ const Veiculos = () => {
       ? "" 
       : String(form.motorista).trim();
     
-    console.log("[Veiculos] Salvando veículo:", { 
-      motorista: motoristaValue, 
-      formMotorista: form.motorista,
-      formMotoristaType: typeof form.motorista,
-      editing: editing?.id 
-    });
-    
     // Cria objeto completo com todos os campos, garantindo que motorista sempre esteja presente
     const dataToSave: Partial<Vehicle> = { 
       placa: form.placa,
@@ -88,16 +81,10 @@ const Veiculos = () => {
       createdAt: form.createdAt || new Date().toISOString().split("T")[0]
     };
     
-    console.log("[Veiculos] Dados a serem salvos:", JSON.stringify(dataToSave, null, 2));
-    console.log("[Veiculos] Campo motorista nos dados:", dataToSave.motorista, "tipo:", typeof dataToSave.motorista);
-    
     if (editing) { 
-      console.log("[Veiculos] Atualizando veículo:", editing.id);
-      console.log("[Veiculos] Veículo antes do update:", editing);
       update(editing.id, dataToSave); 
       toast({ title: "Veículo atualizado!" }); 
     } else { 
-      console.log("[Veiculos] Criando novo veículo");
       add(dataToSave as Omit<Vehicle, "id">); 
       toast({ title: "Veículo cadastrado!" }); 
     }
@@ -203,7 +190,9 @@ const Veiculos = () => {
         }
       }}>
         <DialogContent className="bg-card border-border max-w-lg">
-          <DialogHeader><DialogTitle className="text-foreground">{editing ? "Editar Veículo" : "Novo Veículo"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">{editing ? "Editar Veículo" : "Novo Veículo"}</DialogTitle>
+          </DialogHeader>
           <div className="grid grid-cols-2 gap-3 mt-2">
             {[
               { label: "Placa", key: "placa", placeholder: "ABC-1234" },
@@ -229,10 +218,8 @@ const Veiculos = () => {
                 value={form.motorista && form.motorista !== null && form.motorista !== undefined ? String(form.motorista) : ""} 
                 onChange={(e) => {
                   const value = e.target.value;
-                  console.log("[Veiculos] Select onChange - valor selecionado:", value, "tipo:", typeof value);
                   // Garante que o valor seja sempre uma string (mesmo que vazia)
                   const motoristaValue = value === "" ? "" : String(value);
-                  console.log("[Veiculos] Valor a ser salvo no form:", motoristaValue);
                   setField("motorista", motoristaValue);
                 }}
                 className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50">
@@ -260,7 +247,9 @@ const Veiculos = () => {
       {/* Delete Confirm */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="bg-card border-border max-w-sm">
-          <DialogHeader><DialogTitle className="text-foreground">Confirmar Exclusão</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Confirmar Exclusão</DialogTitle>
+          </DialogHeader>
           <p className="text-sm text-muted-foreground">Tem certeza que deseja excluir este veículo? Esta ação não pode ser desfeita.</p>
           <div className="flex justify-end gap-2 mt-4">
             <button onClick={() => setDeleteConfirm(null)} className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancelar</button>
