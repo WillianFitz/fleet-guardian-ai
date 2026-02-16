@@ -1,0 +1,13 @@
+{
+  "name": "fleet-guardian-ai",
+  "main": "workers/api.ts",
+  "compatibility_date": "2026-02-14",
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "fleetcommand",
+      "database_id": "9cc85bd5-3e31-4bf0-a2d3-cb72a4ca222e"
+    }
+  ]
+}
