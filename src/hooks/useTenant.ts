@@ -9,6 +9,7 @@ export interface Tenant {
   telefone?: string;
   email?: string;
   endereco?: string;
+  ambienteCte?: "producao" | "homologacao";
   createdAt?: string;
   updatedAt?: string;
 }

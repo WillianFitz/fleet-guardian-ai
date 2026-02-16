@@ -153,6 +153,57 @@ export interface Incident {
   pontosCnh: number;
 }
 
+// ===== RECEITAS/FRETES =====
+export interface Receita {
+  id: string;
+  descricao: string;
+  categoria: string;
+  valor: number;
+  data: string;
+  veiculoPlaca: string;
+  cliente: string;
+  cteId?: string; // vinculado a um CTe
+  cteChave?: string;
+  cteNumero?: string;
+  notaFiscal?: string;
+  status: "pendente" | "recebido" | "cancelado";
+  formaPagamento?: string;
+  dataRecebimento?: string;
+  observacoes?: string;
+}
+
+// ===== CTe (Conhecimento de Transporte Eletrônico) =====
+export interface CTe {
+  id: string;
+  chave: string;
+  numero: string;
+  serie: string;
+  veiculoPlaca: string;
+  veiculoModelo?: string;
+  dataEmissao: string;
+  dataInicioViagem?: string;
+  valorPrestacao: number;
+  valorFrete?: number;
+  remetenteNome: string;
+  remetenteCnpjCpf?: string;
+  remetenteMunicipio?: string;
+  remetenteUf?: string;
+  destinatarioNome: string;
+  destinatarioCnpjCpf?: string;
+  destinatarioMunicipio?: string;
+  destinatarioUf?: string;
+  municipioOrigem?: string;
+  ufOrigem?: string;
+  municipioDestino?: string;
+  ufDestino?: string;
+  status: "rascunho" | "autorizado" | "rejeitado" | "cancelado" | "erro";
+  protocolo?: string;
+  motivoRejeicao?: string;
+  xmlUrl?: string;
+  pdfUrl?: string;
+  receitaId?: string; // vinculado a uma receita (entrada de frete)
+}
+
 // ===== GARAGE =====
 export interface GarageEntry {
   id: string;

@@ -1,4 +1,4 @@
-import { Settings, Trash2, Database, Building2, Save, Loader2 } from "lucide-react";
+import { Settings, Trash2, Database, Building2, Save, Loader2, Shield, AlertCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ const Configuracoes = () => {
     telefone: "",
     email: "",
     endereco: "",
+    ambienteCte: "homologacao" as "producao" | "homologacao",
   });
 
   useEffect(() => {
@@ -25,6 +26,7 @@ const Configuracoes = () => {
         telefone: tenant.telefone || "",
         email: tenant.email || "",
         endereco: tenant.endereco || "",
+        ambienteCte: (tenant.ambienteCte as "producao" | "homologacao") || "homologacao",
       });
     }
   }, [tenant]);
@@ -39,6 +41,18 @@ const Configuracoes = () => {
     try {
       await updateTenant(form);
       toast({ title: "Dados da empresa atualizados com sucesso!" });
+    } catch (error: any) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveAmbiente = async () => {
+    setSaving(true);
+    try {
+      await updateTenant({ ambienteCte: form.ambienteCte });
+      toast({ title: "Ambiente CT-e atualizado com sucesso!" });
     } catch (error: any) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } finally {
@@ -144,6 +158,83 @@ const Configuracoes = () => {
               className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="glass-card p-4 sm:p-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-4">
+          <div className="flex items-center gap-3">
+            <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+            <div>
+              <h3 className="text-xs sm:text-sm font-semibold text-foreground">Ambiente CT-e</h3>
+              <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                Escolha entre Homologação (testes) ou Produção (emissões reais)
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-2 block">Ambiente SEFAZ</label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setField("ambienteCte", "homologacao")}
+                className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                  form.ambienteCte === "homologacao"
+                    ? "border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                    : "border-border bg-muted/50 text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>Homologação</span>
+                </div>
+                <p className="text-xs mt-1 opacity-75">Para testes e validação</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setField("ambienteCte", "producao")}
+                className={`flex-1 px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                  form.ambienteCte === "producao"
+                    ? "border-green-500 bg-green-500/10 text-green-700 dark:text-green-400"
+                    : "border-border bg-muted/50 text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  <span>Produção</span>
+                </div>
+                <p className="text-xs mt-1 opacity-75">Emissões reais na SEFAZ</p>
+              </button>
+            </div>
+          </div>
+          {form.ambienteCte === "producao" && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-400">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <p className="text-xs">
+                <strong>Atenção:</strong> No ambiente de produção, os CTes emitidos serão válidos e terão efeito fiscal real.
+                Certifique-se de que todos os dados estão corretos antes de emitir.
+              </p>
+            </div>
+          )}
+          <button
+            onClick={handleSaveAmbiente}
+            disabled={saving}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Salvar Ambiente
+              </>
+            )}
+          </button>
         </div>
       </div>
 

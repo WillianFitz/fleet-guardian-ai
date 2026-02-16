@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import {
   Truck, LayoutDashboard, Wrench, Fuel, DollarSign, Users, Package,
   ShieldCheck, FileText, CircleDot, AlertTriangle, ParkingCircle,
-  ChevronLeft, ChevronRight, Settings, Brain, BarChart3, Car, FileBarChart, Menu, X
+  ChevronLeft, ChevronRight, Settings, Brain, BarChart3, Car, FileBarChart, Menu, X, TrendingUp
 } from "lucide-react";
 
 const menuGroups = [
@@ -30,6 +30,8 @@ const menuGroups = [
     label: "Administrativo",
     items: [
       { icon: Users, label: "Motoristas", path: "/motoristas" },
+      { icon: FileText, label: "CT-e", path: "/ctes" },
+      { icon: TrendingUp, label: "Receitas/Fretes", path: "/receitas" },
       { icon: DollarSign, label: "Despesas", path: "/despesas" },
       { icon: FileText, label: "Licenciamento", path: "/licenciamento" },
       { icon: ShieldCheck, label: "Seguros", path: "/seguros" },

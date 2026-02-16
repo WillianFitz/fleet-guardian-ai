@@ -67,6 +67,9 @@ async function ensureTenant(): Promise<void> {
   return tenantPromise;
 }
 
+// A API CTe agora é acessada via Worker (proxy) - não precisa mais de VITE_CTE_API_URL no frontend
+// O Worker precisa ter CTE_API_URL configurada nas variáveis de ambiente
+
 export const api = {
   async list<T>(resource: string): Promise<T[]> {
     if (!isApiConfigured()) return [];
@@ -119,5 +122,37 @@ export const api = {
       headers: await getHeaders(),
     });
     if (!res.ok) throw new Error(`DELETE /${resource}/${id} failed: ${res.status}`);
+  },
+};
+
+/** API CTe via Worker (proxy para backend PHP SPED-CTe). O Worker precisa ter CTE_API_URL configurada. */
+export const cteApi = {
+  async emitir(dados: Record<string, unknown>, ambiente?: "producao" | "homologacao"): Promise<{ chave?: string; protocolo?: string; xml?: string; error?: string }> {
+    const payload = { ...dados, ambiente: ambiente || "homologacao" };
+    const res = await fetch(`${API_URL}/api/cte/emitir`, {
+      method: "POST",
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || json.message || `Falha ao emitir CTe: ${res.status}`);
+    }
+    return json;
+  },
+  async consultar(chave: string, ambiente?: "producao" | "homologacao"): Promise<{ status: string; protocolo?: string; xml?: string; error?: string }> {
+    const url = new URL(`${API_URL}/api/cte/consultar`);
+    url.searchParams.set("chave", chave);
+    if (ambiente) {
+      url.searchParams.set("ambiente", ambiente);
+    }
+    const res = await fetch(url.toString(), {
+      headers: await getHeaders(),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || json.message || `Falha ao consultar CTe: ${res.status}`);
+    }
+    return json;
   },
 };

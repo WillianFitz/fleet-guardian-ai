@@ -12,6 +12,7 @@ CREATE TABLE tenants (
   telefone TEXT,
   email TEXT,
   endereco TEXT,
+  ambiente_cte TEXT CHECK(ambiente_cte IN ('producao','homologacao')) DEFAULT 'homologacao',
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -220,6 +221,30 @@ CREATE TABLE expenses (
 );
 
 -- ==========================================
+-- RECEITAS/FRETES
+-- ==========================================
+CREATE TABLE receitas (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  descricao TEXT NOT NULL,
+  categoria TEXT DEFAULT 'Frete',
+  valor REAL NOT NULL,
+  data TEXT NOT NULL,
+  veiculo_placa TEXT,
+  cliente TEXT,
+  cte_id TEXT REFERENCES ctes(id),
+  cte_chave TEXT,
+  cte_numero TEXT,
+  nota_fiscal TEXT,
+  status TEXT CHECK(status IN ('pendente','recebido','cancelado')) DEFAULT 'pendente',
+  forma_pagamento TEXT,
+  data_recebimento TEXT,
+  observacoes TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ==========================================
 -- LICENSES (IPVA, Licensing)
 -- ==========================================
 CREATE TABLE licenses (
@@ -324,6 +349,43 @@ CREATE TABLE cost_centers (
 );
 
 -- ==========================================
+-- CTes (Conhecimento de Transporte Eletrônico)
+-- ==========================================
+CREATE TABLE ctes (
+  id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  chave TEXT,
+  numero TEXT NOT NULL,
+  serie TEXT DEFAULT '1',
+  veiculo_placa TEXT,
+  veiculo_modelo TEXT,
+  data_emissao TEXT NOT NULL,
+  data_inicio_viagem TEXT,
+  valor_prestacao REAL DEFAULT 0,
+  valor_frete REAL,
+  remetente_nome TEXT,
+  remetente_cnpj_cpf TEXT,
+  remetente_municipio TEXT,
+  remetente_uf TEXT,
+  destinatario_nome TEXT,
+  destinatario_cnpj_cpf TEXT,
+  destinatario_municipio TEXT,
+  destinatario_uf TEXT,
+  municipio_origem TEXT,
+  uf_origem TEXT,
+  municipio_destino TEXT,
+  uf_destino TEXT,
+  status TEXT CHECK(status IN ('rascunho','autorizado','rejeitado','cancelado','erro')) DEFAULT 'rascunho',
+  protocolo TEXT,
+  motivo_rejeicao TEXT,
+  xml_url TEXT,
+  pdf_url TEXT,
+  receita_id TEXT REFERENCES receitas(id),
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ==========================================
 -- COMPONENTS (Engines, Differentials)
 -- ==========================================
 CREATE TABLE components (
@@ -368,9 +430,14 @@ CREATE INDEX idx_fuel_tenant ON fuel_entries(tenant_id);
 CREATE INDEX idx_tires_tenant ON tires(tenant_id);
 CREATE INDEX idx_parts_tenant ON parts(tenant_id);
 CREATE INDEX idx_expenses_tenant ON expenses(tenant_id);
+CREATE INDEX idx_receitas_tenant ON receitas(tenant_id);
+CREATE INDEX idx_receitas_cte ON receitas(tenant_id, cte_id);
 CREATE INDEX idx_licenses_tenant ON licenses(tenant_id);
 CREATE INDEX idx_insurances_tenant ON insurances(tenant_id);
 CREATE INDEX idx_incidents_tenant ON incidents(tenant_id);
 CREATE INDEX idx_garage_tenant ON garage_entries(tenant_id);
+CREATE INDEX idx_ctes_tenant ON ctes(tenant_id);
+CREATE INDEX idx_ctes_status ON ctes(tenant_id, status);
+CREATE INDEX idx_ctes_veiculo ON ctes(tenant_id, veiculo_placa);
 CREATE INDEX idx_audit_tenant ON audit_logs(tenant_id);
 CREATE INDEX idx_audit_entity ON audit_logs(tenant_id, entity, entity_id);

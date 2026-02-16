@@ -4,6 +4,7 @@
 interface Env {
   DB: D1Database;
   AUTH_SECRET?: string;
+  CTE_API_URL?: string; // URL do backend PHP SPED-CTe (ex: https://sua-api-cte.com)
 }
 
 // ===== UTILS =====
@@ -128,6 +129,8 @@ const RESOURCE_MAP: Record<string, { table: string; fieldOverrides?: Record<stri
   insurances: { table: "insurances" },
   incidents: { table: "incidents" },
   garage: { table: "garage_entries" },
+  ctes: { table: "ctes" },
+  receitas: { table: "receitas" },
 };
 
 // Fields to exclude from INSERT/UPDATE (auto-managed)
@@ -421,6 +424,68 @@ export default {
       if (path === "/api/setup" && request.method === "POST") {
         const tenantId = await getOrCreateTenant(env.DB);
         return jsonResponse({ tenantId });
+      }
+
+      // ===== CTe API PROXY (para backend PHP SPED-CTe) =====
+      if (path === "/api/cte/emitir" && request.method === "POST") {
+        if (!env.CTE_API_URL) {
+          return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
+        }
+        try {
+          const body = await request.json();
+          const ambiente = body.ambiente || "homologacao"; // padrão homologação
+          // Remove ambiente do body antes de enviar para PHP (se necessário)
+          const { ambiente: _, ...phpBody } = body;
+          
+          // Adiciona ambiente como query param ou header (ajuste conforme sua API PHP)
+          const phpUrl = new URL(`${env.CTE_API_URL}/emitir`);
+          phpUrl.searchParams.set("ambiente", ambiente);
+          
+          const phpResponse = await fetch(phpUrl.toString(), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
+            },
+            body: JSON.stringify(phpBody),
+          });
+          const phpData = await phpResponse.json();
+          if (!phpResponse.ok) {
+            return jsonResponse({ error: phpData.message || phpData.error || "Erro ao emitir CTe" }, phpResponse.status);
+          }
+          return jsonResponse(phpData);
+        } catch (e: any) {
+          return errorResponse(`Erro ao comunicar com API CTe: ${e.message}`, 500);
+        }
+      }
+
+      if (path === "/api/cte/consultar" && request.method === "GET") {
+        if (!env.CTE_API_URL) {
+          return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
+        }
+        const chave = url.searchParams.get("chave");
+        const ambiente = url.searchParams.get("ambiente") || "homologacao";
+        if (!chave) {
+          return errorResponse("Parâmetro 'chave' é obrigatório", 400);
+        }
+        try {
+          const phpUrl = new URL(`${env.CTE_API_URL}/consultar`);
+          phpUrl.searchParams.set("chave", chave);
+          phpUrl.searchParams.set("ambiente", ambiente);
+          
+          const phpResponse = await fetch(phpUrl.toString(), {
+            headers: {
+              ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
+            },
+          });
+          const phpData = await phpResponse.json();
+          if (!phpResponse.ok) {
+            return jsonResponse({ error: phpData.message || phpData.error || "Erro ao consultar CTe" }, phpResponse.status);
+          }
+          return jsonResponse(phpData);
+        } catch (e: any) {
+          return errorResponse(`Erro ao comunicar com API CTe: ${e.message}`, 500);
+        }
       }
 
       // ===== AUTH ROUTES =====

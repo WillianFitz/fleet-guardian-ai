@@ -20,6 +20,8 @@ import Garagem from "./pages/Garagem";
 import AiInsights from "./pages/AiInsights";
 import Kpis from "./pages/Kpis";
 import Relatorios from "./pages/Relatorios";
+import Ctes from "./pages/Ctes";
+import Receitas from "./pages/Receitas";
 import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
@@ -66,6 +68,8 @@ const AppRoutes = () => {
         <Route path="/ai-insights" element={<AiInsights />} />
         <Route path="/kpis" element={<Kpis />} />
         <Route path="/relatorios" element={<Relatorios />} />
+        <Route path="/ctes" element={<Ctes />} />
+        <Route path="/receitas" element={<Receitas />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { DollarSign, Plus, Edit, Trash2 } from "lucide-react";
+import { DollarSign, Plus, Edit, Trash2, FileDown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
-import { Expense, Vehicle } from "@/types/fleet";
-import { demoExpenses, demoVehicles } from "@/data/demoData";
+import { Expense, Vehicle, CTe } from "@/types/fleet";
+import { demoExpenses, demoVehicles, demoCtes } from "@/data/demoData";
 import { toast } from "@/hooks/use-toast";
 import KpiCard from "@/components/dashboard/KpiCard";
+import { api, isApiConfigured } from "@/lib/api";
 
 const statusStyles: Record<string, string> = { pendente: "text-warning bg-warning/10", pago: "text-success bg-success/10", cancelado: "text-muted-foreground bg-muted" };
 
