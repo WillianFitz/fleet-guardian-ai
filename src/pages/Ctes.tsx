@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature } from "lucide-react";
+import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature, Loader2, FileXml } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
 import { CTe, Vehicle, FluxoOrigemCTe } from "@/types/fleet";
@@ -87,6 +87,9 @@ const Ctes = () => {
   const [emitting, setEmitting] = useState(false);
   const [consulting, setConsulting] = useState<string | null>(null);
   const [showFluxoPicker, setShowFluxoPicker] = useState(false);
+  const [nfeOrigemTipo, setNfeOrigemTipo] = useState<"xml" | "chave" | "sefaz">("chave");
+  const [nfeSefazLoading, setNfeSefazLoading] = useState(false);
+  const [nfeSefazResult, setNfeSefazResult] = useState<Array<{ chave: string; nfe: string; dhEmi: string; xNomeEmit: string; xNomeDest: string; vNF: number }>>([]);
 
   const buscarCep = async (cep: string, tipo: "remetente" | "destinatario") => {
     const digits = cep.replace(/\D/g, "");
@@ -190,8 +193,37 @@ const Ctes = () => {
 
   const handleFluxoSelect = (fluxo: FluxoOrigemCTe) => {
     setForm((prev) => ({ ...prev, fluxoOrigem: fluxo }));
+    setNfeOrigemTipo("chave");
+    setNfeSefazResult([]);
     setShowFluxoPicker(false);
     setDialogOpen(true);
+  };
+
+  const handleBuscaNFeSefaz = async () => {
+    setNfeSefazLoading(true);
+    setNfeSefazResult([]);
+    try {
+      const res = await cteApi.buscaNFeSefaz(ambienteAtual);
+      setNfeSefazResult(res.nfe || []);
+      if (!res.nfe?.length) {
+        toast({ title: "Nenhuma NF-e encontrada na SEFAZ", description: "As NF-e costumam aparecer até 2h após emissão.", variant: "destructive" });
+      }
+    } catch (e: unknown) {
+      toast({ title: "Erro ao buscar NF-e", description: e instanceof Error ? e.message : "Erro desconhecido", variant: "destructive" });
+    } finally {
+      setNfeSefazLoading(false);
+    }
+  };
+
+  const handleSelectNFeSefaz = (item: { chave: string; xNomeEmit: string; xNomeDest: string; vNF: number }) => {
+    setForm((prev) => ({
+      ...prev,
+      chaveNFe: item.chave,
+      remetenteNome: item.xNomeEmit,
+      destinatarioNome: item.xNomeDest,
+      valorPrestacao: item.vNF,
+    }));
+    toast({ title: "NF-e selecionada", description: "Remetente, destinatário e valor preenchidos." });
   };
   const handleDelete = (id: string) => {
     remove(id);
@@ -782,17 +814,117 @@ const Ctes = () => {
           {form.fluxoOrigem === "nfe" && (
             <>
               <div className="col-span-1 sm:col-span-2 mt-2">
-                <p className="text-xs font-semibold text-muted-foreground">Documento NFe</p>
+                <p className="text-xs font-semibold text-muted-foreground">Como informar a NF-e?</p>
               </div>
-              <div className="col-span-1 sm:col-span-2">
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso da NFe (44 dígitos)</label>
-                <input
-                  value={form.chaveNFe ?? ""}
-                  onChange={(e) => setField("chaveNFe", e.target.value.replace(/\D/g, "").slice(0, 44))}
-                  placeholder="Ex: 43240264728343000150550010000085618157717122"
-                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
+              <div className="col-span-1 sm:col-span-2 flex gap-2 flex-wrap">
+                {[
+                  { id: "chave" as const, label: "Chave de acesso", icon: FileText },
+                  { id: "xml" as const, label: "Arquivo XML", icon: FileXml },
+                  { id: "sefaz" as const, label: "Busca na SEFAZ", icon: Search },
+                ].map((opt) => {
+                  const Icon = opt.icon;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setNfeOrigemTipo(opt.id)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
+                        nfeOrigemTipo === opt.id
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border hover:bg-muted/50 text-muted-foreground"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
+              {nfeOrigemTipo === "chave" && (
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso da NFe (44 dígitos)</label>
+                  <input
+                    value={form.chaveNFe ?? ""}
+                    onChange={(e) => setField("chaveNFe", e.target.value.replace(/\D/g, "").slice(0, 44))}
+                    placeholder="Ex: 43240264728343000150550010000085618157717122"
+                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+              )}
+              {nfeOrigemTipo === "xml" && (
+                <div className="col-span-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Arquivo XML da NF-e</label>
+                  <input
+                    type="file"
+                    accept=".xml,application/xml"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        const r = new FileReader();
+                        r.onload = () => {
+                          const txt = r.result as string;
+                          const m = txt.match(/<chNFe>(\d{44})<\/chNFe>/);
+                          if (m) setField("chaveNFe", m[1]);
+                          else toast({ title: "Chave não encontrada no XML", variant: "destructive" });
+                        };
+                        r.readAsText(f);
+                      }
+                    }}
+                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground file:text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">A chave será extraída automaticamente do XML.</p>
+                </div>
+              )}
+              {nfeOrigemTipo === "sefaz" && (
+                <div className="col-span-1 sm:col-span-2 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleBuscaNFeSefaz}
+                      disabled={nfeSefazLoading || tenant?.certificadoStatus === "nao_configurado"}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {nfeSefazLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      {nfeSefazLoading ? "Buscando..." : "Buscar na SEFAZ"}
+                    </button>
+                    <span className="text-xs text-muted-foreground">NF-e vinculadas ao CNPJ da empresa</span>
+                  </div>
+                  {nfeSefazResult.length > 0 && (
+                    <div className="border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Emissão</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
+                            <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
+                            <th className="px-2 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nfeSefazResult.map((n) => (
+                            <tr
+                              key={n.chave}
+                              className="border-t border-border hover:bg-muted/30 cursor-pointer"
+                              onClick={() => handleSelectNFeSefaz(n)}
+                            >
+                              <td className="px-3 py-2 font-mono">{n.nfe}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{n.dhEmi ? new Date(n.dhEmi).toLocaleDateString("pt-BR") : "—"}</td>
+                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeEmit}>{n.xNomeEmit || "—"}</td>
+                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeDest}>{n.xNomeDest || "—"}</td>
+                              <td className="px-3 py-2 text-right font-medium">R$ {n.vNF?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}</td>
+                              <td className="px-2 py-2">
+                                <button type="button" onClick={(e) => { e.stopPropagation(); handleSelectNFeSefaz(n); }} className="text-primary text-xs font-medium">Usar</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </>
           )}
           {form.fluxoOrigem === "cte_outro" && (

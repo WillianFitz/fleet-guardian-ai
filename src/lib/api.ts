@@ -155,4 +155,16 @@ export const cteApi = {
     }
     return json;
   },
+  async buscaNFeSefaz(ambiente?: "producao" | "homologacao", ultNSU?: number): Promise<{ nfe: Array<{ chave: string; nfe: string; dhEmi: string; xNomeEmit: string; xNomeDest: string; vNF: number }>; ultNSU: number; maxNSU: number }> {
+    const res = await fetch(`${API_URL}/api/nfe/busca-sefaz`, {
+      method: "POST",
+      headers: await getHeaders(),
+      body: JSON.stringify({ ambiente: ambiente || "homologacao", ultNSU: ultNSU ?? 0 }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || json.message || `Falha ao buscar NF-e na SEFAZ: ${res.status}`);
+    }
+    return json;
+  },
 };

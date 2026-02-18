@@ -10,6 +10,7 @@
     "ext-zip": "*",
     "nfephp-org/sped-cte": "^5.0",
     "nfephp-org/sped-common": "^5.0",
+    "nfephp-org/sped-nfe": "^5.1",
     "slim/slim": "^4.0",
     "slim/psr7": "^1.0"
   },

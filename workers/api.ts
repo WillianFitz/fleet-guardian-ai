@@ -609,6 +609,53 @@ export default {
         }
       }
 
+      // POST /api/nfe/busca-sefaz — Busca NF-e na SEFAZ (Distribuição DFe)
+      if (path === "/api/nfe/busca-sefaz" && request.method === "POST") {
+        if (!env.CTE_API_URL) {
+          return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
+        }
+        try {
+          const body = await request.json() as Record<string, unknown>;
+          const ambiente = (body.ambiente as string) || "homologacao";
+          const { tenantId } = await getTenantForRequest(request, env);
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, cnpj, nome, uf FROM tenants WHERE id = ?")
+            .bind(tenantId)
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string; cnpj?: string; nome?: string; uf?: string }>();
+
+          if (!tenant?.cnpj || !tenant?.nome) {
+            return errorResponse("Dados da empresa incompletos. Cadastre CNPJ e Nome nas Configurações.", 400);
+          }
+          if (!tenant?.certificado_pfx_base64 || !tenant?.certificado_password) {
+            return errorResponse("Certificado digital não configurado. Faça upload nas Configurações.", 400);
+          }
+
+          const phpBody = {
+            certificado: { pfxBase64: tenant.certificado_pfx_base64, password: tenant.certificado_password },
+            empresa: { cnpj: tenant.cnpj, razaoSocial: tenant.nome, siglaUF: tenant.uf || "SP" },
+            ambiente,
+            ultNSU: body.ultNSU ?? 0,
+          };
+          const phpResponse = await fetch(`${env.CTE_API_URL}/nfe-busca-sefaz`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(phpBody),
+          });
+          const phpText = await phpResponse.text();
+          let phpData: any;
+          try {
+            phpData = phpText ? JSON.parse(phpText) : {};
+          } catch {
+            return errorResponse(`Resposta inválida da API: HTTP ${phpResponse.status}`, 502);
+          }
+          if (!phpResponse.ok) {
+            return jsonResponse({ error: phpData.error || "Erro ao buscar NF-e na SEFAZ" }, phpResponse.status);
+          }
+          return jsonResponse(phpData);
+        } catch (e: any) {
+          return errorResponse(`Erro ao buscar NF-e na SEFAZ: ${e.message}`, 500);
+        }
+      }
+
       // ===== AUTH ROUTES =====
       if (path === "/api/auth/register" && request.method === "POST") {
         const body = (await request.json()) as {

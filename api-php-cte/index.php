@@ -40,6 +40,7 @@ use Slim\Factory\AppFactory;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\CTeService;
+use App\NFeBuscaSefazService;
 
 /** Helper: Slim 4 PSR-7 Response não tem withJson(), então criamos um */
 function jsonResponse(Response $response, $data, int $status = 200): Response {
@@ -276,6 +277,52 @@ $app->get('/consultar', function (Request $request, Response $response): Respons
         
         return jsonResponse($response, $resultado);
         
+    } catch (\Exception $e) {
+        return jsonResponse($response, [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
+/**
+ * POST /nfe-busca-sefaz
+ * Busca NF-e na SEFAZ (Distribuição DFe) referentes ao CNPJ da empresa
+ * Body: certificado (pfxBase64, password), empresa (cnpj, razaoSocial, siglaUF), ambiente, ultNSU (opcional)
+ */
+$app->post('/nfe-busca-sefaz', function (Request $request, Response $response): Response {
+    $body = json_decode($request->getBody()->getContents(), true);
+    if (!$body) {
+        return jsonResponse($response, ['error' => 'Body JSON inválido'], 400);
+    }
+    $certPfxBase64 = $body['certificado']['pfxBase64'] ?? getenv('CERT_PFX_BASE64');
+    $certPassword = $body['certificado']['password'] ?? getenv('CERT_PASSWORD');
+    if (!$certPfxBase64 || !$certPassword) {
+        return jsonResponse($response, [
+            'error' => 'Certificado digital não configurado. Faça upload nas configurações da empresa.'
+        ], 400);
+    }
+    try {
+        $certPfx = base64_decode($certPfxBase64);
+        $tempCertPath = sys_get_temp_dir() . '/cert_busca_' . uniqid() . '.pfx';
+        file_put_contents($tempCertPath, $certPfx);
+        $empresaDados = [
+            'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? '',
+            'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
+        ];
+        if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
+            @unlink($tempCertPath);
+            return jsonResponse($response, [
+                'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome nas Configurações.'
+            ], 400);
+        }
+        $ambiente = $body['ambiente'] ?? 'homologacao';
+        $ultNSU = (int)($body['ultNSU'] ?? 0);
+        $buscaService = new NFeBuscaSefazService($tempCertPath, $certPassword, $empresaDados, $ambiente);
+        $resultado = $buscaService->buscar($ultNSU);
+        @unlink($tempCertPath);
+        return jsonResponse($response, $resultado);
     } catch (\Exception $e) {
         return jsonResponse($response, [
             'error' => $e->getMessage(),
