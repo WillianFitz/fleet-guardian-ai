@@ -88,11 +88,23 @@ class CTeService
     {
         try {
             error_log("CTeService::emitir - Iniciando emissão de CT-e");
+            
+            // Validar dados obrigatórios
+            if (empty($dados['numero'])) {
+                throw new Exception("Número do CT-e é obrigatório");
+            }
+            if (empty($dados['remetente']['nome'])) {
+                throw new Exception("Nome do remetente é obrigatório");
+            }
+            if (empty($dados['destinatario']['nome'])) {
+                throw new Exception("Nome do destinatário é obrigatório");
+            }
+            
             $make = new MakeCTe();
 
             // Extrair dados
-            $numero = str_pad($dados['numero'], 9, '0', STR_PAD_LEFT);
-            $serie = str_pad($dados['serie'] ?? '1', 3, '0', STR_PAD_LEFT);
+            $numero = str_pad((string)$dados['numero'], 9, '0', STR_PAD_LEFT);
+            $serie = str_pad((string)($dados['serie'] ?? '1'), 3, '0', STR_PAD_LEFT);
             $cnpj = $this->config['cnpj'];
             $uf = $this->config['siglaUF'];
             $tpAmb = $this->config['tpAmb'];
@@ -109,6 +121,7 @@ class CTeService
             $stdIde->cCT = $numero;
             $stdIde->CFOP = '5353'; // Prestação de serviço de transporte
             $stdIde->natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE';
+            $stdIde->mod = '57'; // Modelo do CT-e (obrigatório)
             $stdIde->serie = $dados['serie'] ?? '1';
             $stdIde->nCT = $dados['numero'];
             $stdIde->dhEmi = date('c'); // ISO 8601
@@ -118,15 +131,21 @@ class CTeService
             $stdIde->tpCTe = '0'; // Normal
             $stdIde->procEmi = '0'; // Emissão própria
             $stdIde->verProc = 'FleetGuardianAI';
-            $stdIde->cMunEnv = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? $uf);
-            $stdIde->xMunEnv = $dados['remetente']['municipio'] ?? '';
-            $stdIde->UFEnv = $dados['remetente']['uf'] ?? $uf;
-            $stdIde->cMunIni = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? $uf);
-            $stdIde->xMunIni = $dados['remetente']['municipio'] ?? '';
-            $stdIde->UFIni = $dados['remetente']['uf'] ?? $uf;
-            $stdIde->cMunFim = $this->getCodigoMunicipio($dados['destinatario']['municipio'] ?? '', $dados['destinatario']['uf'] ?? '');
-            $stdIde->xMunFim = $dados['destinatario']['municipio'] ?? '';
-            $stdIde->UFFim = $dados['destinatario']['uf'] ?? '';
+            // Campos de município e UF (obrigatórios)
+            $remetenteMunicipio = $dados['remetente']['municipio'] ?? '';
+            $remetenteUF = $dados['remetente']['uf'] ?? $uf;
+            $destinatarioMunicipio = $dados['destinatario']['municipio'] ?? '';
+            $destinatarioUF = $dados['destinatario']['uf'] ?? '';
+            
+            $stdIde->cMunEnv = $this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
+            $stdIde->xMunEnv = $remetenteMunicipio ?: 'NÃO INFORMADO';
+            $stdIde->UFEnv = $remetenteUF ?: $uf;
+            $stdIde->cMunIni = $this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
+            $stdIde->xMunIni = $remetenteMunicipio ?: 'NÃO INFORMADO';
+            $stdIde->UFIni = $remetenteUF ?: $uf;
+            $stdIde->cMunFim = $this->getCodigoMunicipio($destinatarioMunicipio, $destinatarioUF);
+            $stdIde->xMunFim = $destinatarioMunicipio ?: 'NÃO INFORMADO';
+            $stdIde->UFFim = $destinatarioUF ?: '';
             $make->tagide($stdIde);
 
             // EMIT - Emitente (sua empresa)
