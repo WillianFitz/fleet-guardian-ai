@@ -117,6 +117,8 @@ class CTeService
             $chave = $this->gerarChave($cnpj, $numero, $serie, $tpAmb);
 
             // IDE - Identificação do CT-e
+            // IMPORTANTE: Não incluir campos opcionais que não serão usados
+            // A biblioteca pode falhar se campos opcionais forem null ou vazios incorretamente
             $stdIde = new \stdClass();
             $stdIde->cUF = (string)$this->getCodigoUF($uf);
             // cCT deve ser o número do CT-e com 8 dígitos (zeros à esquerda)
@@ -138,26 +140,27 @@ class CTeService
             $stdIde->verProc = 'FleetGuardianAI';
             
             // Campos de município e UF (obrigatórios)
-            $remetenteMunicipio = $dados['remetente']['municipio'] ?? '';
-            $remetenteUF = strtoupper($dados['remetente']['uf'] ?? $uf);
-            $destinatarioMunicipio = $dados['destinatario']['municipio'] ?? '';
-            $destinatarioUF = strtoupper($dados['destinatario']['uf'] ?? '');
+            $remetenteMunicipio = trim($dados['remetente']['municipio'] ?? '');
+            $remetenteUF = strtoupper(trim($dados['remetente']['uf'] ?? $uf));
+            $destinatarioMunicipio = trim($dados['destinatario']['municipio'] ?? '');
+            $destinatarioUF = strtoupper(trim($dados['destinatario']['uf'] ?? ''));
             
             // Garantir que os códigos de município não sejam vazios
             $cMunEnv = $this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
             $cMunIni = $this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
-            $cMunFim = $this->getCodigoMunicipio($destinatarioMunicipio, $destinatarioUF);
+            $cMunFim = $this->getCodigoMunicipio($destinatarioMunicipio, $destinatarioUF ?: $uf);
             
+            // Garantir que todos os valores sejam strings, nunca null
             $stdIde->cMunEnv = (string)$cMunEnv;
-            $stdIde->xMunEnv = !empty($remetenteMunicipio) ? $remetenteMunicipio : 'NÃO INFORMADO';
-            $stdIde->UFEnv = !empty($remetenteUF) ? $remetenteUF : $uf;
+            $stdIde->xMunEnv = !empty($remetenteMunicipio) ? (string)$remetenteMunicipio : 'NÃO INFORMADO';
+            $stdIde->UFEnv = !empty($remetenteUF) ? (string)$remetenteUF : (string)$uf;
             $stdIde->cMunIni = (string)$cMunIni;
-            $stdIde->xMunIni = !empty($remetenteMunicipio) ? $remetenteMunicipio : 'NÃO INFORMADO';
-            $stdIde->UFIni = !empty($remetenteUF) ? $remetenteUF : $uf;
+            $stdIde->xMunIni = !empty($remetenteMunicipio) ? (string)$remetenteMunicipio : 'NÃO INFORMADO';
+            $stdIde->UFIni = !empty($remetenteUF) ? (string)$remetenteUF : (string)$uf;
             $stdIde->cMunFim = (string)$cMunFim;
-            $stdIde->xMunFim = !empty($destinatarioMunicipio) ? $destinatarioMunicipio : 'NÃO INFORMADO';
+            $stdIde->xMunFim = !empty($destinatarioMunicipio) ? (string)$destinatarioMunicipio : 'NÃO INFORMADO';
             // UFFim não pode ser vazio - usar UF do remetente como fallback
-            $stdIde->UFFim = !empty($destinatarioUF) ? $destinatarioUF : $uf;
+            $stdIde->UFFim = !empty($destinatarioUF) ? (string)$destinatarioUF : (string)$uf;
             
             // Validar campos obrigatórios antes de criar a tag
             $camposObrigatorios = ['cUF', 'cCT', 'CFOP', 'natOp', 'mod', 'serie', 'nCT', 'dhEmi', 'tpImp', 'tpEmis', 'tpAmb', 'tpCTe', 'procEmi', 'verProc'];
@@ -171,9 +174,9 @@ class CTeService
             error_log("CTeService::emitir - Dados IDE: " . json_encode($stdIde, JSON_UNESCAPED_UNICODE));
             
             // Chamar tagide e verificar resultado
+            // IMPORTANTE: A biblioteca pode falhar silenciosamente se campos estiverem incorretos
             try {
                 $resultadoTagide = $make->tagide($stdIde);
-                // tagide pode retornar void ou true, verificar se houve erro
                 error_log("CTeService::emitir - tagide() executado, retorno: " . (is_null($resultadoTagide) ? 'null' : ($resultadoTagide === true ? 'true' : gettype($resultadoTagide))));
             } catch (\Throwable $e) {
                 error_log("CTeService::emitir - Erro ao criar tag ide: " . $e->getMessage());
@@ -251,11 +254,22 @@ class CTeService
             $make->tagrodo($stdRodo);
 
             // Montar XML
+            // IMPORTANTE: monta() verifica se todas as tags obrigatórias foram criadas
+            // Se alguma tag não foi criada corretamente, monta() tentará criar uma mensagem de erro
+            // mas pode falhar se passar parâmetros incorretos para appChild()
             try {
+                error_log("CTeService::emitir - Chamando monta()...");
                 $make->monta();
                 error_log("CTeService::emitir - monta() executado com sucesso");
-            } catch (\Exception $e) {
+            } catch (\TypeError $e) {
+                // Este é o erro específico que estamos enfrentando
+                error_log("CTeService::emitir - TypeError ao montar XML: " . $e->getMessage());
+                error_log("CTeService::emitir - Arquivo: " . $e->getFile() . " Linha: " . $e->getLine());
+                error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
+                throw new Exception("Erro ao montar XML do CT-e: A tag 'ide' pode não ter sido criada corretamente. Verifique se todos os campos obrigatórios estão preenchidos. Detalhes: " . $e->getMessage());
+            } catch (\Throwable $e) {
                 error_log("CTeService::emitir - Erro ao montar XML: " . $e->getMessage());
+                error_log("CTeService::emitir - Tipo: " . get_class($e));
                 error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
                 throw new Exception("Erro ao montar XML do CT-e: " . $e->getMessage());
             }
