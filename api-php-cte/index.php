@@ -182,9 +182,14 @@ $app->post('/validar-certificado', function (Request $request, Response $respons
         @unlink($tempCertPath);
         
         if (!$cert) {
+            $openSslError = function_exists('openssl_error_string') ? (openssl_error_string() ?: '') : '';
+            $mensagem = 'Senha incorreta ou certificado inválido.';
+            if (strpos($openSslError, '0308010C') !== false || stripos($openSslError, 'unsupported') !== false || stripos($openSslError, 'digital envelope') !== false) {
+                $mensagem = 'Impossível ler o certificado (OpenSSL 3). Configure OPENSSL_CONF com o provider legacy (openssl-legacy.cnf) no servidor. Erro: ' . $openSslError;
+            }
             return jsonResponse($response, [
                 'valido' => false,
-                'mensagem' => 'Senha incorreta ou certificado inválido'
+                'mensagem' => $mensagem
             ]);
         }
         

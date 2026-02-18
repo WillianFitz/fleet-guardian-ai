@@ -34,6 +34,10 @@ RUN composer dump-autoload --optimize --no-dev || echo "Warning: composer dump-a
 
 COPY . .
 
+# OpenSSL 3: ativar provider legacy para ler certificados .pfx com algoritmos antigos
+# (evita error:0308010C:digital envelope routines::unsupported)
+ENV OPENSSL_CONF=/app/openssl-legacy.cnf
+
 # Debug: Verificar o que foi instalado
 RUN echo "=== Verificando instalação ===" && \
     php debug-autoload.php && \

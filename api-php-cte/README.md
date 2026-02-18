@@ -67,6 +67,15 @@ Consulta status de um CTe na SEFAZ.
 }
 ```
 
+## Certificado e OpenSSL 3
+
+Se aparecer **"error:0308010C:digital envelope routines::unsupported"** ao ler o certificado .pfx, o servidor está com OpenSSL 3.x e o certificado usa algoritmos antigos. No **Docker** isso já está tratado: o `Dockerfile` define `OPENSSL_CONF=/app/openssl-legacy.cnf`, que ativa o provider legacy. Se rodar PHP **fora do Docker** (por exemplo localmente), defina no ambiente:
+
+```bash
+export OPENSSL_CONF=/caminho/para/api-php-cte/openssl-legacy.cnf
+php -S localhost:8000 -t .
+```
+
 ## Rodar localmente
 
 ```bash
