@@ -101,7 +101,13 @@ class CTeService
             }
             
             // Criar instância do MakeCTe com a configuração
-            $make = new MakeCTe(json_encode($this->config));
+            // IMPORTANTE: A configuração deve ser um JSON válido
+            $configJson = json_encode($this->config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($configJson === false) {
+                throw new Exception("Erro ao criar JSON de configuração: " . json_last_error_msg());
+            }
+            error_log("CTeService::emitir - Config JSON: " . $configJson);
+            $make = new MakeCTe($configJson);
 
             // Extrair dados
             $numero = str_pad((string)$dados['numero'], 9, '0', STR_PAD_LEFT);
@@ -176,8 +182,26 @@ class CTeService
             // Chamar tagide e verificar resultado
             // IMPORTANTE: A biblioteca pode falhar silenciosamente se campos estiverem incorretos
             try {
+                // Usar reflexão para verificar se a tag foi criada após chamar tagide()
+                $reflection = new \ReflectionClass($make);
+                
                 $resultadoTagide = $make->tagide($stdIde);
                 error_log("CTeService::emitir - tagide() executado, retorno: " . (is_null($resultadoTagide) ? 'null' : ($resultadoTagide === true ? 'true' : gettype($resultadoTagide))));
+                
+                // Tentar verificar se a propriedade ide existe no objeto MakeCTe
+                // Isso pode nos ajudar a entender se a tag foi criada
+                try {
+                    if ($reflection->hasProperty('ide')) {
+                        $ideProperty = $reflection->getProperty('ide');
+                        $ideProperty->setAccessible(true);
+                        $ideValue = $ideProperty->getValue($make);
+                        error_log("CTeService::emitir - Propriedade 'ide' existe no MakeCTe: " . (is_null($ideValue) ? 'null' : gettype($ideValue)));
+                    } else {
+                        error_log("CTeService::emitir - Propriedade 'ide' NÃO existe no MakeCTe");
+                    }
+                } catch (\Throwable $reflectionError) {
+                    error_log("CTeService::emitir - Não foi possível verificar propriedade via reflexão: " . $reflectionError->getMessage());
+                }
             } catch (\Throwable $e) {
                 error_log("CTeService::emitir - Erro ao criar tag ide: " . $e->getMessage());
                 error_log("CTeService::emitir - Trace tagide: " . $e->getTraceAsString());
