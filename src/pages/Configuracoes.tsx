@@ -1,4 +1,4 @@
-import { Settings, Trash2, Database, Building2, Save, Loader2, Shield, AlertCircle, Upload, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { Settings, Trash2, Database, Building2, Save, Loader2, Shield, AlertCircle, Upload, CheckCircle2, XCircle, Clock, Search } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
@@ -10,6 +10,7 @@ const Configuracoes = () => {
   const [confirmClear, setConfirmClear] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingCert, setUploadingCert] = useState(false);
+  const [loadingCnpj, setLoadingCnpj] = useState(false);
   const [certFile, setCertFile] = useState<File | null>(null);
   const [certPassword, setCertPassword] = useState("");
   const [form, setForm] = useState({
@@ -35,6 +36,37 @@ const Configuracoes = () => {
       });
     }
   }, [tenant]);
+
+  const handleBuscarCnpj = async () => {
+    const digits = (form.cnpj || "").replace(/\D/g, "");
+    if (digits.length !== 14) {
+      toast({ title: "CNPJ inválido", description: "Informe os 14 dígitos do CNPJ.", variant: "destructive" });
+      return;
+    }
+    setLoadingCnpj(true);
+    try {
+      const { buscarEmpresaPorCnpj, formatCnpjDisplay } = await import("@/lib/cnpj");
+      const dados = await buscarEmpresaPorCnpj(form.cnpj);
+      if (dados) {
+        setForm((prev) => ({
+          ...prev,
+          nome: dados.razaoSocial || prev.nome,
+          cnpj: formatCnpjDisplay(dados.cnpj),
+          telefone: dados.telefone || prev.telefone,
+          endereco: dados.endereco || prev.endereco,
+          uf: dados.uf || prev.uf,
+          email: dados.email || prev.email,
+        }));
+        toast({ title: "Dados da empresa carregados", description: "Revise e salve se estiver correto." });
+      } else {
+        toast({ title: "CNPJ não encontrado", description: "Preencha os dados manualmente.", variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Erro ao buscar CNPJ", description: "Preencha os dados manualmente.", variant: "destructive" });
+    } finally {
+      setLoadingCnpj(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!form.nome || !form.cnpj || !form.uf) {
@@ -227,14 +259,25 @@ const Configuracoes = () => {
               className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">CNPJ *</label>
-            <input
-              value={form.cnpj}
-              onChange={(e) => setField("cnpj", e.target.value)}
-              placeholder="00.000.000/0001-00"
-              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-            />
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">CNPJ *</label>
+              <input
+                value={form.cnpj}
+                onChange={(e) => setField("cnpj", e.target.value)}
+                placeholder="00.000.000/0001-00"
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleBuscarCnpj}
+              disabled={loadingCnpj || (form.cnpj || "").replace(/\D/g, "").length !== 14}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/40 text-sm font-medium hover:bg-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingCnpj ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              {loadingCnpj ? "Buscando..." : "Buscar por CNPJ"}
+            </button>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">UF *</label>

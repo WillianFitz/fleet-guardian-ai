@@ -664,12 +664,18 @@ export default {
           email?: string;
           password?: string;
           nome?: string;
+          telefone?: string;
+          endereco?: string;
+          uf?: string;
         };
 
         const companyName = body.companyName || body.nome || "Empresa";
-        const cnpj = body.cnpj?.trim();
+        const cnpj = (body.cnpj || "").replace(/\D/g, "").trim();
         const email = body.email?.trim().toLowerCase();
         const password = body.password;
+        const telefone = body.telefone?.trim() || null;
+        const endereco = body.endereco?.trim() || null;
+        const uf = body.uf?.trim() || null;
 
         if (!companyName || !cnpj || !email || !password) {
           return errorResponse("companyName, cnpj, email e password são obrigatórios", 400);
@@ -680,8 +686,10 @@ export default {
         if (!tenant) {
           const tenantId = crypto.randomUUID().replace(/-/g, "");
           await env.DB
-            .prepare("INSERT INTO tenants (id, nome, cnpj, email) VALUES (?, ?, ?, ?)")
-            .bind(tenantId, companyName, cnpj, email)
+            .prepare(
+              "INSERT INTO tenants (id, nome, cnpj, email, telefone, endereco, uf) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            )
+            .bind(tenantId, companyName, cnpj, email, telefone, endereco, uf)
             .run();
           tenant = { id: tenantId };
         }

@@ -1,0 +1,2 @@
+-- Se sua tabela tenants já existia sem a coluna uf, execute:
+-- ALTER TABLE tenants ADD COLUMN uf TEXT;

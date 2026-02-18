@@ -20,6 +20,9 @@ interface AuthContextValue {
     email: string;
     password: string;
     nome?: string;
+    telefone?: string;
+    endereco?: string;
+    uf?: string;
   }) => Promise<void>;
   logout: () => void;
 }
@@ -79,6 +82,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string;
     password: string;
     nome?: string;
+    telefone?: string;
+    endereco?: string;
+    uf?: string;
   }) => {
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: "POST",

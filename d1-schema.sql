@@ -12,6 +12,7 @@ CREATE TABLE tenants (
   telefone TEXT,
   email TEXT,
   endereco TEXT,
+  uf TEXT,
   ambiente_cte TEXT CHECK(ambiente_cte IN ('producao','homologacao')) DEFAULT 'homologacao',
   certificado_pfx_base64 TEXT,
   certificado_password TEXT,
