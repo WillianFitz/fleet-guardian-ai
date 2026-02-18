@@ -53,10 +53,6 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
           normalized.motorista = String(normalized.motorista);
         }
         
-        console.log(`[useStore] Normalizando veículo ${item.id}:`, { 
-          antes: { motorista: item.motorista, motoristaId: item.motoristaId }, 
-          depois: normalized.motorista 
-        });
         return normalized;
       }
       return item;
