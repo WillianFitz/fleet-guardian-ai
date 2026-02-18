@@ -511,7 +511,17 @@ export default {
             },
             body: JSON.stringify(phpBodyWithCert),
           });
-          const phpData = await phpResponse.json();
+          const phpText = await phpResponse.text();
+          let phpData: any;
+          try {
+            phpData = phpText ? JSON.parse(phpText) : {};
+          } catch {
+            return errorResponse(
+              `Resposta inválida da API CTe (não-JSON). Verifique logs do Railway. ` +
+                `HTTP ${phpResponse.status}. Início: ${phpText.slice(0, 200)}`,
+              502,
+            );
+          }
           if (!phpResponse.ok) {
             return jsonResponse({ error: phpData.message || phpData.error || "Erro ao emitir CTe" }, phpResponse.status);
           }
@@ -579,7 +589,17 @@ export default {
             headers,
             ...(body ? { body } : {}),
           });
-          const phpData = await phpResponse.json();
+          const phpText = await phpResponse.text();
+          let phpData: any;
+          try {
+            phpData = phpText ? JSON.parse(phpText) : {};
+          } catch {
+            return errorResponse(
+              `Resposta inválida da API CTe (não-JSON). Verifique logs do Railway. ` +
+                `HTTP ${phpResponse.status}. Início: ${phpText.slice(0, 200)}`,
+              502,
+            );
+          }
           if (!phpResponse.ok) {
             return jsonResponse({ error: phpData.message || phpData.error || "Erro ao consultar CTe" }, phpResponse.status);
           }

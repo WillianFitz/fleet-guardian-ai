@@ -1,0 +1,11 @@
+vendor
+.git
+node_modules
+npm-debug.log
+yarn-error.log
+*.log
+*.pem
+*.pfx
+*.p12
+.env
+
