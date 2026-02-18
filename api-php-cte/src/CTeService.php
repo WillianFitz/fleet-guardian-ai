@@ -103,108 +103,104 @@ class CTeService
             $chave = $this->gerarChave($cnpj, $numero, $serie, $tpAmb);
 
             // IDE - Identificação do CT-e
-            $make->tagide(
-                $cUF = $this->getCodigoUF($uf),
-                $cCT = $numero,
-                $CFOP = '5353', // Prestação de serviço de transporte
-                $natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE',
-                $mod = '57',
-                $serie = $dados['serie'] ?? '1',
-                $nCT = $dados['numero'],
-                $dhEmi = date('c'), // ISO 8601
-                $tpImp = '1', // Retrato
-                $tpEmis = '1', // Normal
-                $tpAmb = $tpAmb,
-                $tpCTe = '0', // Normal
-                $procEmi = '0', // Emissão própria
-                $verProc = 'FleetGuardianAI',
-                $cMunEnv = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? $uf),
-                $xMunEnv = $dados['remetente']['municipio'] ?? '',
-                $UFEnv = $dados['remetente']['uf'] ?? $uf,
-                $cMunIni = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? $uf),
-                $xMunIni = $dados['remetente']['municipio'] ?? '',
-                $UFIni = $dados['remetente']['uf'] ?? $uf,
-                $cMunFim = $this->getCodigoMunicipio($dados['destinatario']['municipio'] ?? '', $dados['destinatario']['uf'] ?? ''),
-                $xMunFim = $dados['destinatario']['municipio'] ?? '',
-                $UFFim = $dados['destinatario']['uf'] ?? ''
-            );
+            $stdIde = new \stdClass();
+            $stdIde->cUF = $this->getCodigoUF($uf);
+            $stdIde->cCT = $numero;
+            $stdIde->CFOP = '5353'; // Prestação de serviço de transporte
+            $stdIde->natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE';
+            $stdIde->serie = $dados['serie'] ?? '1';
+            $stdIde->nCT = $dados['numero'];
+            $stdIde->dhEmi = date('c'); // ISO 8601
+            $stdIde->tpImp = '1'; // Retrato
+            $stdIde->tpEmis = '1'; // Normal
+            $stdIde->tpAmb = $tpAmb;
+            $stdIde->tpCTe = '0'; // Normal
+            $stdIde->procEmi = '0'; // Emissão própria
+            $stdIde->verProc = 'FleetGuardianAI';
+            $stdIde->cMunEnv = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? $uf);
+            $stdIde->xMunEnv = $dados['remetente']['municipio'] ?? '';
+            $stdIde->UFEnv = $dados['remetente']['uf'] ?? $uf;
+            $stdIde->cMunIni = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? $uf);
+            $stdIde->xMunIni = $dados['remetente']['municipio'] ?? '';
+            $stdIde->UFIni = $dados['remetente']['uf'] ?? $uf;
+            $stdIde->cMunFim = $this->getCodigoMunicipio($dados['destinatario']['municipio'] ?? '', $dados['destinatario']['uf'] ?? '');
+            $stdIde->xMunFim = $dados['destinatario']['municipio'] ?? '';
+            $stdIde->UFFim = $dados['destinatario']['uf'] ?? '';
+            $make->tagide($stdIde);
 
             // EMIT - Emitente (sua empresa)
-            $make->tagemit(
-                $CNPJ = $cnpj,
-                $IE = '',
-                $xNome = $this->config['razaosocial'],
-                $xFant = '',
-                $enderEmit = [
-                    'xLgr' => 'RUA EXEMPLO',
-                    'nro' => '123',
-                    'xBairro' => 'CENTRO',
-                    'cMun' => $this->getCodigoMunicipio('São Paulo', 'SP'),
-                    'xMun' => 'SAO PAULO',
-                    'UF' => 'SP',
-                    'CEP' => '01000000'
-                ]
-            );
+            $stdEmit = new \stdClass();
+            $stdEmit->CNPJ = $cnpj;
+            $stdEmit->IE = '';
+            $stdEmit->xNome = $this->config['razaosocial'];
+            $stdEmit->xFant = '';
+            $stdEmit->enderEmit = new \stdClass();
+            $stdEmit->enderEmit->xLgr = 'RUA EXEMPLO';
+            $stdEmit->enderEmit->nro = '123';
+            $stdEmit->enderEmit->xBairro = 'CENTRO';
+            $stdEmit->enderEmit->cMun = $this->getCodigoMunicipio('São Paulo', 'SP');
+            $stdEmit->enderEmit->xMun = 'SAO PAULO';
+            $stdEmit->enderEmit->UF = 'SP';
+            $stdEmit->enderEmit->CEP = '01000000';
+            $make->tagemit($stdEmit);
 
             // REM - Remetente
             $cnpjCpfRem = preg_replace('/\D/', '', $dados['remetente']['cnpjCpf'] ?? '');
-            $make->tagrem(
-                $CNPJ = strlen($cnpjCpfRem) === 14 ? $cnpjCpfRem : null,
-                $CPF = strlen($cnpjCpfRem) === 11 ? $cnpjCpfRem : null,
-                $IE = '',
-                $xNome = $dados['remetente']['nome'] ?? '',
-                $xFant = '',
-                $fone = '',
-                $email = '',
-                $enderReme = [
-                    'xLgr' => '',
-                    'nro' => '',
-                    'xBairro' => '',
-                    'cMun' => $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? ''),
-                    'xMun' => $dados['remetente']['municipio'] ?? '',
-                    'UF' => $dados['remetente']['uf'] ?? '',
-                    'CEP' => ''
-                ]
-            );
+            $stdRem = new \stdClass();
+            $stdRem->CNPJ = strlen($cnpjCpfRem) === 14 ? $cnpjCpfRem : null;
+            $stdRem->CPF = strlen($cnpjCpfRem) === 11 ? $cnpjCpfRem : null;
+            $stdRem->IE = '';
+            $stdRem->xNome = $dados['remetente']['nome'] ?? '';
+            $stdRem->xFant = '';
+            $stdRem->fone = '';
+            $stdRem->email = '';
+            $stdRem->enderReme = new \stdClass();
+            $stdRem->enderReme->xLgr = '';
+            $stdRem->enderReme->nro = '';
+            $stdRem->enderReme->xBairro = '';
+            $stdRem->enderReme->cMun = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? '');
+            $stdRem->enderReme->xMun = $dados['remetente']['municipio'] ?? '';
+            $stdRem->enderReme->UF = $dados['remetente']['uf'] ?? '';
+            $stdRem->enderReme->CEP = '';
+            $make->tagrem($stdRem);
 
             // DEST - Destinatário
             $cnpjCpfDest = preg_replace('/\D/', '', $dados['destinatario']['cnpjCpf'] ?? '');
-            $make->tagdest(
-                $CNPJ = strlen($cnpjCpfDest) === 14 ? $cnpjCpfDest : null,
-                $CPF = strlen($cnpjCpfDest) === 11 ? $cnpjCpfDest : null,
-                $IE = '',
-                $xNome = $dados['destinatario']['nome'] ?? '',
-                $xFant = '',
-                $fone = '',
-                $email = '',
-                $enderDest = [
-                    'xLgr' => '',
-                    'nro' => '',
-                    'xBairro' => '',
-                    'cMun' => $this->getCodigoMunicipio($dados['destinatario']['municipio'] ?? '', $dados['destinatario']['uf'] ?? ''),
-                    'xMun' => $dados['destinatario']['municipio'] ?? '',
-                    'UF' => $dados['destinatario']['uf'] ?? '',
-                    'CEP' => ''
-                ]
-            );
+            $stdDest = new \stdClass();
+            $stdDest->CNPJ = strlen($cnpjCpfDest) === 14 ? $cnpjCpfDest : null;
+            $stdDest->CPF = strlen($cnpjCpfDest) === 11 ? $cnpjCpfDest : null;
+            $stdDest->IE = '';
+            $stdDest->xNome = $dados['destinatario']['nome'] ?? '';
+            $stdDest->xFant = '';
+            $stdDest->fone = '';
+            $stdDest->email = '';
+            $stdDest->enderDest = new \stdClass();
+            $stdDest->enderDest->xLgr = '';
+            $stdDest->enderDest->nro = '';
+            $stdDest->enderDest->xBairro = '';
+            $stdDest->enderDest->cMun = $this->getCodigoMunicipio($dados['destinatario']['municipio'] ?? '', $dados['destinatario']['uf'] ?? '');
+            $stdDest->enderDest->xMun = $dados['destinatario']['municipio'] ?? '';
+            $stdDest->enderDest->UF = $dados['destinatario']['uf'] ?? '';
+            $stdDest->enderDest->CEP = '';
+            $make->tagdest($stdDest);
 
             // vPrest - Valores da Prestação
             $valorPrestacao = floatval($dados['valorPrestacao'] ?? 0);
-            $make->tagvPrest(
-                $vTPrest = $valorPrestacao,
-                $vRec = $valorPrestacao,
-                $Comp = []
-            );
+            $stdVPrest = new \stdClass();
+            $stdVPrest->vTPrest = $valorPrestacao;
+            $stdVPrest->vRec = $valorPrestacao;
+            $stdVPrest->Comp = [];
+            $make->tagvPrest($stdVPrest);
 
             // veic - Veículo
             $placa = preg_replace('/\D/', '', $dados['veiculoPlaca'] ?? '');
-            $make->tagveic(
-                $placa = $placa,
-                $RENAVAM = '',
-                $xNome = '',
-                $cInt = '',
-                $UF = $this->config['siglaUF']
-            );
+            $stdVeic = new \stdClass();
+            $stdVeic->placa = $placa;
+            $stdVeic->RENAVAM = '';
+            $stdVeic->xNome = '';
+            $stdVeic->cInt = '';
+            $stdVeic->UF = $this->config['siglaUF'];
+            $make->tagveic($stdVeic);
 
             // Montar XML
             $make->monta();
