@@ -193,15 +193,10 @@ class CTeService
             $stdVPrest->Comp = [];
             $make->tagvPrest($stdVPrest);
 
-            // veic - Veículo
-            $placa = preg_replace('/\D/', '', $dados['veiculoPlaca'] ?? '');
-            $stdVeic = new \stdClass();
-            $stdVeic->placa = $placa;
-            $stdVeic->RENAVAM = '';
-            $stdVeic->xNome = '';
-            $stdVeic->cInt = '';
-            $stdVeic->UF = $this->config['siglaUF'];
-            $make->tagveic($stdVeic);
+            // rodo - Modal Rodoviário (obrigatório para CT-e rodoviário)
+            $stdRodo = new \stdClass();
+            $stdRodo->RNTRC = ''; // Registro Nacional de Transportadores Rodoviários de Carga (opcional)
+            $make->tagrodo($stdRodo);
 
             // Montar XML
             $make->monta();
