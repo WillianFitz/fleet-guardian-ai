@@ -433,7 +433,7 @@ const Ctes = () => {
                       >
                         <Edit className="w-4 h-4" />
                       </button>
-                      {c.status === "rascunho" && tenant?.certificadoStatus === "valido" && (
+                      {c.status === "rascunho" && tenant && tenant.certificadoStatus !== "nao_configurado" && tenant.certificadoStatus !== "invalido" && (
                         <button
                           onClick={() => handleEmitir(c)}
                           disabled={emitting}
@@ -443,7 +443,7 @@ const Ctes = () => {
                           <Send className="w-4 h-4" />
                         </button>
                       )}
-                      {c.status === "rascunho" && tenant?.certificadoStatus !== "valido" && (
+                      {c.status === "rascunho" && (!tenant || tenant.certificadoStatus === "nao_configurado" || tenant.certificadoStatus === "invalido") && (
                         <button
                           disabled
                           className="p-1.5 rounded-md text-muted-foreground opacity-50 cursor-not-allowed"
