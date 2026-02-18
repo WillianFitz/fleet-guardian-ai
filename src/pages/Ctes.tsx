@@ -92,6 +92,8 @@ const Ctes = () => {
   const [nfeOrigemTipo, setNfeOrigemTipo] = useState<"xml" | "chave" | "sefaz">("chave");
   const [nfeSefazLoading, setNfeSefazLoading] = useState(false);
   const [nfeSefazResult, setNfeSefazResult] = useState<Array<{ chave: string; nfe: string; dhEmi: string; xNomeEmit: string; xNomeDest: string; vNF: number }>>([]);
+  const [nfeSefazUltNSU, setNfeSefazUltNSU] = useState<number>(0);
+  const [nfeSefazMaxNSU, setNfeSefazMaxNSU] = useState<number>(0);
 
   const buscarCep = async (cep: string, tipo: "remetente" | "destinatario") => {
     const digits = cep.replace(/\D/g, "");
@@ -198,6 +200,8 @@ const Ctes = () => {
   const handleFluxoSelect = (fluxo: FluxoOrigemCTe) => {
     setForm((prev) => ({ ...prev, fluxoOrigem: fluxo }));
     setNfeSefazResult([]);
+    setNfeSefazUltNSU(0);
+    setNfeSefazMaxNSU(0);
     setShowFluxoPicker(false);
     if (fluxo === "nfe") {
       setShowNfeTipoStep(true);
@@ -219,10 +223,21 @@ const Ctes = () => {
   };
 
   const handleBuscaNFeSefaz = async () => {
+    // Se já consumimos até o maxNSU, não chamar de novo para evitar rejeição 656 (consumo indevido)
+    if (nfeSefazMaxNSU && nfeSefazUltNSU >= nfeSefazMaxNSU) {
+      toast({
+        title: "Limite de consulta atingido",
+        description: "A SEFAZ já informou que não há novos documentos (ultNSU = maxNSU). Aguarde cerca de 1 hora antes de nova consulta para evitar rejeição por consumo indevido (cStat 656).",
+        variant: "destructive",
+      });
+      return;
+    }
     setNfeSefazLoading(true);
     setNfeSefazResult([]);
     try {
-      const res = await cteApi.buscaNFeSefaz(ambienteAtual);
+      const res = await cteApi.buscaNFeSefaz(ambienteAtual, nfeSefazUltNSU || 0);
+      setNfeSefazUltNSU(res.ultNSU ?? 0);
+      setNfeSefazMaxNSU(res.maxNSU ?? 0);
       setNfeSefazResult(res.nfe || []);
       if (!res.nfe?.length) {
         const amb = ambienteAtual === "producao" ? "produção" : "homologação";
@@ -233,7 +248,16 @@ const Ctes = () => {
         });
       }
     } catch (e: unknown) {
-      toast({ title: "Erro ao buscar NF-e", description: e instanceof Error ? e.message : "Erro desconhecido", variant: "destructive" });
+      const msg = e instanceof Error ? e.message : "Erro desconhecido";
+      if (msg.toLowerCase().includes("consumo indevido") || msg.includes("cStat: 656") || msg.includes("cstat 656")) {
+        toast({
+          title: "SEFAZ bloqueou a consulta (cStat 656)",
+          description: "A SEFAZ retornou consumo indevido. Aguarde cerca de 1 hora antes de tentar buscar NF-e novamente para este CNPJ.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Erro ao buscar NF-e", description: msg, variant: "destructive" });
+      }
     } finally {
       setNfeSefazLoading(false);
     }

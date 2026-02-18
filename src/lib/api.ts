@@ -155,7 +155,16 @@ export const cteApi = {
     }
     return json;
   },
-  async buscaNFeSefaz(ambiente?: "producao" | "homologacao", ultNSU?: number): Promise<{ nfe: Array<{ chave: string; nfe: string; dhEmi: string; xNomeEmit: string; xNomeDest: string; vNF: number }>; ultNSU: number; maxNSU: number }> {
+  async buscaNFeSefaz(
+    ambiente?: "producao" | "homologacao",
+    ultNSU?: number,
+  ): Promise<{
+    nfe: Array<{ chave: string; nfe: string; dhEmi: string; xNomeEmit: string; xNomeDest: string; vNF: number }>;
+    ultNSU: number;
+    maxNSU: number;
+    cStat?: string;
+    xMotivo?: string;
+  }> {
     const res = await fetch(`${API_URL}/api/nfe/busca-sefaz`, {
       method: "POST",
       headers: await getHeaders(),
