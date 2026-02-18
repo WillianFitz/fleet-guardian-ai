@@ -102,7 +102,19 @@ class CTeService
             
             // Criar instância do MakeCTe com a configuração
             // IMPORTANTE: A configuração deve ser um JSON válido
-            $configJson = json_encode($this->config, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            // SOLUÇÃO: Garantir que todos os valores da configuração sejam strings válidas
+            $configLimpa = [];
+            foreach ($this->config as $key => $value) {
+                if (is_array($value)) {
+                    $configLimpa[$key] = [];
+                    foreach ($value as $k => $v) {
+                        $configLimpa[$key][$k] = $v === null ? '' : (string)$v;
+                    }
+                } else {
+                    $configLimpa[$key] = $value === null ? '' : (string)$value;
+                }
+            }
+            $configJson = json_encode($configLimpa, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             if ($configJson === false) {
                 throw new Exception("Erro ao criar JSON de configuração: " . json_last_error_msg());
             }
@@ -183,8 +195,44 @@ class CTeService
             // Log dos dados antes de criar a tag ide
             error_log("CTeService::emitir - Dados IDE: " . json_encode($stdIde, JSON_UNESCAPED_UNICODE));
             
-            // Chamar tagide - SOLUÇÃO: Chamar diretamente sem reflexão desnecessária
-            $make->tagide($stdIde);
+            // Garantir que nenhum campo seja null antes de passar para a biblioteca
+            foreach ($stdIde as $key => $value) {
+                if ($value === null) {
+                    throw new Exception("Campo '$key' não pode ser null na tag ide");
+                }
+            }
+            
+            // Chamar tagide e verificar se houve erro
+            try {
+                $resultado = $make->tagide($stdIde);
+                // Verificar se tagide retornou false (indicando erro)
+                if ($resultado === false) {
+                    throw new Exception("tagide() retornou false - a tag não foi criada");
+                }
+                error_log("CTeService::emitir - tagide() chamado com sucesso");
+            } catch (\Throwable $e) {
+                error_log("CTeService::emitir - Erro ao chamar tagide(): " . $e->getMessage());
+                throw new Exception("Erro ao criar tag ide: " . $e->getMessage());
+            }
+            
+            // Tentar verificar se a tag foi criada usando reflexão
+            try {
+                $reflection = new \ReflectionClass($make);
+                // Verificar propriedades comuns que podem indicar se a tag foi criada
+                $props = ['ide', 'aIde', 'stdIde'];
+                foreach ($props as $prop) {
+                    if ($reflection->hasProperty($prop)) {
+                        $propObj = $reflection->getProperty($prop);
+                        $propObj->setAccessible(true);
+                        $value = $propObj->getValue($make);
+                        if ($value !== null) {
+                            error_log("CTeService::emitir - Propriedade '$prop' existe e tem valor: " . gettype($value));
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                // Ignorar erros de reflexão
+            }
 
             // EMIT - Emitente (sua empresa)
             $stdEmit = new \stdClass();
@@ -259,19 +307,30 @@ class CTeService
             $make->tagrodo($stdRodo);
 
             // Montar XML
-            // IMPORTANTE: monta() verifica se todas as tags obrigatórias foram criadas
-            // Se alguma tag não foi criada corretamente, monta() tentará criar uma mensagem de erro
-            // mas pode falhar se passar parâmetros incorretos para appChild()
+            // WORKAROUND: Se tagide() não criou a tag corretamente, tentar chamar novamente antes de monta()
+            // Isso pode resolver problemas de inicialização
             try {
                 error_log("CTeService::emitir - Chamando monta()...");
                 $make->monta();
                 error_log("CTeService::emitir - monta() executado com sucesso");
             } catch (\TypeError $e) {
-                // Este é o erro específico que estamos enfrentando
-                error_log("CTeService::emitir - TypeError ao montar XML: " . $e->getMessage());
-                error_log("CTeService::emitir - Arquivo: " . $e->getFile() . " Linha: " . $e->getLine());
-                error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
-                throw new Exception("Erro ao montar XML do CT-e: A tag 'ide' pode não ter sido criada corretamente. Verifique se todos os campos obrigatórios estão preenchidos. Detalhes: " . $e->getMessage());
+                // Se o erro for sobre tag ide não encontrada, tentar recriar
+                if (strpos($e->getMessage(), 'ide') !== false || strpos($e->getMessage(), 'appChild') !== false) {
+                    error_log("CTeService::emitir - Erro detectado relacionado à tag ide, tentando recriar...");
+                    try {
+                        // Tentar chamar tagide novamente
+                        $make->tagide($stdIde);
+                        error_log("CTeService::emitir - tagide() chamado novamente");
+                        // Tentar monta() novamente
+                        $make->monta();
+                        error_log("CTeService::emitir - monta() executado com sucesso após recriar tag ide");
+                    } catch (\Throwable $e2) {
+                        error_log("CTeService::emitir - Erro ao tentar recriar tag ide: " . $e2->getMessage());
+                        throw new Exception("Erro ao montar XML do CT-e: A tag 'ide' não pode ser criada. Verifique se todos os campos obrigatórios estão preenchidos corretamente. Erro original: " . $e->getMessage());
+                    }
+                } else {
+                    throw $e;
+                }
             } catch (\Throwable $e) {
                 error_log("CTeService::emitir - Erro ao montar XML: " . $e->getMessage());
                 error_log("CTeService::emitir - Tipo: " . get_class($e));
