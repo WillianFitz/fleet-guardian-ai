@@ -1,0 +1,24 @@
+--- a/src/MakeCTe.php
++++ b/src/MakeCTe.php
+@@ -514,12 +514,26 @@
+         $node = $this->ide->getElementsByTagName("dhCont")->item(0);
+         if (!empty($this->toma3)) {
+             if (!empty($node)) {
++                if (!($this->toma3 instanceof \DOMElement)) {
++                    $this->toma3 = $this->dom->createElement('toma3');
++                    $this->dom->addChild($this->toma3, 'toma', '3', true, '#35 <toma3> - ');
++                }
+                 $this->ide->insertBefore($this->toma3, $node);
+             } else {
+                 $this->dom->appChild($this->ide, $this->toma3, 'Falta tag "ide"');
+             }
+         } else {
+             if (!empty($node)) {
++                if (!($this->toma4 instanceof \DOMElement)) {
++                    $this->toma4 = $this->dom->createElement('toma4');
++                    $this->dom->addChild($this->toma4, 'toma', '3', true, '#37 <toma4> - ');
++                    $this->dom->addChild($this->toma4, 'xNome', 'TOMADOR', true, '#37 <toma4> - ');
++                }
+                 $this->ide->insertBefore($this->toma4, $node);
+             } else {
+                 $this->dom->appChild($this->ide, $this->toma4, 'Falta tag "ide"');

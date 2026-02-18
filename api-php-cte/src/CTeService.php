@@ -190,11 +190,11 @@ class CTeService
             // Demais obrigatórios da ide
             $stdIde->retira = '0';
             $stdIde->indIEToma = '9';
-            // Campos opcionais do tagide - passar como string vazia para evitar trim(null) no MakeCTe (PHP 8.2)
+            // Campos opcionais do tagide - evitar trim(null) e elementos vazios que causam insertBefore com string
             $stdIde->indGlobalizado = $stdIde->indGlobalizado ?? '0';
             $stdIde->xDetRetira = $stdIde->xDetRetira ?? '';
-            $stdIde->dhCont = $stdIde->dhCont ?? '';
             $stdIde->xJust = $stdIde->xJust ?? '';
+            // NÃO passar dhCont - quando adicionado ao ide, força insertBefore que falha com string vazia
             
             // Validar campos obrigatórios antes de criar a tag
             // (baseado nos campos obrigatórios usados por MakeCTe::tagide)
@@ -323,29 +323,16 @@ class CTeService
             $make->tagrodo($stdRodo);
 
             // Tomador do serviço (OBRIGATÓRIO no monta())
-            // Usar tagtoma4 com dados completos do destinatário - evita bugs da biblioteca com toma3 vazio
-            // e conflitos insertBefore quando dhCont não existe no ide.
-            // toma=3 = Destinatário é o tomador
-            $stdToma4 = new \stdClass();
-            $stdToma4->toma = '3';
-            $stdToma4->CNPJ = '';
-            $stdToma4->CPF = '';
-            $stdToma4->IE = ''; // indIEToma=9: não contribuinte
-            $stdToma4->xNome = $ensureString($dados['destinatario']['nome'] ?? null, 'DESTINATARIO');
-            $stdToma4->xFant = '';
-            $stdToma4->fone = '';
-            $stdToma4->email = '';
-            if (strlen($cnpjCpfDest) === 14) {
-                $stdToma4->CNPJ = $cnpjCpfDest;
-            } elseif (strlen($cnpjCpfDest) === 11) {
-                $stdToma4->CPF = $cnpjCpfDest;
-            }
+            // Usar tagtoma3 (estrutura simples) - toma=3 = Destinatário é o tomador
+            // O patch em patches/makecte-fix.patch corrige bug da biblioteca quando toma3/toma4 está vazio
+            $stdToma3 = new \stdClass();
+            $stdToma3->toma = '3';
 
             try {
-                $make->tagtoma4($stdToma4);
+                $make->tagtoma3($stdToma3);
             } catch (\Throwable $e) {
-                error_log("CTeService::emitir - Erro ao chamar tagtoma4(): " . $e->getMessage());
-                throw new Exception("Erro ao criar tag toma4: " . $e->getMessage());
+                error_log("CTeService::emitir - Erro ao chamar tagtoma3(): " . $e->getMessage());
+                throw new Exception("Erro ao criar tag toma3: " . $e->getMessage());
             }
 
             // Montar XML - ordem das tags já foi respeitada (ide, emit, rem, dest, vPrest, rodo, toma4)
