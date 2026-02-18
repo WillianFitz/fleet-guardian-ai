@@ -87,6 +87,8 @@ const Ctes = () => {
   const [emitting, setEmitting] = useState(false);
   const [consulting, setConsulting] = useState<string | null>(null);
   const [showFluxoPicker, setShowFluxoPicker] = useState(false);
+  /** Quando true, o dialog mostra só os 3 botões (Chave/XML/SEFAZ) antes do formulário de cadastro */
+  const [showNfeTipoStep, setShowNfeTipoStep] = useState(false);
   const [nfeOrigemTipo, setNfeOrigemTipo] = useState<"xml" | "chave" | "sefaz">("chave");
   const [nfeSefazLoading, setNfeSefazLoading] = useState(false);
   const [nfeSefazResult, setNfeSefazResult] = useState<Array<{ chave: string; nfe: string; dhEmi: string; xNomeEmit: string; xNomeDest: string; vNF: number }>>([]);
@@ -178,11 +180,13 @@ const Ctes = () => {
     setDialogOpen(false);
     setEditing(null);
     setForm(emptyForm);
+    setShowNfeTipoStep(false);
   };
 
   const handleEdit = (c: CTe) => {
     setEditing(c);
     setForm(c);
+    setShowNfeTipoStep(false);
     setDialogOpen(true);
   };
   const handleNew = () => {
@@ -193,10 +197,22 @@ const Ctes = () => {
 
   const handleFluxoSelect = (fluxo: FluxoOrigemCTe) => {
     setForm((prev) => ({ ...prev, fluxoOrigem: fluxo }));
-    setNfeOrigemTipo("chave");
     setNfeSefazResult([]);
     setShowFluxoPicker(false);
+    if (fluxo === "nfe") {
+      setShowNfeTipoStep(true);
+      setNfeOrigemTipo("chave");
+    } else {
+      setShowNfeTipoStep(false);
+      setNfeOrigemTipo("chave");
+    }
     setDialogOpen(true);
+  };
+
+  /** Escolheu como informar a NF-e (Chave/XML/SEFAZ) → vai para o formulário de cadastro */
+  const handleNfeTipoSelect = (tipo: "xml" | "chave" | "sefaz") => {
+    setNfeOrigemTipo(tipo);
+    setShowNfeTipoStep(false);
   };
 
   const handleBuscaNFeSefaz = async () => {
@@ -582,43 +598,49 @@ const Ctes = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setShowNfeTipoStep(false); }}>
         <DialogContent className="bg-card border-border max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-sm sm:text-base text-foreground">
-              {editing ? "Editar CTe" : `Novo CTe — ${fluxoOptions.find((f) => f.id === form.fluxoOrigem)?.label ?? (form.fluxoOrigem === "manual" ? "Preenchimento manual" : "Documento")}`}
+              {editing ? "Editar CTe" : showNfeTipoStep ? "Novo CTe — Como informar a NF-e?" : `Novo CTe — ${fluxoOptions.find((f) => f.id === form.fluxoOrigem)?.label ?? (form.fluxoOrigem === "manual" ? "Preenchimento manual" : "Documento")}`}
             </DialogTitle>
           </DialogHeader>
 
-          {/* Ao escolher "Tenho Nota Fiscal Eletrônica": 3 opções em destaque no topo */}
-          {form.fluxoOrigem === "nfe" && (
-            <div className="mt-2 mb-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-4">
-              <p className="text-sm font-semibold text-foreground">Como informar a NF-e?</p>
+          {/* Passo 1: Só os 3 botões — qual tipo de operação (Chave / XML / SEFAZ). Só depois vai para o cadastro. */}
+          {form.fluxoOrigem === "nfe" && showNfeTipoStep && (
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground mb-4">Escolha como deseja informar a Nota Fiscal Eletrônica. Em seguida você preenche veículo, remetente, destinatário e demais dados.</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { id: "chave" as const, label: "Chave de acesso", desc: "44 dígitos da NFe", icon: FileText },
-                  { id: "xml" as const, label: "Arquivo XML", desc: "Enviar arquivo da NF-e", icon: FileCode },
-                  { id: "sefaz" as const, label: "Buscar na SEFAZ", desc: "Distribuição DFe", icon: Search },
+                  { id: "chave" as const, label: "Chave de acesso", desc: "Informar os 44 dígitos da NFe", icon: FileText },
+                  { id: "xml" as const, label: "Arquivo XML", desc: "Enviar o arquivo XML da NF-e", icon: FileCode },
+                  { id: "sefaz" as const, label: "Buscar na SEFAZ", desc: "Consultar NF-e na Distribuição DFe", icon: Search },
                 ].map((opt) => {
                   const Icon = opt.icon;
                   return (
                     <button
                       key={opt.id}
                       type="button"
-                      onClick={() => setNfeOrigemTipo(opt.id)}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 text-center transition-all ${
-                        nfeOrigemTipo === opt.id
-                          ? "border-primary bg-primary/15 text-primary shadow-sm"
-                          : "border-border hover:border-primary/50 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
-                      }`}
+                      onClick={() => handleNfeTipoSelect(opt.id)}
+                      className="flex flex-col items-center gap-2 p-5 rounded-xl border-2 border-border hover:border-primary hover:bg-primary/10 text-center transition-all"
                     >
-                      <Icon className="w-6 h-6" />
-                      <span className="font-medium text-sm">{opt.label}</span>
-                      <span className="text-xs opacity-80">{opt.desc}</span>
+                      <Icon className="w-8 h-8 text-primary" />
+                      <span className="font-semibold text-sm text-foreground">{opt.label}</span>
+                      <span className="text-xs text-muted-foreground">{opt.desc}</span>
                     </button>
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Passo 2: Formulário de cadastro (veículo, remetente, destinatário, etc.) */}
+          {!(form.fluxoOrigem === "nfe" && showNfeTipoStep) && (
+          <>
+          {/* Bloco NFe no topo do form: Chave/XML/SEFAZ já escolhido — campos para preencher */}
+          {form.fluxoOrigem === "nfe" && (
+            <div className="mt-2 mb-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-4">
+              <p className="text-sm font-semibold text-foreground">NF-e: {nfeOrigemTipo === "chave" ? "Chave de acesso" : nfeOrigemTipo === "xml" ? "Arquivo XML" : "Busca na SEFAZ"}</p>
               {nfeOrigemTipo === "chave" && (
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso da NFe (44 dígitos)</label>
@@ -1058,6 +1080,8 @@ const Ctes = () => {
               Salvar
             </button>
           </div>
+          </>
+          )}
         </DialogContent>
       </Dialog>
 
