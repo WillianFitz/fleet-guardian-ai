@@ -100,7 +100,8 @@ class CTeService
                 throw new Exception("Nome do destinatário é obrigatório");
             }
             
-            $make = new MakeCTe();
+            // Criar instância do MakeCTe com a configuração
+            $make = new MakeCTe(json_encode($this->config));
 
             // Extrair dados
             $numero = str_pad((string)$dados['numero'], 9, '0', STR_PAD_LEFT);
@@ -118,12 +119,14 @@ class CTeService
             // IDE - Identificação do CT-e
             $stdIde = new \stdClass();
             $stdIde->cUF = $this->getCodigoUF($uf);
-            $stdIde->cCT = $numero;
+            // cCT deve ser o número do CT-e sem zeros à esquerda (8 dígitos)
+            $stdIde->cCT = str_pad((string)$dados['numero'], 8, '0', STR_PAD_LEFT);
             $stdIde->CFOP = '5353'; // Prestação de serviço de transporte
             $stdIde->natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE';
             $stdIde->mod = '57'; // Modelo do CT-e (obrigatório)
             $stdIde->serie = $dados['serie'] ?? '1';
-            $stdIde->nCT = $dados['numero'];
+            // nCT deve ser o número do CT-e sem zeros à esquerda
+            $stdIde->nCT = (string)$dados['numero'];
             $stdIde->dhEmi = date('c'); // ISO 8601
             $stdIde->tpImp = '1'; // Retrato
             $stdIde->tpEmis = '1'; // Normal
@@ -146,7 +149,17 @@ class CTeService
             $stdIde->cMunFim = $this->getCodigoMunicipio($destinatarioMunicipio, $destinatarioUF);
             $stdIde->xMunFim = $destinatarioMunicipio ?: 'NÃO INFORMADO';
             $stdIde->UFFim = $destinatarioUF ?: '';
-            $make->tagide($stdIde);
+            
+            // Log dos dados antes de criar a tag ide
+            error_log("CTeService::emitir - Dados IDE: " . json_encode($stdIde));
+            
+            try {
+                $make->tagide($stdIde);
+                error_log("CTeService::emitir - tagide() executado com sucesso");
+            } catch (\Exception $e) {
+                error_log("CTeService::emitir - Erro ao criar tag ide: " . $e->getMessage());
+                throw new Exception("Erro ao criar tag ide: " . $e->getMessage());
+            }
 
             // EMIT - Emitente (sua empresa)
             $stdEmit = new \stdClass();
@@ -218,7 +231,14 @@ class CTeService
             $make->tagrodo($stdRodo);
 
             // Montar XML
-            $make->monta();
+            try {
+                $make->monta();
+                error_log("CTeService::emitir - monta() executado com sucesso");
+            } catch (\Exception $e) {
+                error_log("CTeService::emitir - Erro ao montar XML: " . $e->getMessage());
+                error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
+                throw new Exception("Erro ao montar XML do CT-e: " . $e->getMessage());
+            }
 
             // Obter XML
             $xml = $make->getXML();
