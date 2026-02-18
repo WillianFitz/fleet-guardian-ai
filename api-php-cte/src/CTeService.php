@@ -119,6 +119,13 @@ class CTeService
             $chave = $this->gerarChave($cnpj, $numero, $serie, $tpAmb);
             $cDV = substr($chave, -1);
 
+            // OBRIGATÓRIO: Criar o elemento raiz infCte ANTES de qualquer outra tag.
+            // Sem isso, monta() falha com appChild(): Argument #1 ($parent) must be of type DOMElement, string given.
+            $stdInfCte = new \stdClass();
+            $stdInfCte->Id = $chave;
+            $stdInfCte->versao = '4.00';
+            $make->taginfCTe($stdInfCte);
+
             // IDE - Identificação do CT-e
             // SOLUÇÃO: Criar objeto limpo apenas com campos obrigatórios e válidos
             $stdIde = new \stdClass();
