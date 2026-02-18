@@ -341,7 +341,21 @@ class CTeService
 
             // Montar XML
             // Verificar se tagide foi criada corretamente antes de montar
+            // WORKAROUND: Verificar se toma3 ainda está válido usando Reflection
             try {
+                $reflection = new \ReflectionClass($make);
+                $toma3Property = $reflection->getProperty('toma3');
+                $toma3Property->setAccessible(true);
+                $toma3Value = $toma3Property->getValue($make);
+                error_log("CTeService::emitir - Estado de toma3 antes de monta(): " . gettype($toma3Value) . " - " . (empty($toma3Value) ? 'VAZIO' : 'PREENCHIDO'));
+                if (empty($toma3Value) || !($toma3Value instanceof \DOMElement)) {
+                    error_log("CTeService::emitir - AVISO: toma3 está vazio antes de monta(), recriando...");
+                    // Recriar toma3 se estiver vazio
+                    $make->tagtoma3($stdToma3);
+                    // Verificar novamente após recriar
+                    $toma3Value = $toma3Property->getValue($make);
+                    error_log("CTeService::emitir - Estado de toma3 após recriar: " . gettype($toma3Value) . " - " . (empty($toma3Value) ? 'VAZIO' : 'PREENCHIDO'));
+                }
                 error_log("CTeService::emitir - Chamando monta()...");
                 $make->monta();
                 error_log("CTeService::emitir - monta() executado com sucesso");
