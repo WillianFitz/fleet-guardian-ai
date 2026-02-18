@@ -34,7 +34,7 @@ if (file_exists($composerLock)) {
 // Verificar classes
 echo "\n3. Verificando classes...\n";
 $classes = [
-    'NFePHP\CTe\Make',
+    'NFePHP\CTe\MakeCTe',
     'NFePHP\CTe\Tools',
     'NFePHP\Common\Certificate',
     'NFePHP\CTe\Common\Standardize',
@@ -54,6 +54,31 @@ foreach ($classes as $class) {
         
         echo "      Namespace: $namespace\n";
         echo "      Class: $className\n";
+        
+        // Tentar encontrar arquivo físico
+        $vendorPath = __DIR__ . '/vendor';
+        $searchPaths = [
+            $vendorPath . '/nfephp-org/sped-cte/src',
+            $vendorPath . '/nfephp-org/sped-common/src',
+        ];
+        
+        foreach ($searchPaths as $searchPath) {
+            if (is_dir($searchPath)) {
+                echo "      Procurando em: $searchPath\n";
+                $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($searchPath));
+                foreach ($files as $file) {
+                    if ($file->isFile() && $file->getFilename() === "$className.php") {
+                        echo "      ✓ Encontrado: " . $file->getPathname() . "\n";
+                        // Ler namespace do arquivo
+                        $content = file_get_contents($file->getPathname());
+                        if (preg_match('/namespace\s+([^;]+);/', $content, $matches)) {
+                            echo "      Namespace no arquivo: " . trim($matches[1]) . "\n";
+                        }
+                        break 2;
+                    }
+                }
+            }
+        }
     }
 }
 

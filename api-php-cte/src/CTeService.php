@@ -11,7 +11,7 @@ if (!class_exists('Composer\Autoload\ClassLoader')) {
     }
 }
 
-use NFePHP\CTe\Make;
+use NFePHP\CTe\MakeCTe;
 use NFePHP\CTe\Tools;
 use NFePHP\Common\Certificate;
 use NFePHP\CTe\Common\Standardize;
@@ -87,7 +87,7 @@ class CTeService
     public function emitir($dados)
     {
         try {
-            $make = new Make();
+            $make = new MakeCTe();
 
             // Extrair dados
             $numero = str_pad($dados['numero'], 9, '0', STR_PAD_LEFT);

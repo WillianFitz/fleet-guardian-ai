@@ -15,7 +15,7 @@ try {
     require __DIR__ . '/vendor/autoload.php';
     
     // Verificar se classes críticas estão disponíveis
-    if (!class_exists('NFePHP\CTe\Make')) {
+    if (!class_exists('NFePHP\CTe\MakeCTe')) {
         throw new \Exception('Biblioteca nfephp-org/sped-cte não encontrada. Verifique se composer install foi executado corretamente.');
     }
     
