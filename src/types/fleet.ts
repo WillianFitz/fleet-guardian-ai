@@ -186,10 +186,18 @@ export interface CTe {
   valorFrete?: number;
   remetenteNome: string;
   remetenteCnpjCpf?: string;
+  remetenteCep?: string;
+  remetenteLogradouro?: string;
+  remetenteNumero?: string;
+  remetenteBairro?: string;
   remetenteMunicipio?: string;
   remetenteUf?: string;
   destinatarioNome: string;
   destinatarioCnpjCpf?: string;
+  destinatarioCep?: string;
+  destinatarioLogradouro?: string;
+  destinatarioNumero?: string;
+  destinatarioBairro?: string;
   destinatarioMunicipio?: string;
   destinatarioUf?: string;
   municipioOrigem?: string;

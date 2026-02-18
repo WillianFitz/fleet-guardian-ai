@@ -38,10 +38,18 @@ const emptyForm: Omit<CTe, "id"> = {
   valorFrete: 0,
   remetenteNome: "",
   remetenteCnpjCpf: "",
+  remetenteCep: "",
+  remetenteLogradouro: "",
+  remetenteNumero: "",
+  remetenteBairro: "",
   remetenteMunicipio: "",
   remetenteUf: "",
   destinatarioNome: "",
   destinatarioCnpjCpf: "",
+  destinatarioCep: "",
+  destinatarioLogradouro: "",
+  destinatarioNumero: "",
+  destinatarioBairro: "",
   destinatarioMunicipio: "",
   destinatarioUf: "",
   municipioOrigem: "",
@@ -70,6 +78,60 @@ const Ctes = () => {
   const [dateEnd, setDateEnd] = useState("");
   const [emitting, setEmitting] = useState(false);
   const [consulting, setConsulting] = useState<string | null>(null);
+
+  const buscarCep = async (cep: string, tipo: "remetente" | "destinatario") => {
+    const digits = cep.replace(/\D/g, "");
+    if (digits.length !== 8) {
+      toast({
+        title: "CEP inválido",
+        description: "Digite um CEP com 8 dígitos.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+      const data = await res.json();
+      if (data.erro) {
+        toast({
+          title: "CEP não encontrado",
+          description: "Verifique o CEP informado.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setForm((prev) => {
+        if (tipo === "remetente") {
+          return {
+            ...prev,
+            remetenteCep: digits,
+            remetenteLogradouro: data.logradouro || prev.remetenteLogradouro,
+            remetenteBairro: data.bairro || prev.remetenteBairro,
+            remetenteMunicipio: data.localidade || prev.remetenteMunicipio,
+            remetenteUf: data.uf || prev.remetenteUf,
+            municipioOrigem: prev.municipioOrigem || data.localidade || prev.municipioOrigem,
+            ufOrigem: prev.ufOrigem || data.uf || prev.ufOrigem,
+          };
+        }
+        return {
+          ...prev,
+          destinatarioCep: digits,
+          destinatarioLogradouro: data.logradouro || prev.destinatarioLogradouro,
+          destinatarioBairro: data.bairro || prev.destinatarioBairro,
+          destinatarioMunicipio: data.localidade || prev.destinatarioMunicipio,
+          destinatarioUf: data.uf || prev.destinatarioUf,
+          municipioDestino: prev.municipioDestino || data.localidade || prev.municipioDestino,
+          ufDestino: prev.ufDestino || data.uf || prev.ufDestino,
+        };
+      });
+    } catch (e) {
+      toast({
+        title: "Erro ao buscar CEP",
+        description: "Não foi possível consultar o CEP. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const filtered = items.filter((c) => {
     const matchSearch =
@@ -135,12 +197,20 @@ const Ctes = () => {
         remetente: {
           nome: cte.remetenteNome,
           cnpjCpf: cte.remetenteCnpjCpf,
+          cep: cte.remetenteCep,
+          logradouro: cte.remetenteLogradouro,
+          numero: cte.remetenteNumero,
+          bairro: cte.remetenteBairro,
           municipio: cte.remetenteMunicipio,
           uf: cte.remetenteUf,
         },
         destinatario: {
           nome: cte.destinatarioNome,
           cnpjCpf: cte.destinatarioCnpjCpf,
+          cep: cte.destinatarioCep,
+          logradouro: cte.destinatarioLogradouro,
+          numero: cte.destinatarioNumero,
+          bairro: cte.destinatarioBairro,
           municipio: cte.destinatarioMunicipio,
           uf: cte.destinatarioUf,
         },
@@ -432,48 +502,225 @@ const Ctes = () => {
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-            <div className="col-span-1 sm:col-span-2">
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Veículo</label>
-              <select
-                value={vehicles.find((v) => v.placa === form.veiculoPlaca)?.id ?? ""}
-                onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
-                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              >
-                <option value="">Selecione...</option>
-                {vehicles.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.placa} — {v.modelo}
-                  </option>
-                ))}
-              </select>
+          <div className="col-span-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Veículo</label>
+            <select
+              value={vehicles.find((v) => v.placa === form.veiculoPlaca)?.id ?? ""}
+              onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            >
+              <option value="">Selecione...</option>
+              {vehicles.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.placa} — {v.modelo}
+                </option>
+              ))}
+            </select>
+          </div>
+          {[
+            { label: "Número", key: "numero", placeholder: "000000001" },
+            { label: "Série", key: "serie", placeholder: "1" },
+            { label: "Data Emissão", key: "dataEmissao", type: "date" },
+            { label: "Valor da Prestação (R$)", key: "valorPrestacao", type: "number" },
+          ].map((f) => (
+            <div key={f.key}>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
+              <input
+                type={f.type || "text"}
+                value={((form as Record<string, unknown>)[f.key] as string) ?? ""}
+                onChange={(e) =>
+                  setField(f.key, f.type === "number" ? Number(e.target.value) || 0 : e.target.value)
+                }
+                placeholder={f.placeholder}
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
             </div>
-            {[
-              { label: "Número", key: "numero", placeholder: "000000001" },
-              { label: "Série", key: "serie", placeholder: "1" },
-              { label: "Data Emissão", key: "dataEmissao", type: "date" },
-              { label: "Valor da Prestação (R$)", key: "valorPrestacao", type: "number" },
-              { label: "Remetente (Nome)", key: "remetenteNome", span: true },
-              { label: "Remetente CNPJ/CPF", key: "remetenteCnpjCpf" },
-              { label: "Destinatário (Nome)", key: "destinatarioNome", span: true },
-              { label: "Destinatário CNPJ/CPF", key: "destinatarioCnpjCpf" },
-              { label: "Município Origem", key: "municipioOrigem" },
-              { label: "UF Origem", key: "ufOrigem", placeholder: "SP" },
-              { label: "Município Destino", key: "municipioDestino" },
-              { label: "UF Destino", key: "ufDestino", placeholder: "MG" },
-            ].map((f) => (
-              <div key={f.key} className={f.span ? "col-span-1 sm:col-span-2" : ""}>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
-                <input
-                  type={f.type || "text"}
-                  value={((form as Record<string, unknown>)[f.key] as string) ?? ""}
-                  onChange={(e) =>
-                    setField(f.key, f.type === "number" ? Number(e.target.value) || 0 : e.target.value)
-                  }
-                  placeholder={f.placeholder}
-                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
-              </div>
-            ))}
+          ))}
+          <div className="col-span-1 sm:col-span-2 mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Remetente</p>
+          </div>
+          <div className="col-span-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
+            <input
+              value={form.remetenteNome}
+              onChange={(e) => setField("remetenteNome", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">CNPJ/CPF</label>
+            <input
+              value={form.remetenteCnpjCpf ?? ""}
+              onChange={(e) => setField("remetenteCnpjCpf", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">CEP</label>
+            <div className="flex gap-2">
+              <input
+                value={form.remetenteCep ?? ""}
+                onChange={(e) => setField("remetenteCep", e.target.value)}
+                onBlur={(e) => e.target.value && buscarCep(e.target.value, "remetente")}
+                placeholder="00000-000"
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Endereço</label>
+            <input
+              value={form.remetenteLogradouro ?? ""}
+              onChange={(e) => setField("remetenteLogradouro", e.target.value)}
+              placeholder="Rua / Avenida"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Número</label>
+            <input
+              value={form.remetenteNumero ?? ""}
+              onChange={(e) => setField("remetenteNumero", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Bairro</label>
+            <input
+              value={form.remetenteBairro ?? ""}
+              onChange={(e) => setField("remetenteBairro", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Município</label>
+            <input
+              value={form.remetenteMunicipio ?? ""}
+              onChange={(e) => setField("remetenteMunicipio", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">UF</label>
+            <input
+              value={form.remetenteUf ?? ""}
+              onChange={(e) => setField("remetenteUf", e.target.value.toUpperCase())}
+              maxLength={2}
+              placeholder="SP"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div className="col-span-1 sm:col-span-2 mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Destinatário</p>
+          </div>
+          <div className="col-span-1 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
+            <input
+              value={form.destinatarioNome}
+              onChange={(e) => setField("destinatarioNome", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">CNPJ/CPF</label>
+            <input
+              value={form.destinatarioCnpjCpf ?? ""}
+              onChange={(e) => setField("destinatarioCnpjCpf", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">CEP</label>
+            <input
+              value={form.destinatarioCep ?? ""}
+              onChange={(e) => setField("destinatarioCep", e.target.value)}
+              onBlur={(e) => e.target.value && buscarCep(e.target.value, "destinatario")}
+              placeholder="00000-000"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Endereço</label>
+            <input
+              value={form.destinatarioLogradouro ?? ""}
+              onChange={(e) => setField("destinatarioLogradouro", e.target.value)}
+              placeholder="Rua / Avenida"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Número</label>
+            <input
+              value={form.destinatarioNumero ?? ""}
+              onChange={(e) => setField("destinatarioNumero", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Bairro</label>
+            <input
+              value={form.destinatarioBairro ?? ""}
+              onChange={(e) => setField("destinatarioBairro", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Município</label>
+            <input
+              value={form.destinatarioMunicipio ?? ""}
+              onChange={(e) => setField("destinatarioMunicipio", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">UF</label>
+            <input
+              value={form.destinatarioUf ?? ""}
+              onChange={(e) => setField("destinatarioUf", e.target.value.toUpperCase())}
+              maxLength={2}
+              placeholder="SP"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div className="col-span-1 sm:col-span-2 mt-2">
+            <p className="text-xs font-semibold text-muted-foreground">Origem/Destino (para fins de chave e rota)</p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Município Origem</label>
+            <input
+              value={form.municipioOrigem ?? ""}
+              onChange={(e) => setField("municipioOrigem", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">UF Origem</label>
+            <input
+              value={form.ufOrigem ?? ""}
+              onChange={(e) => setField("ufOrigem", e.target.value.toUpperCase())}
+              maxLength={2}
+              placeholder="SP"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Município Destino</label>
+            <input
+              value={form.municipioDestino ?? ""}
+              onChange={(e) => setField("municipioDestino", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">UF Destino</label>
+            <input
+              value={form.ufDestino ?? ""}
+              onChange={(e) => setField("ufDestino", e.target.value.toUpperCase())}
+              maxLength={2}
+              placeholder="MG"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <button
