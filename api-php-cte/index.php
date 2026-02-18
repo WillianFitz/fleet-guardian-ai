@@ -6,7 +6,24 @@
  * GET /consultar?chave=...&ambiente=homologacao|producao
  */
 
-require __DIR__ . '/vendor/autoload.php';
+// Tratamento de erros para debug
+error_reporting(E_ALL);
+ini_set('display_errors', '0'); // Não mostrar erros na produção, mas logar
+ini_set('log_errors', '1');
+
+try {
+    require __DIR__ . '/vendor/autoload.php';
+} catch (\Throwable $e) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'Erro ao carregar dependências',
+        'message' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine()
+    ]);
+    exit;
+}
 
 use Slim\Factory\AppFactory;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -21,7 +38,17 @@ function jsonResponse(Response $response, $data, int $status = 200): Response {
         ->withStatus($status);
 }
 
-$app = AppFactory::create();
+try {
+    $app = AppFactory::create();
+} catch (\Throwable $e) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'Erro ao inicializar aplicação',
+        'message' => $e->getMessage()
+    ]);
+    exit;
+}
 
 // CORS headers
 $app->add(function (Request $request, $handler): Response {
@@ -300,4 +327,14 @@ $app->post('/consultar', function (Request $request, Response $response): Respon
     }
 });
 
-$app->run();
+try {
+    $app->run();
+} catch (\Throwable $e) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        'error' => 'Erro ao processar requisição',
+        'message' => $e->getMessage(),
+        'trace' => $e->getTraceAsString()
+    ]);
+}
