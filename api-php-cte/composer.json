@@ -8,18 +8,10 @@
     "ext-xml": "*",
     "ext-openssl": "*",
     "ext-zip": "*",
-    "cweagans/composer-patches": "^1.7",
     "nfephp-org/sped-cte": "^5.0",
     "nfephp-org/sped-common": "^5.0",
     "slim/slim": "^4.0",
     "slim/psr7": "^1.0"
-  },
-  "extra": {
-    "patches": {
-      "nfephp-org/sped-cte": {
-        "Fix insertBefore DOMNode bug when toma3/toma4 is empty": "patches/makecte-fix.patch"
-      }
-    }
   },
   "autoload": {
     "psr-4": {
