@@ -2,11 +2,19 @@
 
 namespace App;
 
+use Exception;
+
+// Carregar autoloader se ainda não foi carregado
+if (!class_exists('Composer\Autoload\ClassLoader')) {
+    if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+        require_once __DIR__ . '/../vendor/autoload.php';
+    }
+}
+
 use NFePHP\CTe\Make;
 use NFePHP\CTe\Tools;
 use NFePHP\Common\Certificate;
 use NFePHP\CTe\Common\Standardize;
-use Exception;
 
 /**
  * Serviço para emissão e consulta de CT-e usando sped-cte

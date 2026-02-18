@@ -1,7 +1,14 @@
 FROM composer:2 AS deps
 WORKDIR /app
-COPY composer.json ./
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap
+COPY composer.json composer.lock* ./
+
+# Instalar dependências com logs detalhados
+RUN echo "Installing dependencies..." && \
+    composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap --verbose || \
+    (echo "composer install failed, trying composer update..." && \
+     composer update --no-dev --prefer-dist --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap --verbose) && \
+    echo "Checking if nfephp-org/sped-cte is installed..." && \
+    composer show nfephp-org/sped-cte || (echo "ERROR: nfephp-org/sped-cte not found!" && exit 1)
 
 FROM php:8.2-cli
 WORKDIR /app
@@ -18,6 +25,9 @@ RUN apt-get update \
 
 COPY --from=deps /app/vendor /app/vendor
 COPY . .
+
+# Verificar se dependências estão instaladas
+RUN php check-dependencies.php || (echo "Dependencies check failed!" && exit 1)
 
 ENV PORT=8080
 EXPOSE 8080

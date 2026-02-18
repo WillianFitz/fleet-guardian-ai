@@ -13,6 +13,15 @@ ini_set('log_errors', '1');
 
 try {
     require __DIR__ . '/vendor/autoload.php';
+    
+    // Verificar se classes críticas estão disponíveis
+    if (!class_exists('NFePHP\CTe\Make')) {
+        throw new \Exception('Biblioteca nfephp-org/sped-cte não encontrada. Verifique se composer install foi executado corretamente.');
+    }
+    
+    if (!class_exists('Slim\Factory\AppFactory')) {
+        throw new \Exception('Biblioteca slim/slim não encontrada. Verifique se composer install foi executado corretamente.');
+    }
 } catch (\Throwable $e) {
     http_response_code(500);
     header('Content-Type: application/json');
@@ -20,7 +29,9 @@ try {
         'error' => 'Erro ao carregar dependências',
         'message' => $e->getMessage(),
         'file' => $e->getFile(),
-        'line' => $e->getLine()
+        'line' => $e->getLine(),
+        'vendor_exists' => is_dir(__DIR__ . '/vendor'),
+        'autoload_exists' => file_exists(__DIR__ . '/vendor/autoload.php')
     ]);
     exit;
 }
