@@ -370,23 +370,45 @@ class CTeService
                 // Salvar backup de toma3 antes de monta()
                 $toma3Backup = $toma3Property->getValue($make);
                 
+                // Verificar também toma4 para garantir que não está interferindo
+                $toma4Property = $reflection->getProperty('toma4');
+                $toma4Property->setAccessible(true);
+                $toma4Value = $toma4Property->getValue($make);
+                error_log("CTeService::emitir - Estado de toma4 antes de monta(): " . gettype($toma4Value) . " - " . (empty($toma4Value) ? 'VAZIO' : 'PREENCHIDO'));
+                
+                // Garantir que toma4 está vazio para evitar conflito
+                if (!empty($toma4Value)) {
+                    error_log("CTeService::emitir - AVISO: toma4 não está vazio, limpando...");
+                    $toma4Property->setValue($make, '');
+                }
+                
                 error_log("CTeService::emitir - Chamando monta()...");
                 try {
                     $make->monta();
                 } catch (\TypeError $e) {
                     // Se o erro for insertBefore com string vazia, restaurar toma3 e tentar novamente
                     if (strpos($e->getMessage(), 'insertBefore') !== false && strpos($e->getMessage(), 'string given') !== false) {
-                        error_log("CTeService::emitir - Erro detectado: toma3 foi resetado durante monta(), restaurando backup...");
-                        // Restaurar toma3 do backup
-                        if ($toma3Backup instanceof \DOMElement) {
-                            $toma3Property->setValue($make, $toma3Backup);
-                            error_log("CTeService::emitir - toma3 restaurado, tentando monta() novamente...");
+                        error_log("CTeService::emitir - Erro detectado: toma3 foi resetado durante monta()");
+                        
+                        // Verificar estado atual de toma3 e toma4
+                        $toma3Current = $toma3Property->getValue($make);
+                        $toma4Current = $toma4Property->getValue($make);
+                        error_log("CTeService::emitir - Estado atual de toma3: " . gettype($toma3Current) . " - " . (empty($toma3Current) ? 'VAZIO' : 'PREENCHIDO'));
+                        error_log("CTeService::emitir - Estado atual de toma4: " . gettype($toma4Current) . " - " . (empty($toma4Current) ? 'VAZIO' : 'PREENCHIDO'));
+                        
+                        // Sempre recriar toma3 em vez de restaurar backup (mais confiável)
+                        error_log("CTeService::emitir - Recriando toma3 completamente...");
+                        $make->tagtoma3($stdToma3);
+                        // Garantir que toma4 está vazio
+                        $toma4Property->setValue($make, '');
+                        // Verificar que toma3 foi criado corretamente
+                        $toma3AfterRecreate = $toma3Property->getValue($make);
+                        error_log("CTeService::emitir - Estado de toma3 após recriar: " . gettype($toma3AfterRecreate) . " - " . ($toma3AfterRecreate instanceof \DOMElement ? 'DOMElement VÁLIDO' : 'INVÁLIDO'));
+                        if ($toma3AfterRecreate instanceof \DOMElement) {
+                            error_log("CTeService::emitir - Tentando monta() novamente após recriar toma3...");
                             $make->monta();
                         } else {
-                            // Se backup não está válido, recriar
-                            error_log("CTeService::emitir - Backup inválido, recriando toma3...");
-                            $make->tagtoma3($stdToma3);
-                            $make->monta();
+                            throw new Exception("Não foi possível recriar toma3 corretamente após erro");
                         }
                     } else {
                         throw $e;
