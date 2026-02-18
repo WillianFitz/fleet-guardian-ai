@@ -4,7 +4,12 @@
   "type": "project",
   "require": {
     "php": ">=8.1",
+    "ext-soap": "*",
+    "ext-xml": "*",
+    "ext-openssl": "*",
+    "ext-zip": "*",
     "nfephp-org/sped-cte": "^5.0",
+    "nfephp-org/sped-common": "^5.0",
     "slim/slim": "^4.0",
     "slim/psr7": "^1.0"
   },
@@ -12,5 +17,8 @@
     "psr-4": {
       "App\\": "src/"
     }
+  },
+  "config": {
+    "platform-check": false
   }
 }

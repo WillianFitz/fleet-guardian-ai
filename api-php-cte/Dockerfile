@@ -4,11 +4,11 @@ COPY composer.json composer.lock* ./
 
 # Instalar dependências com logs detalhados
 RUN echo "Installing dependencies..." && \
-    composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap --verbose || \
-    (echo "composer install failed, trying composer update..." && \
-     composer update --no-dev --prefer-dist --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap --verbose) && \
+    composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --ignore-platform-reqs --verbose 2>&1 | tee /tmp/composer.log && \
     echo "Checking if nfephp-org/sped-cte is installed..." && \
-    composer show nfephp-org/sped-cte || (echo "ERROR: nfephp-org/sped-cte not found!" && exit 1)
+    composer show nfephp-org/sped-cte || (echo "ERROR: nfephp-org/sped-cte not found! Logs:" && cat /tmp/composer.log && exit 1) && \
+    echo "Checking vendor directory..." && \
+    ls -la vendor/nfephp-org/ || echo "WARNING: vendor/nfephp-org/ not found"
 
 FROM php:8.2-cli
 WORKDIR /app
@@ -23,8 +23,21 @@ RUN apt-get update \
   && docker-php-ext-install soap zip \
   && rm -rf /var/lib/apt/lists/*
 
+# Instalar Composer no segundo estágio para poder regenerar autoloader
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
 COPY --from=deps /app/vendor /app/vendor
+COPY composer.json composer.lock* ./
+
+# Regenerar autoloader para garantir que está atualizado
+RUN composer dump-autoload --optimize --no-dev || echo "Warning: composer dump-autoload failed"
+
 COPY . .
+
+# Debug: Verificar o que foi instalado
+RUN echo "=== Verificando instalação ===" && \
+    php debug-autoload.php && \
+    echo "=== Verificação concluída ==="
 
 # Verificar se dependências estão instaladas
 RUN php check-dependencies.php || (echo "Dependencies check failed!" && exit 1)
