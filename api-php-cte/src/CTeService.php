@@ -246,28 +246,25 @@ class CTeService
             }
 
             // Tomador do serviço (OBRIGATÓRIO no monta())
-            // Usar tagtoma4 para evitar erro insertBefore(string): toma3/toma4 iniciam como '' na lib;
-            // com toma4 preenchido, monta() usa toma4 e insere um DOMElement válido.
-            // 3 = Destinatário
-            $stdToma4 = new \stdClass();
-            $stdToma4->toma = '3';
-            $cnpjCpfDest = preg_replace('/\D/', '', $ensureString($dados['destinatario']['cnpjCpf'] ?? null, ''));
-            if (strlen($cnpjCpfDest) === 14) {
-                $stdToma4->CNPJ = $cnpjCpfDest;
-                $stdToma4->CPF = '';
-            } elseif (strlen($cnpjCpfDest) === 11) {
-                $stdToma4->CNPJ = '';
-                $stdToma4->CPF = $cnpjCpfDest;
-            } else {
-                $stdToma4->CNPJ = '';
-                $stdToma4->CPF = '';
+            // Usar tagtoma3 (mais simples) para evitar problemas com tagtoma4
+            // 3 = Destinatário (tomador é o destinatário)
+            $stdToma3 = new \stdClass();
+            $stdToma3->toma = '3';
+            
+            // Garantir que tagtoma3 seja executado corretamente
+            // IMPORTANTE: tagtoma3 DEVE ser chamado ANTES de monta() para que $this->toma3 seja um DOMElement
+            try {
+                error_log("CTeService::emitir - Dados TOMA3: " . json_encode($stdToma3, JSON_UNESCAPED_UNICODE));
+                $toma3Element = $make->tagtoma3($stdToma3);
+                if (empty($toma3Element) || !($toma3Element instanceof \DOMElement)) {
+                    throw new Exception("tagtoma3() não retornou um DOMElement válido. Retornou: " . gettype($toma3Element));
+                }
+                error_log("CTeService::emitir - tagtoma3() executado com sucesso, tipo: " . get_class($toma3Element));
+            } catch (\Throwable $e) {
+                error_log("CTeService::emitir - Erro ao chamar tagtoma3(): " . $e->getMessage());
+                error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
+                throw new Exception("Erro ao criar tag toma3: " . $e->getMessage());
             }
-            $stdToma4->IE = '';
-            $stdToma4->xNome = (string)($dados['destinatario']['nome'] ?? 'Destinatário');
-            $stdToma4->xFant = '';
-            $stdToma4->fone = '';
-            $stdToma4->email = '';
-            $make->tagtoma4($stdToma4);
 
             // EMIT - Emitente (sua empresa)
             $stdEmit = new \stdClass();
