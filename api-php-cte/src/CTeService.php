@@ -100,26 +100,10 @@ class CTeService
                 throw new Exception("Nome do destinatário é obrigatório");
             }
             
-            // Criar instância do MakeCTe com a configuração
-            // IMPORTANTE: A configuração deve ser um JSON válido
-            // SOLUÇÃO: Garantir que todos os valores da configuração sejam strings válidas
-            $configLimpa = [];
-            foreach ($this->config as $key => $value) {
-                if (is_array($value)) {
-                    $configLimpa[$key] = [];
-                    foreach ($value as $k => $v) {
-                        $configLimpa[$key][$k] = $v === null ? '' : (string)$v;
-                    }
-                } else {
-                    $configLimpa[$key] = $value === null ? '' : (string)$value;
-                }
-            }
-            $configJson = json_encode($configLimpa, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            if ($configJson === false) {
-                throw new Exception("Erro ao criar JSON de configuração: " . json_last_error_msg());
-            }
-            error_log("CTeService::emitir - Config JSON: " . $configJson);
-            $make = new MakeCTe($configJson);
+            // Criar instância do MakeCTe
+            // ATENÇÃO: MakeCTe recebe o SCHEMA (ex: PL_CTe_400), NÃO o JSON de config do Tools.
+            $schema = $this->config['schemes'] ?? 'PL_CTe_400';
+            $make = new MakeCTe($schema);
 
             // Extrair dados
             $numero = str_pad((string)$dados['numero'], 9, '0', STR_PAD_LEFT);
@@ -133,6 +117,7 @@ class CTeService
             $mes = date('m');
             $modelo = '57';
             $chave = $this->gerarChave($cnpj, $numero, $serie, $tpAmb);
+            $cDV = substr($chave, -1);
 
             // IDE - Identificação do CT-e
             // SOLUÇÃO: Criar objeto limpo apenas com campos obrigatórios e válidos
@@ -143,7 +128,6 @@ class CTeService
             $stdIde->cCT = str_pad((string)$dados['numero'], 8, '0', STR_PAD_LEFT);
             $stdIde->CFOP = '5353';
             $stdIde->natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE';
-            $stdIde->mod = '57';
             $stdIde->serie = (string)($dados['serie'] ?? '1');
             $stdIde->nCT = (string)$dados['numero'];
             
@@ -154,10 +138,14 @@ class CTeService
             // Configurações
             $stdIde->tpImp = '1';
             $stdIde->tpEmis = '1';
+            $stdIde->cDV = (string)$cDV;
             $stdIde->tpAmb = (string)$tpAmb;
             $stdIde->tpCTe = '0';
             $stdIde->procEmi = '0';
             $stdIde->verProc = 'FleetGuardianAI';
+            // Campos obrigatórios do layout 4.00
+            $stdIde->modal = '01';   // 01 = Rodoviário
+            $stdIde->tpServ = '0';   // 0 = Normal
             
             // Municípios e UFs - garantir valores válidos
             $remetenteMunicipio = trim((string)($dados['remetente']['municipio'] ?? ''));
@@ -183,9 +171,41 @@ class CTeService
             $stdIde->cMunFim = $cMunFim;
             $stdIde->xMunFim = $destinatarioMunicipio ?: 'SAO PAULO';
             $stdIde->UFFim = $destinatarioUF;
+            // Demais obrigatórios da ide
+            $stdIde->retira = '0';
+            $stdIde->indIEToma = '9';
             
             // Validar campos obrigatórios antes de criar a tag
-            $camposObrigatorios = ['cUF', 'cCT', 'CFOP', 'natOp', 'mod', 'serie', 'nCT', 'dhEmi', 'tpImp', 'tpEmis', 'tpAmb', 'tpCTe', 'procEmi', 'verProc'];
+            // (baseado nos campos obrigatórios usados por MakeCTe::tagide)
+            $camposObrigatorios = [
+                'cUF',
+                'cCT',
+                'CFOP',
+                'natOp',
+                'serie',
+                'nCT',
+                'dhEmi',
+                'tpImp',
+                'tpEmis',
+                'cDV',
+                'tpAmb',
+                'tpCTe',
+                'procEmi',
+                'verProc',
+                'cMunEnv',
+                'xMunEnv',
+                'UFEnv',
+                'modal',
+                'tpServ',
+                'cMunIni',
+                'xMunIni',
+                'UFIni',
+                'cMunFim',
+                'xMunFim',
+                'UFFim',
+                'retira',
+                'indIEToma'
+            ];
             foreach ($camposObrigatorios as $campo) {
                 if (!isset($stdIde->$campo) || $stdIde->$campo === '' || $stdIde->$campo === null) {
                     throw new Exception("Campo obrigatório '$campo' está faltando ou vazio na tag ide");
@@ -194,45 +214,15 @@ class CTeService
             
             // Log dos dados antes de criar a tag ide
             error_log("CTeService::emitir - Dados IDE: " . json_encode($stdIde, JSON_UNESCAPED_UNICODE));
-            
-            // Garantir que nenhum campo seja null antes de passar para a biblioteca
-            foreach ($stdIde as $key => $value) {
-                if ($value === null) {
-                    throw new Exception("Campo '$key' não pode ser null na tag ide");
-                }
-            }
-            
-            // Chamar tagide e verificar se houve erro
-            try {
-                $resultado = $make->tagide($stdIde);
-                // Verificar se tagide retornou false (indicando erro)
-                if ($resultado === false) {
-                    throw new Exception("tagide() retornou false - a tag não foi criada");
-                }
-                error_log("CTeService::emitir - tagide() chamado com sucesso");
-            } catch (\Throwable $e) {
-                error_log("CTeService::emitir - Erro ao chamar tagide(): " . $e->getMessage());
-                throw new Exception("Erro ao criar tag ide: " . $e->getMessage());
-            }
-            
-            // Tentar verificar se a tag foi criada usando reflexão
-            try {
-                $reflection = new \ReflectionClass($make);
-                // Verificar propriedades comuns que podem indicar se a tag foi criada
-                $props = ['ide', 'aIde', 'stdIde'];
-                foreach ($props as $prop) {
-                    if ($reflection->hasProperty($prop)) {
-                        $propObj = $reflection->getProperty($prop);
-                        $propObj->setAccessible(true);
-                        $value = $propObj->getValue($make);
-                        if ($value !== null) {
-                            error_log("CTeService::emitir - Propriedade '$prop' existe e tem valor: " . gettype($value));
-                        }
-                    }
-                }
-            } catch (\Throwable $e) {
-                // Ignorar erros de reflexão
-            }
+
+            // Criar tag ide
+            $make->tagide($stdIde);
+
+            // Tomador do serviço (OBRIGATÓRIO no monta())
+            // 3 = Destinatário (padrão)
+            $stdToma3 = new \stdClass();
+            $stdToma3->toma = '3';
+            $make->tagtoma3($stdToma3);
 
             // EMIT - Emitente (sua empresa)
             $stdEmit = new \stdClass();
