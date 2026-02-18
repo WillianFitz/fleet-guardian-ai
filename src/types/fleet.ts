@@ -172,10 +172,24 @@ export interface Receita {
   observacoes?: string;
 }
 
+// Tipo de documento originário do CT-e (fluxo de criação)
+export type FluxoOrigemCTe = "manual" | "nfe" | "cte_outro" | "nota_talao" | "outros";
+
+// Dados para fluxo "outros documentos" (Declaração, CF-e, NFC-e, etc.)
+export interface InfOutrosDoc {
+  tpDoc: "00" | "04" | "05" | "99"; // 00=Declaração, 04=CF-e/SAT, 05=NFC-e, 99=Outros
+  descOutros: string;
+  nDoc: string;
+  vDocFisc: number;
+  dEmi: string;
+}
+
 // ===== CTe (Conhecimento de Transporte Eletrônico) =====
 export interface CTe {
   id: string;
   chave: string;
+  /** Fluxo de origem: manual, nfe, cte_outro, nota_talao, outros */
+  fluxoOrigem?: FluxoOrigemCTe;
   numero: string;
   serie: string;
   veiculoPlaca: string;
@@ -209,7 +223,15 @@ export interface CTe {
   motivoRejeicao?: string;
   xmlUrl?: string;
   pdfUrl?: string;
-  receitaId?: string; // vinculado a uma receita (entrada de frete)
+  receitaId?: string;
+  /** Chave NFe (44 dígitos) - fluxo NFe */
+  chaveNFe?: string;
+  /** Chave CT-e (44 dígitos) - fluxo subcontratação/redespacho */
+  chaveCTe?: string;
+  /** Tipo de serviço quando CT-e de outra transportadora: 1=Subcontratação, 2=Redespacho, 3=Redespacho Intermediário */
+  tpServ?: "1" | "2" | "3";
+  /** Dados para fluxo "outros documentos" */
+  infOutros?: InfOutrosDoc;
 }
 
 // ===== GARAGE =====

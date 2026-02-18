@@ -153,7 +153,9 @@ class CTeService
             $stdIde->verProc = 'FleetGuardianAI';
             // Campos obrigatórios do layout 4.00
             $stdIde->modal = '01';   // 01 = Rodoviário
-            $stdIde->tpServ = '0';   // 0 = Normal
+            // tpServ: 0=Normal, 1=Subcontratação, 2=Redespacho, 3=Redespacho Intermediário (fluxo cte_outro)
+            $fluxoOrigem = $dados['fluxoOrigem'] ?? 'manual';
+            $stdIde->tpServ = ($fluxoOrigem === 'cte_outro' && !empty($dados['tpServ'])) ? (string)$dados['tpServ'] : '0';
             
             // Municípios e UFs - garantir valores válidos (nunca null)
             // Função auxiliar para garantir string não-nula

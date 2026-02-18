@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield } from "lucide-react";
+import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
-import { CTe, Vehicle } from "@/types/fleet";
+import { CTe, Vehicle, FluxoOrigemCTe } from "@/types/fleet";
 import { demoCtes, demoVehicles } from "@/data/demoData";
 import { toast } from "@/hooks/use-toast";
 import { api, cteApi } from "@/lib/api";
@@ -26,10 +26,18 @@ const statusStyles: Record<string, string> = {
   erro: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400",
 };
 
+const fluxoOptions: { id: FluxoOrigemCTe; label: string; desc: string; icon: typeof FileCheck }[] = [
+  { id: "nfe", label: "Tenho Nota Fiscal Eletrônica", desc: "Chave NFe, XML ou busca SEFAZ", icon: FileCheck },
+  { id: "cte_outro", label: "Tenho CT-e de outra transportadora", desc: "Subcontratação, redespacho ou redespacho intermediário", icon: Truck },
+  { id: "nota_talao", label: "Tenho nota de produtos", desc: "Nota fiscal de talão", icon: Package },
+  { id: "outros", label: "Tenho outro documento", desc: "Declaração, CF-e/SAT, NFC-e ou outros", icon: FileSignature },
+];
+
 const emptyForm: Omit<CTe, "id"> = {
   chave: "",
   numero: "",
   serie: "1",
+  fluxoOrigem: "manual",
   veiculoPlaca: "",
   veiculoModelo: "",
   dataEmissao: new Date().toISOString().split("T")[0],
@@ -78,6 +86,7 @@ const Ctes = () => {
   const [dateEnd, setDateEnd] = useState("");
   const [emitting, setEmitting] = useState(false);
   const [consulting, setConsulting] = useState<string | null>(null);
+  const [showFluxoPicker, setShowFluxoPicker] = useState(false);
 
   const buscarCep = async (cep: string, tipo: "remetente" | "destinatario") => {
     const digits = cep.replace(/\D/g, "");
@@ -176,6 +185,12 @@ const Ctes = () => {
   const handleNew = () => {
     setEditing(null);
     setForm(emptyForm);
+    setShowFluxoPicker(true);
+  };
+
+  const handleFluxoSelect = (fluxo: FluxoOrigemCTe) => {
+    setForm((prev) => ({ ...prev, fluxoOrigem: fluxo }));
+    setShowFluxoPicker(false);
     setDialogOpen(true);
   };
   const handleDelete = (id: string) => {
@@ -188,12 +203,13 @@ const Ctes = () => {
   const handleEmitir = async (cte: CTe) => {
     setEmitting(true);
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         numero: cte.numero,
         serie: cte.serie,
         veiculoPlaca: cte.veiculoPlaca,
         dataEmissao: cte.dataEmissao,
         valorPrestacao: cte.valorPrestacao,
+        fluxoOrigem: cte.fluxoOrigem || "manual",
         remetente: {
           nome: cte.remetenteNome,
           cnpjCpf: cte.remetenteCnpjCpf,
@@ -215,6 +231,10 @@ const Ctes = () => {
           uf: cte.destinatarioUf,
         },
       };
+      if (cte.chaveNFe) payload.chaveNFe = cte.chaveNFe;
+      if (cte.chaveCTe) payload.chaveCTe = cte.chaveCTe;
+      if (cte.tpServ) payload.tpServ = cte.tpServ;
+      if (cte.infOutros) payload.infOutros = cte.infOutros;
       const result = await cteApi.emitir(payload, ambienteAtual);
       if (result.error) {
         throw new Error(result.error);
@@ -494,11 +514,47 @@ const Ctes = () => {
         </div>
       </div>
 
+      <Dialog open={showFluxoPicker} onOpenChange={setShowFluxoPicker}>
+        <DialogContent className="bg-card border-border max-w-lg mx-4">
+          <DialogHeader>
+            <DialogTitle className="text-sm sm:text-base text-foreground">Como deseja criar o CT-e?</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 mt-2">
+            {fluxoOptions.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => handleFluxoSelect(opt.id)}
+                  className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/50 transition-colors text-left"
+                >
+                  <Icon className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-sm text-foreground">{opt.label}</p>
+                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
+            <button
+              onClick={() => handleFluxoSelect("manual")}
+              className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-muted/50 hover:border-primary/50 transition-colors text-left"
+            >
+              <FileText className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-sm text-foreground">Preencher manualmente</p>
+                <p className="text-xs text-muted-foreground">Remetente, destinatário, valor e demais dados</p>
+              </div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-card border-border max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-sm sm:text-base text-foreground">
-              {editing ? "Editar CTe" : "Novo CTe"}
+              {editing ? "Editar CTe" : `Novo CTe — ${fluxoOptions.find((f) => f.id === form.fluxoOrigem)?.label ?? (form.fluxoOrigem === "manual" ? "Preenchimento manual" : "Documento")}`}
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
@@ -721,6 +777,138 @@ const Ctes = () => {
               className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
+
+          {/* Campos adicionais por fluxo */}
+          {form.fluxoOrigem === "nfe" && (
+            <>
+              <div className="col-span-1 sm:col-span-2 mt-2">
+                <p className="text-xs font-semibold text-muted-foreground">Documento NFe</p>
+              </div>
+              <div className="col-span-1 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso da NFe (44 dígitos)</label>
+                <input
+                  value={form.chaveNFe ?? ""}
+                  onChange={(e) => setField("chaveNFe", e.target.value.replace(/\D/g, "").slice(0, 44))}
+                  placeholder="Ex: 43240264728343000150550010000085618157717122"
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+            </>
+          )}
+          {form.fluxoOrigem === "cte_outro" && (
+            <>
+              <div className="col-span-1 sm:col-span-2 mt-2">
+                <p className="text-xs font-semibold text-muted-foreground">CT-e de outra transportadora</p>
+              </div>
+              <div className="col-span-1 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso do CT-e (44 dígitos)</label>
+                <input
+                  value={form.chaveCTe ?? ""}
+                  onChange={(e) => setField("chaveCTe", e.target.value.replace(/\D/g, "").slice(0, 44))}
+                  placeholder="Chave do CT-e da transportadora anterior"
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+              <div className="col-span-1 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de serviço</label>
+                <select
+                  value={form.tpServ ?? "1"}
+                  onChange={(e) => setField("tpServ", e.target.value as "1" | "2" | "3")}
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="1">Subcontratação</option>
+                  <option value="2">Redespacho</option>
+                  <option value="3">Redespacho Intermediário</option>
+                </select>
+              </div>
+            </>
+          )}
+          {form.fluxoOrigem === "outros" && (
+            <>
+              <div className="col-span-1 sm:col-span-2 mt-2">
+                <p className="text-xs font-semibold text-muted-foreground">Outro documento</p>
+              </div>
+              <div className="col-span-1 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Tipo de documento</label>
+                <select
+                  value={form.infOutros?.tpDoc ?? "99"}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      infOutros: { ...(p.infOutros || { tpDoc: "99", descOutros: "", nDoc: "", vDocFisc: 0, dEmi: "" }), tpDoc: e.target.value as "00" | "04" | "05" | "99" },
+                    }))
+                  }
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                >
+                  <option value="00">Declaração de conteúdo</option>
+                  <option value="04">CF-e SAT (Cupom Fiscal Eletrônico)</option>
+                  <option value="05">NFC-e (Nota Fiscal de Consumidor Eletrônica)</option>
+                  <option value="99">Outros documentos</option>
+                </select>
+              </div>
+              <div className="col-span-1 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Descrição</label>
+                <input
+                  value={form.infOutros?.descOutros ?? ""}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      infOutros: { ...(p.infOutros || { tpDoc: "99", descOutros: "", nDoc: "", vDocFisc: 0, dEmi: "" }), descOutros: e.target.value },
+                    }))
+                  }
+                  placeholder="Ex: Declaração de conteúdo da carga"
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Número do documento</label>
+                <input
+                  value={form.infOutros?.nDoc ?? ""}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      infOutros: { ...(p.infOutros || { tpDoc: "99", descOutros: "", nDoc: "", vDocFisc: 0, dEmi: "" }), nDoc: e.target.value },
+                    }))
+                  }
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={form.infOutros?.vDocFisc ?? 0}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      infOutros: { ...(p.infOutros || { tpDoc: "99", descOutros: "", nDoc: "", vDocFisc: 0, dEmi: "" }), vDocFisc: Number(e.target.value) || 0 },
+                    }))
+                  }
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Data de emissão</label>
+                <input
+                  type="date"
+                  value={form.infOutros?.dEmi ?? form.dataEmissao ?? ""}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      infOutros: { ...(p.infOutros || { tpDoc: "99", descOutros: "", nDoc: "", vDocFisc: 0, dEmi: "" }), dEmi: e.target.value },
+                    }))
+                  }
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+            </>
+          )}
+          {form.fluxoOrigem === "nota_talao" && (
+            <div className="col-span-1 sm:col-span-2 mt-2 p-3 rounded-lg bg-muted/30 text-sm text-muted-foreground">
+              Nota fiscal de talão: preencha remetente, destinatário e valor. Os dados da NF de talão serão informados na emissão.
+            </div>
+          )}
           </div>
           <div className="flex justify-end gap-2 mt-4">
             <button
