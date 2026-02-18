@@ -50,7 +50,13 @@ class CTeService
         ];
 
         // Carregar certificado
-        $this->certificate = Certificate::readPfx($certPfxPath, $certPassword);
+        // ATENÇÃO: Certificate::readPfx espera o CONTEÚDO binário do PFX, não o caminho do arquivo
+        // Por isso precisamos ler o arquivo e passar o conteúdo para a biblioteca.
+        $pfxContent = @file_get_contents($certPfxPath);
+        if ($pfxContent === false) {
+            throw new Exception("Não foi possível ler o arquivo de certificado PFX temporário.");
+        }
+        $this->certificate = Certificate::readPfx($pfxContent, $certPassword);
 
         // Criar instância do Tools
         $this->tools = new Tools(json_encode($this->config), $this->certificate);
