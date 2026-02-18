@@ -212,6 +212,9 @@ const Ctes = () => {
   /** Escolheu como informar a NF-e (Chave/XML/SEFAZ) → vai para o formulário de cadastro */
   const handleNfeTipoSelect = (tipo: "xml" | "chave" | "sefaz") => {
     setNfeOrigemTipo(tipo);
+    // Para SEFAZ: permanece neste passo para buscar/listar as NF-e do CNPJ.
+    // Para Chave/XML: avança direto para o cadastro do CT-e.
+    if (tipo === "sefaz") return;
     setShowNfeTipoStep(false);
   };
 
@@ -240,6 +243,8 @@ const Ctes = () => {
       valorPrestacao: item.vNF,
     }));
     toast({ title: "NF-e selecionada", description: "Remetente, destinatário e valor preenchidos." });
+    // Após escolher uma NF-e, avança para o formulário completo do CT-e.
+    setShowNfeTipoStep(false);
   };
   const handleDelete = (id: string) => {
     remove(id);
@@ -631,6 +636,59 @@ const Ctes = () => {
                   );
                 })}
               </div>
+
+              {/* SEFAZ: buscar e listar NF-e do CNPJ (não abre o formulário vazio) */}
+              {nfeOrigemTipo === "sefaz" && (
+                <div className="mt-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleBuscaNFeSefaz}
+                      disabled={nfeSefazLoading || tenant?.certificadoStatus === "nao_configurado"}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {nfeSefazLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      {nfeSefazLoading ? "Buscando..." : "Buscar na SEFAZ"}
+                    </button>
+                    <span className="text-xs text-muted-foreground">Vai retornar as NF-e vinculadas ao CNPJ configurado</span>
+                  </div>
+
+                  {nfeSefazResult.length > 0 && (
+                    <div className="border border-border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Emissão</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
+                            <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
+                            <th className="px-2 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nfeSefazResult.map((n) => (
+                            <tr
+                              key={n.chave}
+                              className="border-t border-border hover:bg-muted/30 cursor-pointer"
+                              onClick={() => handleSelectNFeSefaz(n)}
+                            >
+                              <td className="px-3 py-2 font-mono">{n.nfe}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{n.dhEmi ? new Date(n.dhEmi).toLocaleDateString("pt-BR") : "—"}</td>
+                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeEmit}>{n.xNomeEmit || "—"}</td>
+                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeDest}>{n.xNomeDest || "—"}</td>
+                              <td className="px-3 py-2 text-right font-medium">R$ {n.vNF?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}</td>
+                              <td className="px-2 py-2">
+                                <button type="button" onClick={(e) => { e.stopPropagation(); handleSelectNFeSefaz(n); }} className="text-primary text-xs font-medium">Usar</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -677,53 +735,26 @@ const Ctes = () => {
                 </div>
               )}
               {nfeOrigemTipo === "sefaz" && (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave da NF-e selecionada</label>
+                      <input
+                        value={form.chaveNFe ?? ""}
+                        readOnly
+                        placeholder="Selecione uma NF-e na etapa anterior (SEFAZ)"
+                        className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none"
+                      />
+                    </div>
                     <button
                       type="button"
-                      onClick={handleBuscaNFeSefaz}
-                      disabled={nfeSefazLoading || tenant?.certificadoStatus === "nao_configurado"}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => { setNfeSefazResult([]); setShowNfeTipoStep(true); }}
+                      className="mt-6 px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
                     >
-                      {nfeSefazLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                      {nfeSefazLoading ? "Buscando..." : "Buscar na SEFAZ"}
+                      Trocar NF-e
                     </button>
-                    <span className="text-xs text-muted-foreground">NF-e vinculadas ao CNPJ da empresa</span>
                   </div>
-                  {nfeSefazResult.length > 0 && (
-                    <div className="border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50 sticky top-0">
-                          <tr>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Emissão</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
-                            <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
-                            <th className="px-2 py-2"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {nfeSefazResult.map((n) => (
-                            <tr
-                              key={n.chave}
-                              className="border-t border-border hover:bg-muted/30 cursor-pointer"
-                              onClick={() => handleSelectNFeSefaz(n)}
-                            >
-                              <td className="px-3 py-2 font-mono">{n.nfe}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{n.dhEmi ? new Date(n.dhEmi).toLocaleDateString("pt-BR") : "—"}</td>
-                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeEmit}>{n.xNomeEmit || "—"}</td>
-                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeDest}>{n.xNomeDest || "—"}</td>
-                              <td className="px-3 py-2 text-right font-medium">R$ {n.vNF?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}</td>
-                              <td className="px-2 py-2">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); handleSelectNFeSefaz(n); }} className="text-primary text-xs font-medium">Usar</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  <p className="text-xs text-muted-foreground">A listagem e seleção das NF-e fica na etapa “Buscar na SEFAZ”.</p>
                 </div>
               )}
             </div>
