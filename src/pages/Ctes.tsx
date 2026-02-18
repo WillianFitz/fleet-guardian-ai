@@ -589,6 +589,124 @@ const Ctes = () => {
               {editing ? "Editar CTe" : `Novo CTe — ${fluxoOptions.find((f) => f.id === form.fluxoOrigem)?.label ?? (form.fluxoOrigem === "manual" ? "Preenchimento manual" : "Documento")}`}
             </DialogTitle>
           </DialogHeader>
+
+          {/* Ao escolher "Tenho Nota Fiscal Eletrônica": 3 opções em destaque no topo */}
+          {form.fluxoOrigem === "nfe" && (
+            <div className="mt-2 mb-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-4">
+              <p className="text-sm font-semibold text-foreground">Como informar a NF-e?</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { id: "chave" as const, label: "Chave de acesso", desc: "44 dígitos da NFe", icon: FileText },
+                  { id: "xml" as const, label: "Arquivo XML", desc: "Enviar arquivo da NF-e", icon: FileXml },
+                  { id: "sefaz" as const, label: "Buscar na SEFAZ", desc: "Distribuição DFe", icon: Search },
+                ].map((opt) => {
+                  const Icon = opt.icon;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setNfeOrigemTipo(opt.id)}
+                      className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 text-center transition-all ${
+                        nfeOrigemTipo === opt.id
+                          ? "border-primary bg-primary/15 text-primary shadow-sm"
+                          : "border-border hover:border-primary/50 hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Icon className="w-6 h-6" />
+                      <span className="font-medium text-sm">{opt.label}</span>
+                      <span className="text-xs opacity-80">{opt.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {nfeOrigemTipo === "chave" && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso da NFe (44 dígitos)</label>
+                  <input
+                    value={form.chaveNFe ?? ""}
+                    onChange={(e) => setField("chaveNFe", e.target.value.replace(/\D/g, "").slice(0, 44))}
+                    placeholder="Ex: 43240264728343000150550010000085618157717122"
+                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+              )}
+              {nfeOrigemTipo === "xml" && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Arquivo XML da NF-e</label>
+                  <input
+                    type="file"
+                    accept=".xml,application/xml"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        const r = new FileReader();
+                        r.onload = () => {
+                          const txt = r.result as string;
+                          const m = txt.match(/<chNFe>(\d{44})<\/chNFe>/);
+                          if (m) setField("chaveNFe", m[1]);
+                          else toast({ title: "Chave não encontrada no XML", variant: "destructive" });
+                        };
+                        r.readAsText(f);
+                      }
+                    }}
+                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground file:text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">A chave será extraída automaticamente do XML.</p>
+                </div>
+              )}
+              {nfeOrigemTipo === "sefaz" && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleBuscaNFeSefaz}
+                      disabled={nfeSefazLoading || tenant?.certificadoStatus === "nao_configurado"}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {nfeSefazLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                      {nfeSefazLoading ? "Buscando..." : "Buscar na SEFAZ"}
+                    </button>
+                    <span className="text-xs text-muted-foreground">NF-e vinculadas ao CNPJ da empresa</span>
+                  </div>
+                  {nfeSefazResult.length > 0 && (
+                    <div className="border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 sticky top-0">
+                          <tr>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Emissão</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
+                            <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
+                            <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
+                            <th className="px-2 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {nfeSefazResult.map((n) => (
+                            <tr
+                              key={n.chave}
+                              className="border-t border-border hover:bg-muted/30 cursor-pointer"
+                              onClick={() => handleSelectNFeSefaz(n)}
+                            >
+                              <td className="px-3 py-2 font-mono">{n.nfe}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{n.dhEmi ? new Date(n.dhEmi).toLocaleDateString("pt-BR") : "—"}</td>
+                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeEmit}>{n.xNomeEmit || "—"}</td>
+                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeDest}>{n.xNomeDest || "—"}</td>
+                              <td className="px-3 py-2 text-right font-medium">R$ {n.vNF?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}</td>
+                              <td className="px-2 py-2">
+                                <button type="button" onClick={(e) => { e.stopPropagation(); handleSelectNFeSefaz(n); }} className="text-primary text-xs font-medium">Usar</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
           <div className="col-span-1 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Veículo</label>
@@ -810,123 +928,7 @@ const Ctes = () => {
             />
           </div>
 
-          {/* Campos adicionais por fluxo */}
-          {form.fluxoOrigem === "nfe" && (
-            <>
-              <div className="col-span-1 sm:col-span-2 mt-2">
-                <p className="text-xs font-semibold text-muted-foreground">Como informar a NF-e?</p>
-              </div>
-              <div className="col-span-1 sm:col-span-2 flex gap-2 flex-wrap">
-                {[
-                  { id: "chave" as const, label: "Chave de acesso", icon: FileText },
-                  { id: "xml" as const, label: "Arquivo XML", icon: FileXml },
-                  { id: "sefaz" as const, label: "Busca na SEFAZ", icon: Search },
-                ].map((opt) => {
-                  const Icon = opt.icon;
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setNfeOrigemTipo(opt.id)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
-                        nfeOrigemTipo === opt.id
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:bg-muted/50 text-muted-foreground"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {opt.label}
-                    </button>
-                  );
-                })}
-              </div>
-              {nfeOrigemTipo === "chave" && (
-                <div className="col-span-1 sm:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso da NFe (44 dígitos)</label>
-                  <input
-                    value={form.chaveNFe ?? ""}
-                    onChange={(e) => setField("chaveNFe", e.target.value.replace(/\D/g, "").slice(0, 44))}
-                    placeholder="Ex: 43240264728343000150550010000085618157717122"
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                </div>
-              )}
-              {nfeOrigemTipo === "xml" && (
-                <div className="col-span-1 sm:col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Arquivo XML da NF-e</label>
-                  <input
-                    type="file"
-                    accept=".xml,application/xml"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) {
-                        const r = new FileReader();
-                        r.onload = () => {
-                          const txt = r.result as string;
-                          const m = txt.match(/<chNFe>(\d{44})<\/chNFe>/);
-                          if (m) setField("chaveNFe", m[1]);
-                          else toast({ title: "Chave não encontrada no XML", variant: "destructive" });
-                        };
-                        r.readAsText(f);
-                      }
-                    }}
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground file:text-xs"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">A chave será extraída automaticamente do XML.</p>
-                </div>
-              )}
-              {nfeOrigemTipo === "sefaz" && (
-                <div className="col-span-1 sm:col-span-2 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={handleBuscaNFeSefaz}
-                      disabled={nfeSefazLoading || tenant?.certificadoStatus === "nao_configurado"}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {nfeSefazLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                      {nfeSefazLoading ? "Buscando..." : "Buscar na SEFAZ"}
-                    </button>
-                    <span className="text-xs text-muted-foreground">NF-e vinculadas ao CNPJ da empresa</span>
-                  </div>
-                  {nfeSefazResult.length > 0 && (
-                    <div className="border border-border rounded-lg overflow-hidden max-h-48 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50 sticky top-0">
-                          <tr>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Emissão</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
-                            <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
-                            <th className="px-2 py-2"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {nfeSefazResult.map((n) => (
-                            <tr
-                              key={n.chave}
-                              className="border-t border-border hover:bg-muted/30 cursor-pointer"
-                              onClick={() => handleSelectNFeSefaz(n)}
-                            >
-                              <td className="px-3 py-2 font-mono">{n.nfe}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{n.dhEmi ? new Date(n.dhEmi).toLocaleDateString("pt-BR") : "—"}</td>
-                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeEmit}>{n.xNomeEmit || "—"}</td>
-                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeDest}>{n.xNomeDest || "—"}</td>
-                              <td className="px-3 py-2 text-right font-medium">R$ {n.vNF?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}</td>
-                              <td className="px-2 py-2">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); handleSelectNFeSefaz(n); }} className="text-primary text-xs font-medium">Usar</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {/* Campos adicionais por fluxo (NFe já está no topo do dialog) */}
           {form.fluxoOrigem === "cte_outro" && (
             <>
               <div className="col-span-1 sm:col-span-2 mt-2">
