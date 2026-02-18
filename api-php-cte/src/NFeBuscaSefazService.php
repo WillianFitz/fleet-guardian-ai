@@ -43,7 +43,9 @@ class NFeBuscaSefazService
      */
     public function buscar(int $ultNSU = 0): array
     {
-        $response = $this->tools->sefazDistDFe('AN', $this->cnpj, $ultNSU, 0);
+        // Assinatura NFePHP: sefazDistDFe(int $ultNSU, int $numNSU, ?string $chave, string $fonte). CNPJ vem do config do Tools.
+        $ultNSU = (int) $ultNSU;
+        $response = $this->tools->sefazDistDFe($ultNSU, 0, null, 'AN');
         return $this->parseResponse($response);
     }
 
