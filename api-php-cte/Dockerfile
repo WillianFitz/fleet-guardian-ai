@@ -22,9 +22,7 @@ COPY . .
 ENV PORT=8080
 EXPOSE 8080
 
-# Tornar script executável
-RUN chmod +x start.sh
-
-# Iniciar servidor usando script shell (sh -c garante expansão de variáveis)
-CMD ["sh", "-c", "./start.sh"]
+# O comando de start é definido no railway.json
+# Fallback caso railway.json não seja usado
+CMD ["php", "server.php"]
 

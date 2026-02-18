@@ -35,7 +35,8 @@ if (!is_dir(__DIR__ . '/vendor')) {
     exit(1);
 }
 
-echo "All checks passed. Starting server...\n";
+echo "All checks passed. Starting server on {$host}:{$port}...\n";
 
-// Iniciar servidor usando exec para substituir o processo atual
-exec("php -S {$host}:{$port} router.php");
+// Iniciar servidor - usar passthru para manter o processo vivo
+passthru("php -S {$host}:{$port} router.php", $returnCode);
+exit($returnCode);
