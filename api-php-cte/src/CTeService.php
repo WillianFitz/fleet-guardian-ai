@@ -87,6 +87,7 @@ class CTeService
     public function emitir($dados)
     {
         try {
+            error_log("CTeService::emitir - Iniciando emissão de CT-e");
             $make = new MakeCTe();
 
             // Extrair dados
