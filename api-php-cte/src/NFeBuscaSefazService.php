@@ -38,20 +38,48 @@ class NFeBuscaSefazService
 
     /**
      * Busca NF-e na SEFAZ (Distribuição DFe)
+     * Faz várias chamadas (enquanto ultNSU < maxNSU) para trazer todas as NF-e disponíveis.
      * @param int $ultNSU Último NSU recebido (0 para primeira consulta)
-     * @return array ['nfe' => [...], 'ultNSU' => int, 'maxNSU' => int]
+     * @return array ['nfe' => [...], 'ultNSU' => int, 'maxNSU' => int, 'cStat' => string, 'xMotivo' => string]
      */
     public function buscar(int $ultNSU = 0): array
     {
-        // Assinatura NFePHP: sefazDistDFe(int $ultNSU, int $numNSU, ?string $chave, string $fonte). CNPJ vem do config do Tools.
         $ultNSU = (int) $ultNSU;
-        $response = $this->tools->sefazDistDFe($ultNSU, 0, null, 'AN');
-        return $this->parseResponse($response);
+        $allNfe = [];
+        $maxNSU = 0;
+        $cStat = '';
+        $xMotivo = '';
+        $maxIter = 50; // segurança: no máximo 50 páginas
+        $iter = 0;
+
+        do {
+            $response = $this->tools->sefazDistDFe($ultNSU, 0, null, 'AN');
+            $parsed = $this->parseResponse($response);
+            $cStat = $parsed['cStat'] ?? '';
+            $xMotivo = $parsed['xMotivo'] ?? '';
+            if (!empty($parsed['nfe'])) {
+                $allNfe = array_merge($allNfe, $parsed['nfe']);
+            }
+            $ultNSU = (int) $parsed['ultNSU'];
+            $maxNSU = (int) $parsed['maxNSU'];
+            if ($ultNSU >= $maxNSU || $cStat === '137') {
+                break;
+            }
+            $iter++;
+        } while ($iter < $maxIter);
+
+        return [
+            'nfe' => $allNfe,
+            'ultNSU' => $ultNSU,
+            'maxNSU' => $maxNSU,
+            'cStat' => $cStat,
+            'xMotivo' => $xMotivo,
+        ];
     }
 
     private function parseResponse(string $xml): array
     {
-        $result = ['nfe' => [], 'ultNSU' => 0, 'maxNSU' => 0];
+        $result = ['nfe' => [], 'ultNSU' => 0, 'maxNSU' => 0, 'cStat' => '', 'xMotivo' => ''];
         libxml_use_internal_errors(true);
         $dom = new \DOMDocument();
         if (!@$dom->loadXML($xml)) {
@@ -59,35 +87,79 @@ class NFeBuscaSefazService
         }
         $xpath = new \DOMXPath($dom);
         $xpath->registerNamespace('dfe', 'http://www.portalfiscal.inf.br/nfe');
+        $xpath->registerNamespace('soap', 'http://www.w3.org/2003/05/soap-envelope');
+        $xpath->registerNamespace('ns', 'http://www.portalfiscal.inf.br/nfe/wsdl/NFeDistribuicaoDFe');
+
+        $cStat = $this->firstNodeValue($xpath, ['//cStat', '//dfe:cStat', '//*[local-name()="cStat"]']);
+        $xMotivo = $this->firstNodeValue($xpath, ['//xMotivo', '//dfe:xMotivo', '//*[local-name()="xMotivo"]']) ?: 'Erro desconhecido';
+        $result['cStat'] = $cStat;
+        $result['xMotivo'] = $xMotivo;
+
+        if ($cStat !== '138' && $cStat !== '137') {
+            throw new \Exception("SEFAZ: $xMotivo (cStat: $cStat)");
+        }
+
         $ret = $xpath->query('//dfe:retDistDFeInt');
         if ($ret->length === 0) {
             $ret = $xpath->query('//retDistDFeInt');
         }
         if ($ret->length === 0) {
-            $cStat = $xpath->query('//cStat')->item(0)?->nodeValue ?? '';
-            $xMotivo = $xpath->query('//xMotivo')->item(0)?->nodeValue ?? 'Erro desconhecido';
-            if ($cStat !== '138' && $cStat !== '137') {
-                throw new \Exception("SEFAZ: $xMotivo (cStat: $cStat)");
-            }
+            $ret = $xpath->query('//*[local-name()="retDistDFeInt"]');
+        }
+        if ($ret->length === 0) {
+            $result['ultNSU'] = (int) $this->firstNodeValue($xpath, ['//ultNSU', '//*[local-name()="ultNSU"]']);
+            $result['maxNSU'] = (int) $this->firstNodeValue($xpath, ['//maxNSU', '//*[local-name()="maxNSU"]']);
             return $result;
         }
-        $retNode = $ret->item(0);
-        $result['ultNSU'] = (int)($xpath->query('.//ultNSU', $retNode)->item(0)?->nodeValue ?? 0);
-        $result['maxNSU'] = (int)($xpath->query('.//maxNSU', $retNode)->item(0)?->nodeValue ?? 0);
 
-        $docZips = $xpath->query('.//docZip');
+        $retNode = $ret->item(0);
+        $result['ultNSU'] = (int) $this->firstNodeValue($xpath, ['.//ultNSU', './/dfe:ultNSU', './/*[local-name()="ultNSU"]'], $retNode);
+        $result['maxNSU'] = (int) $this->firstNodeValue($xpath, ['.//maxNSU', './/dfe:maxNSU', './/*[local-name()="maxNSU"]'], $retNode);
+
+        $docZips = $xpath->query('.//dfe:docZip');
+        if ($docZips->length === 0) {
+            $docZips = $xpath->query('.//docZip');
+        }
+        if ($docZips->length === 0) {
+            $docZips = $xpath->query('.//*[local-name()="docZip"]');
+        }
+
         foreach ($docZips as $docZip) {
             $schema = $docZip->getAttribute('schema') ?: '';
-            $content = base64_decode($docZip->nodeValue ?? '');
-            if ($content === false || $content === '') continue;
-            $content = @gzuncompress($content);
-            if ($content === false) continue;
-            if (stripos($schema, 'resNFe') !== false || stripos($content, 'resNFe') !== false) {
+            $schema = $docZip->getAttributeNS('http://www.w3.org/2001/XMLSchema-instance', 'schemaLocation') ?: $schema;
+            $content = base64_decode(trim($docZip->nodeValue ?? $docZip->textContent ?? ''));
+            if ($content === false || $content === '') {
+                continue;
+            }
+            $decoded = @gzuncompress($content);
+            if ($decoded !== false) {
+                $content = $decoded;
+            }
+            $isResNFe = stripos($schema, 'resNFe') !== false || stripos($content, 'resNFe') !== false || preg_match('/<resNFe\b/i', $content);
+            if ($isResNFe) {
                 $item = $this->parseResNFe($content);
-                if ($item) $result['nfe'][] = $item;
+                if ($item) {
+                    $result['nfe'][] = $item;
+                }
             }
         }
         return $result;
+    }
+
+    /** @param \DOMXPath $xpath
+     * @param string[] $queries
+     * @param \DOMNode|null $context
+     * @return string
+     */
+    private function firstNodeValue(\DOMXPath $xpath, array $queries, $context = null): string
+    {
+        foreach ($queries as $q) {
+            $nodes = $context ? $xpath->query($q, $context) : $xpath->query($q);
+            if ($nodes && $nodes->length > 0 && $nodes->item(0)->nodeValue !== null) {
+                return trim($nodes->item(0)->nodeValue);
+            }
+        }
+        return '';
     }
 
     private function parseResNFe(string $xml): ?array

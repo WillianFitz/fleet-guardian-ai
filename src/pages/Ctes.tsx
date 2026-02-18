@@ -225,7 +225,12 @@ const Ctes = () => {
       const res = await cteApi.buscaNFeSefaz(ambienteAtual);
       setNfeSefazResult(res.nfe || []);
       if (!res.nfe?.length) {
-        toast({ title: "Nenhuma NF-e encontrada na SEFAZ", description: "As NF-e costumam aparecer até 2h após emissão.", variant: "destructive" });
+        const amb = ambienteAtual === "producao" ? "produção" : "homologação";
+        toast({
+          title: "Nenhuma NF-e encontrada na SEFAZ",
+          description: `Consulta no ambiente ${amb}. Se suas notas são do outro ambiente, altere em Configurações → Ambiente SEFAZ e tente de novo. O certificado deve ser do mesmo CNPJ que emite ou recebe as NF-e.`,
+          variant: "destructive",
+        });
       }
     } catch (e: unknown) {
       toast({ title: "Erro ao buscar NF-e", description: e instanceof Error ? e.message : "Erro desconhecido", variant: "destructive" });
@@ -640,7 +645,7 @@ const Ctes = () => {
               {/* SEFAZ: buscar e listar NF-e do CNPJ (não abre o formulário vazio) */}
               {nfeOrigemTipo === "sefaz" && (
                 <div className="mt-5 space-y-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={handleBuscaNFeSefaz}
@@ -650,8 +655,13 @@ const Ctes = () => {
                       {nfeSefazLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                       {nfeSefazLoading ? "Buscando..." : "Buscar na SEFAZ"}
                     </button>
-                    <span className="text-xs text-muted-foreground">Vai retornar as NF-e vinculadas ao CNPJ configurado</span>
+                    <span className="text-xs text-muted-foreground">
+                      Ambiente: <strong>{ambienteAtual === "producao" ? "Produção" : "Homologação"}</strong> — NF-e do CNPJ do certificado
+                    </span>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Se não aparecer nenhuma nota, confira em Configurações se o ambiente (homologação/produção) é o mesmo em que as NF-e foram emitidas e se o certificado é do mesmo CNPJ.
+                  </p>
 
                   {nfeSefazResult.length > 0 && (
                     <div className="border border-border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
