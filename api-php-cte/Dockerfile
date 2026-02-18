@@ -22,6 +22,9 @@ COPY . .
 ENV PORT=8080
 EXPOSE 8080
 
-# Iniciar servidor PHP
-CMD ["sh", "-c", "php -S 0.0.0.0:${PORT:-8080} router.php"]
+# Tornar script executável
+RUN chmod +x start.sh
+
+# Iniciar servidor usando script shell (sh -c garante expansão de variáveis)
+CMD ["sh", "-c", "./start.sh"]
 
