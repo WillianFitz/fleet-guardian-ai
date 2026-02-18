@@ -147,30 +147,39 @@ class CTeService
             $stdIde->modal = '01';   // 01 = Rodoviário
             $stdIde->tpServ = '0';   // 0 = Normal
             
-            // Municípios e UFs - garantir valores válidos
-            $remetenteMunicipio = trim((string)($dados['remetente']['municipio'] ?? ''));
-            $remetenteUF = strtoupper(trim((string)($dados['remetente']['uf'] ?? $uf)));
-            $destinatarioMunicipio = trim((string)($dados['destinatario']['municipio'] ?? ''));
-            $destinatarioUF = strtoupper(trim((string)($dados['destinatario']['uf'] ?? '')));
+            // Municípios e UFs - garantir valores válidos (nunca null)
+            // Função auxiliar para garantir string não-nula
+            $ensureString = function($value, $default = '') {
+                return $value !== null ? (string)$value : (string)$default;
+            };
+            
+            $remetenteMunicipio = $ensureString($dados['remetente']['municipio'] ?? null, 'SAO PAULO');
+            $remetenteMunicipio = trim($remetenteMunicipio) ?: 'SAO PAULO';
+            $remetenteUF = strtoupper(trim($ensureString($dados['remetente']['uf'] ?? null, $uf))) ?: $uf;
+            
+            $destinatarioMunicipio = $ensureString($dados['destinatario']['municipio'] ?? null, 'SAO PAULO');
+            $destinatarioMunicipio = trim($destinatarioMunicipio) ?: 'SAO PAULO';
+            $destinatarioUF = strtoupper(trim($ensureString($dados['destinatario']['uf'] ?? null, $uf))) ?: $uf;
             
             // Se UF vazia, usar UF padrão
             if (empty($remetenteUF)) $remetenteUF = $uf;
             if (empty($destinatarioUF)) $destinatarioUF = $uf;
             
-            // Códigos de município
-            $cMunEnv = (string)$this->getCodigoMunicipio($remetenteMunicipio ?: 'SAO PAULO', $remetenteUF);
-            $cMunIni = (string)$this->getCodigoMunicipio($remetenteMunicipio ?: 'SAO PAULO', $remetenteUF);
-            $cMunFim = (string)$this->getCodigoMunicipio($destinatarioMunicipio ?: 'SAO PAULO', $destinatarioUF);
+            // Códigos de município - garantir que sempre retornem string válida
+            $cMunEnv = (string)$this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
+            $cMunIni = (string)$this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
+            $cMunFim = (string)$this->getCodigoMunicipio($destinatarioMunicipio, $destinatarioUF);
             
-            $stdIde->cMunEnv = $cMunEnv;
-            $stdIde->xMunEnv = $remetenteMunicipio ?: 'SAO PAULO';
-            $stdIde->UFEnv = $remetenteUF;
-            $stdIde->cMunIni = $cMunIni;
-            $stdIde->xMunIni = $remetenteMunicipio ?: 'SAO PAULO';
-            $stdIde->UFIni = $remetenteUF;
-            $stdIde->cMunFim = $cMunFim;
-            $stdIde->xMunFim = $destinatarioMunicipio ?: 'SAO PAULO';
-            $stdIde->UFFim = $destinatarioUF;
+            // Garantir que todos os campos sejam strings válidas (nunca null)
+            $stdIde->cMunEnv = (string)$cMunEnv;
+            $stdIde->xMunEnv = (string)$remetenteMunicipio;
+            $stdIde->UFEnv = (string)$remetenteUF;
+            $stdIde->cMunIni = (string)$cMunIni;
+            $stdIde->xMunIni = (string)$remetenteMunicipio;
+            $stdIde->UFIni = (string)$remetenteUF;
+            $stdIde->cMunFim = (string)$cMunFim;
+            $stdIde->xMunFim = (string)$destinatarioMunicipio;
+            $stdIde->UFFim = (string)$destinatarioUF;
             // Demais obrigatórios da ide
             $stdIde->retira = '0';
             $stdIde->indIEToma = '9';
@@ -206,17 +215,28 @@ class CTeService
                 'retira',
                 'indIEToma'
             ];
+            
+            // Validar e garantir que todos os campos sejam strings válidas (nunca null)
             foreach ($camposObrigatorios as $campo) {
                 if (!isset($stdIde->$campo) || $stdIde->$campo === '' || $stdIde->$campo === null) {
                     throw new Exception("Campo obrigatório '$campo' está faltando ou vazio na tag ide");
                 }
+                // Garantir que seja string (nunca null)
+                $stdIde->$campo = (string)$stdIde->$campo;
             }
             
             // Log dos dados antes de criar a tag ide
             error_log("CTeService::emitir - Dados IDE: " . json_encode($stdIde, JSON_UNESCAPED_UNICODE));
 
-            // Criar tag ide
-            $make->tagide($stdIde);
+            // Criar tag ide - garantir que não há problemas de inicialização
+            try {
+                $make->tagide($stdIde);
+                error_log("CTeService::emitir - tagide() executado com sucesso");
+            } catch (\Throwable $e) {
+                error_log("CTeService::emitir - Erro ao chamar tagide(): " . $e->getMessage());
+                error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
+                throw new Exception("Erro ao criar tag ide: " . $e->getMessage());
+            }
 
             // Tomador do serviço (OBRIGATÓRIO no monta())
             // 3 = Destinatário (padrão)
@@ -226,12 +246,12 @@ class CTeService
 
             // EMIT - Emitente (sua empresa)
             $stdEmit = new \stdClass();
-            $stdEmit->CNPJ = $cnpj;
+            $stdEmit->CNPJ = (string)$cnpj;
             // Não incluir IE se vazio - pode causar problemas
             if (!empty($this->config['ie'] ?? '')) {
                 $stdEmit->IE = (string)$this->config['ie'];
             }
-            $stdEmit->xNome = $this->config['razaosocial'];
+            $stdEmit->xNome = (string)$this->config['razaosocial'];
             // Não incluir xFant se vazio
             if (!empty($this->config['nomeFantasia'] ?? '')) {
                 $stdEmit->xFant = (string)$this->config['nomeFantasia'];
@@ -247,39 +267,37 @@ class CTeService
             $make->tagemit($stdEmit);
 
             // REM - Remetente
-            $cnpjCpfRem = preg_replace('/\D/', '', $dados['remetente']['cnpjCpf'] ?? '');
+            $cnpjCpfRem = preg_replace('/\D/', '', $ensureString($dados['remetente']['cnpjCpf'] ?? null, ''));
             $stdRem = new \stdClass();
             if (strlen($cnpjCpfRem) === 14) {
                 $stdRem->CNPJ = $cnpjCpfRem;
             } elseif (strlen($cnpjCpfRem) === 11) {
                 $stdRem->CPF = $cnpjCpfRem;
             }
-            $stdRem->xNome = (string)($dados['remetente']['nome'] ?? '');
+            $stdRem->xNome = $ensureString($dados['remetente']['nome'] ?? null, '');
             $stdRem->enderReme = new \stdClass();
-            $remMun = trim((string)($dados['remetente']['municipio'] ?? ''));
-            $remUF = strtoupper(trim((string)($dados['remetente']['uf'] ?? '')));
-            if (empty($remUF)) $remUF = $uf;
-            $stdRem->enderReme->cMun = (string)$this->getCodigoMunicipio($remMun ?: 'SAO PAULO', $remUF);
-            $stdRem->enderReme->xMun = $remMun ?: 'SAO PAULO';
-            $stdRem->enderReme->UF = $remUF;
+            $remMun = trim($ensureString($dados['remetente']['municipio'] ?? null, 'SAO PAULO')) ?: 'SAO PAULO';
+            $remUF = strtoupper(trim($ensureString($dados['remetente']['uf'] ?? null, $uf))) ?: $uf;
+            $stdRem->enderReme->cMun = (string)$this->getCodigoMunicipio($remMun, $remUF);
+            $stdRem->enderReme->xMun = (string)$remMun;
+            $stdRem->enderReme->UF = (string)$remUF;
             $make->tagrem($stdRem);
 
             // DEST - Destinatário
-            $cnpjCpfDest = preg_replace('/\D/', '', $dados['destinatario']['cnpjCpf'] ?? '');
+            $cnpjCpfDest = preg_replace('/\D/', '', $ensureString($dados['destinatario']['cnpjCpf'] ?? null, ''));
             $stdDest = new \stdClass();
             if (strlen($cnpjCpfDest) === 14) {
                 $stdDest->CNPJ = $cnpjCpfDest;
             } elseif (strlen($cnpjCpfDest) === 11) {
                 $stdDest->CPF = $cnpjCpfDest;
             }
-            $stdDest->xNome = (string)($dados['destinatario']['nome'] ?? '');
+            $stdDest->xNome = $ensureString($dados['destinatario']['nome'] ?? null, '');
             $stdDest->enderDest = new \stdClass();
-            $destMun = trim((string)($dados['destinatario']['municipio'] ?? ''));
-            $destUF = strtoupper(trim((string)($dados['destinatario']['uf'] ?? '')));
-            if (empty($destUF)) $destUF = $uf;
-            $stdDest->enderDest->cMun = (string)$this->getCodigoMunicipio($destMun ?: 'SAO PAULO', $destUF);
-            $stdDest->enderDest->xMun = $destMun ?: 'SAO PAULO';
-            $stdDest->enderDest->UF = $destUF;
+            $destMun = trim($ensureString($dados['destinatario']['municipio'] ?? null, 'SAO PAULO')) ?: 'SAO PAULO';
+            $destUF = strtoupper(trim($ensureString($dados['destinatario']['uf'] ?? null, $uf))) ?: $uf;
+            $stdDest->enderDest->cMun = (string)$this->getCodigoMunicipio($destMun, $destUF);
+            $stdDest->enderDest->xMun = (string)$destMun;
+            $stdDest->enderDest->UF = (string)$destUF;
             $make->tagdest($stdDest);
 
             // vPrest - Valores da Prestação
@@ -297,27 +315,19 @@ class CTeService
             $make->tagrodo($stdRodo);
 
             // Montar XML
-            // WORKAROUND: Se tagide() não criou a tag corretamente, tentar chamar novamente antes de monta()
-            // Isso pode resolver problemas de inicialização
+            // Verificar se tagide foi criada corretamente antes de montar
             try {
                 error_log("CTeService::emitir - Chamando monta()...");
                 $make->monta();
                 error_log("CTeService::emitir - monta() executado com sucesso");
             } catch (\TypeError $e) {
-                // Se o erro for sobre tag ide não encontrada, tentar recriar
-                if (strpos($e->getMessage(), 'ide') !== false || strpos($e->getMessage(), 'appChild') !== false) {
-                    error_log("CTeService::emitir - Erro detectado relacionado à tag ide, tentando recriar...");
-                    try {
-                        // Tentar chamar tagide novamente
-                        $make->tagide($stdIde);
-                        error_log("CTeService::emitir - tagide() chamado novamente");
-                        // Tentar monta() novamente
-                        $make->monta();
-                        error_log("CTeService::emitir - monta() executado com sucesso após recriar tag ide");
-                    } catch (\Throwable $e2) {
-                        error_log("CTeService::emitir - Erro ao tentar recriar tag ide: " . $e2->getMessage());
-                        throw new Exception("Erro ao montar XML do CT-e: A tag 'ide' não pode ser criada. Verifique se todos os campos obrigatórios estão preenchidos corretamente. Erro original: " . $e->getMessage());
-                    }
+                // Se o erro for sobre tag ide não encontrada ou appChild, pode ser problema de inicialização
+                if (strpos($e->getMessage(), 'ide') !== false || 
+                    strpos($e->getMessage(), 'appChild') !== false ||
+                    strpos($e->getMessage(), 'DOMElement') !== false) {
+                    error_log("CTeService::emitir - Erro detectado relacionado à tag ide/DOM: " . $e->getMessage());
+                    error_log("CTeService::emitir - Stack trace: " . $e->getTraceAsString());
+                    throw new Exception("Erro ao montar XML do CT-e: Problema na criação da estrutura XML. Verifique se todos os campos obrigatórios estão preenchidos corretamente. Erro: " . $e->getMessage());
                 } else {
                     throw $e;
                 }
@@ -444,20 +454,32 @@ class CTeService
      */
     private function getCodigoMunicipio($municipio, $uf)
     {
+        // Garantir que os parâmetros sejam strings válidas
+        $municipio = $municipio !== null ? (string)$municipio : 'SAO PAULO';
+        $uf = $uf !== null ? strtoupper((string)$uf) : 'SP';
+        
         // Códigos comuns (você deve expandir isso com tabela IBGE completa)
         $codigos = [
             'SP' => ['SAO PAULO' => '3550308', 'CAMPINAS' => '3509502'],
             'RJ' => ['RIO DE JANEIRO' => '3304557'],
             'MG' => ['BELO HORIZONTE' => '3106200'],
+            'PR' => ['SAO JOAO' => '4125209', 'SAO JORGE DOESTE' => '4125308', 'SAO JORGE D\'OESTE' => '4125308'],
             // Adicione mais conforme necessário
         ];
         
-        $municipioUpper = strtoupper($municipio);
+        $municipioUpper = strtoupper(trim($municipio));
         if (isset($codigos[$uf][$municipioUpper])) {
-            return $codigos[$uf][$municipioUpper];
+            return (string)$codigos[$uf][$municipioUpper];
         }
         
-        // Fallback: retorna código genérico de São Paulo
-        return '3550308';
+        // Fallback: retorna código genérico baseado na UF
+        $fallbacks = [
+            'SP' => '3550308',
+            'RJ' => '3304557',
+            'MG' => '3106200',
+            'PR' => '4125209',
+        ];
+        
+        return (string)($fallbacks[$uf] ?? '3550308');
     }
 }
