@@ -246,10 +246,28 @@ class CTeService
             }
 
             // Tomador do serviço (OBRIGATÓRIO no monta())
-            // 3 = Destinatário (padrão)
-            $stdToma3 = new \stdClass();
-            $stdToma3->toma = '3';
-            $make->tagtoma3($stdToma3);
+            // Usar tagtoma4 para evitar erro insertBefore(string): toma3/toma4 iniciam como '' na lib;
+            // com toma4 preenchido, monta() usa toma4 e insere um DOMElement válido.
+            // 3 = Destinatário
+            $stdToma4 = new \stdClass();
+            $stdToma4->toma = '3';
+            $cnpjCpfDest = preg_replace('/\D/', '', $ensureString($dados['destinatario']['cnpjCpf'] ?? null, ''));
+            if (strlen($cnpjCpfDest) === 14) {
+                $stdToma4->CNPJ = $cnpjCpfDest;
+                $stdToma4->CPF = '';
+            } elseif (strlen($cnpjCpfDest) === 11) {
+                $stdToma4->CNPJ = '';
+                $stdToma4->CPF = $cnpjCpfDest;
+            } else {
+                $stdToma4->CNPJ = '';
+                $stdToma4->CPF = '';
+            }
+            $stdToma4->IE = '';
+            $stdToma4->xNome = (string)($dados['destinatario']['nome'] ?? 'Destinatário');
+            $stdToma4->xFant = '';
+            $stdToma4->fone = '';
+            $stdToma4->email = '';
+            $make->tagtoma4($stdToma4);
 
             // EMIT - Emitente (sua empresa)
             $stdEmit = new \stdClass();
