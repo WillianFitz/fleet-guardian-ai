@@ -123,50 +123,54 @@ class CTeService
             $chave = $this->gerarChave($cnpj, $numero, $serie, $tpAmb);
 
             // IDE - Identificação do CT-e
-            // IMPORTANTE: Não incluir campos opcionais que não serão usados
-            // A biblioteca pode falhar se campos opcionais forem null ou vazios incorretamente
+            // SOLUÇÃO: Criar objeto limpo apenas com campos obrigatórios e válidos
             $stdIde = new \stdClass();
+            
+            // Campos básicos obrigatórios
             $stdIde->cUF = (string)$this->getCodigoUF($uf);
-            // cCT deve ser o número do CT-e com 8 dígitos (zeros à esquerda)
             $stdIde->cCT = str_pad((string)$dados['numero'], 8, '0', STR_PAD_LEFT);
-            $stdIde->CFOP = '5353'; // Prestação de serviço de transporte
+            $stdIde->CFOP = '5353';
             $stdIde->natOp = 'PRESTACAO DE SERVICO DE TRANSPORTE';
-            $stdIde->mod = '57'; // Modelo do CT-e (obrigatório)
+            $stdIde->mod = '57';
             $stdIde->serie = (string)($dados['serie'] ?? '1');
-            // nCT deve ser o número do CT-e (sem zeros à esquerda para nCT)
             $stdIde->nCT = (string)$dados['numero'];
-            // dhEmi deve estar no formato correto (ISO 8601 com timezone)
+            
+            // Data e hora de emissão
             $dhEmi = new \DateTime();
-            $stdIde->dhEmi = $dhEmi->format('c'); // ISO 8601
-            $stdIde->tpImp = '1'; // Retrato
-            $stdIde->tpEmis = '1'; // Normal
+            $stdIde->dhEmi = $dhEmi->format('c');
+            
+            // Configurações
+            $stdIde->tpImp = '1';
+            $stdIde->tpEmis = '1';
             $stdIde->tpAmb = (string)$tpAmb;
-            $stdIde->tpCTe = '0'; // Normal
-            $stdIde->procEmi = '0'; // Emissão própria
+            $stdIde->tpCTe = '0';
+            $stdIde->procEmi = '0';
             $stdIde->verProc = 'FleetGuardianAI';
             
-            // Campos de município e UF (obrigatórios)
-            $remetenteMunicipio = trim($dados['remetente']['municipio'] ?? '');
-            $remetenteUF = strtoupper(trim($dados['remetente']['uf'] ?? $uf));
-            $destinatarioMunicipio = trim($dados['destinatario']['municipio'] ?? '');
-            $destinatarioUF = strtoupper(trim($dados['destinatario']['uf'] ?? ''));
+            // Municípios e UFs - garantir valores válidos
+            $remetenteMunicipio = trim((string)($dados['remetente']['municipio'] ?? ''));
+            $remetenteUF = strtoupper(trim((string)($dados['remetente']['uf'] ?? $uf)));
+            $destinatarioMunicipio = trim((string)($dados['destinatario']['municipio'] ?? ''));
+            $destinatarioUF = strtoupper(trim((string)($dados['destinatario']['uf'] ?? '')));
             
-            // Garantir que os códigos de município não sejam vazios
-            $cMunEnv = $this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
-            $cMunIni = $this->getCodigoMunicipio($remetenteMunicipio, $remetenteUF);
-            $cMunFim = $this->getCodigoMunicipio($destinatarioMunicipio, $destinatarioUF ?: $uf);
+            // Se UF vazia, usar UF padrão
+            if (empty($remetenteUF)) $remetenteUF = $uf;
+            if (empty($destinatarioUF)) $destinatarioUF = $uf;
             
-            // Garantir que todos os valores sejam strings, nunca null
-            $stdIde->cMunEnv = (string)$cMunEnv;
-            $stdIde->xMunEnv = !empty($remetenteMunicipio) ? (string)$remetenteMunicipio : 'NÃO INFORMADO';
-            $stdIde->UFEnv = !empty($remetenteUF) ? (string)$remetenteUF : (string)$uf;
-            $stdIde->cMunIni = (string)$cMunIni;
-            $stdIde->xMunIni = !empty($remetenteMunicipio) ? (string)$remetenteMunicipio : 'NÃO INFORMADO';
-            $stdIde->UFIni = !empty($remetenteUF) ? (string)$remetenteUF : (string)$uf;
-            $stdIde->cMunFim = (string)$cMunFim;
-            $stdIde->xMunFim = !empty($destinatarioMunicipio) ? (string)$destinatarioMunicipio : 'NÃO INFORMADO';
-            // UFFim não pode ser vazio - usar UF do remetente como fallback
-            $stdIde->UFFim = !empty($destinatarioUF) ? (string)$destinatarioUF : (string)$uf;
+            // Códigos de município
+            $cMunEnv = (string)$this->getCodigoMunicipio($remetenteMunicipio ?: 'SAO PAULO', $remetenteUF);
+            $cMunIni = (string)$this->getCodigoMunicipio($remetenteMunicipio ?: 'SAO PAULO', $remetenteUF);
+            $cMunFim = (string)$this->getCodigoMunicipio($destinatarioMunicipio ?: 'SAO PAULO', $destinatarioUF);
+            
+            $stdIde->cMunEnv = $cMunEnv;
+            $stdIde->xMunEnv = $remetenteMunicipio ?: 'SAO PAULO';
+            $stdIde->UFEnv = $remetenteUF;
+            $stdIde->cMunIni = $cMunIni;
+            $stdIde->xMunIni = $remetenteMunicipio ?: 'SAO PAULO';
+            $stdIde->UFIni = $remetenteUF;
+            $stdIde->cMunFim = $cMunFim;
+            $stdIde->xMunFim = $destinatarioMunicipio ?: 'SAO PAULO';
+            $stdIde->UFFim = $destinatarioUF;
             
             // Validar campos obrigatórios antes de criar a tag
             $camposObrigatorios = ['cUF', 'cCT', 'CFOP', 'natOp', 'mod', 'serie', 'nCT', 'dhEmi', 'tpImp', 'tpEmis', 'tpAmb', 'tpCTe', 'procEmi', 'verProc'];
@@ -179,46 +183,26 @@ class CTeService
             // Log dos dados antes de criar a tag ide
             error_log("CTeService::emitir - Dados IDE: " . json_encode($stdIde, JSON_UNESCAPED_UNICODE));
             
-            // Chamar tagide e verificar resultado
-            // IMPORTANTE: A biblioteca pode falhar silenciosamente se campos estiverem incorretos
-            try {
-                // Usar reflexão para verificar se a tag foi criada após chamar tagide()
-                $reflection = new \ReflectionClass($make);
-                
-                $resultadoTagide = $make->tagide($stdIde);
-                error_log("CTeService::emitir - tagide() executado, retorno: " . (is_null($resultadoTagide) ? 'null' : ($resultadoTagide === true ? 'true' : gettype($resultadoTagide))));
-                
-                // Tentar verificar se a propriedade ide existe no objeto MakeCTe
-                // Isso pode nos ajudar a entender se a tag foi criada
-                try {
-                    if ($reflection->hasProperty('ide')) {
-                        $ideProperty = $reflection->getProperty('ide');
-                        $ideProperty->setAccessible(true);
-                        $ideValue = $ideProperty->getValue($make);
-                        error_log("CTeService::emitir - Propriedade 'ide' existe no MakeCTe: " . (is_null($ideValue) ? 'null' : gettype($ideValue)));
-                    } else {
-                        error_log("CTeService::emitir - Propriedade 'ide' NÃO existe no MakeCTe");
-                    }
-                } catch (\Throwable $reflectionError) {
-                    error_log("CTeService::emitir - Não foi possível verificar propriedade via reflexão: " . $reflectionError->getMessage());
-                }
-            } catch (\Throwable $e) {
-                error_log("CTeService::emitir - Erro ao criar tag ide: " . $e->getMessage());
-                error_log("CTeService::emitir - Trace tagide: " . $e->getTraceAsString());
-                throw new Exception("Erro ao criar tag ide: " . $e->getMessage());
-            }
+            // Chamar tagide - SOLUÇÃO: Chamar diretamente sem reflexão desnecessária
+            $make->tagide($stdIde);
 
             // EMIT - Emitente (sua empresa)
             $stdEmit = new \stdClass();
             $stdEmit->CNPJ = $cnpj;
-            $stdEmit->IE = '';
+            // Não incluir IE se vazio - pode causar problemas
+            if (!empty($this->config['ie'] ?? '')) {
+                $stdEmit->IE = (string)$this->config['ie'];
+            }
             $stdEmit->xNome = $this->config['razaosocial'];
-            $stdEmit->xFant = '';
+            // Não incluir xFant se vazio
+            if (!empty($this->config['nomeFantasia'] ?? '')) {
+                $stdEmit->xFant = (string)$this->config['nomeFantasia'];
+            }
             $stdEmit->enderEmit = new \stdClass();
             $stdEmit->enderEmit->xLgr = 'RUA EXEMPLO';
             $stdEmit->enderEmit->nro = '123';
             $stdEmit->enderEmit->xBairro = 'CENTRO';
-            $stdEmit->enderEmit->cMun = $this->getCodigoMunicipio('São Paulo', 'SP');
+            $stdEmit->enderEmit->cMun = (string)$this->getCodigoMunicipio('São Paulo', 'SP');
             $stdEmit->enderEmit->xMun = 'SAO PAULO';
             $stdEmit->enderEmit->UF = 'SP';
             $stdEmit->enderEmit->CEP = '01000000';
@@ -227,41 +211,37 @@ class CTeService
             // REM - Remetente
             $cnpjCpfRem = preg_replace('/\D/', '', $dados['remetente']['cnpjCpf'] ?? '');
             $stdRem = new \stdClass();
-            $stdRem->CNPJ = strlen($cnpjCpfRem) === 14 ? $cnpjCpfRem : null;
-            $stdRem->CPF = strlen($cnpjCpfRem) === 11 ? $cnpjCpfRem : null;
-            $stdRem->IE = '';
-            $stdRem->xNome = $dados['remetente']['nome'] ?? '';
-            $stdRem->xFant = '';
-            $stdRem->fone = '';
-            $stdRem->email = '';
+            if (strlen($cnpjCpfRem) === 14) {
+                $stdRem->CNPJ = $cnpjCpfRem;
+            } elseif (strlen($cnpjCpfRem) === 11) {
+                $stdRem->CPF = $cnpjCpfRem;
+            }
+            $stdRem->xNome = (string)($dados['remetente']['nome'] ?? '');
             $stdRem->enderReme = new \stdClass();
-            $stdRem->enderReme->xLgr = '';
-            $stdRem->enderReme->nro = '';
-            $stdRem->enderReme->xBairro = '';
-            $stdRem->enderReme->cMun = $this->getCodigoMunicipio($dados['remetente']['municipio'] ?? '', $dados['remetente']['uf'] ?? '');
-            $stdRem->enderReme->xMun = $dados['remetente']['municipio'] ?? '';
-            $stdRem->enderReme->UF = $dados['remetente']['uf'] ?? '';
-            $stdRem->enderReme->CEP = '';
+            $remMun = trim((string)($dados['remetente']['municipio'] ?? ''));
+            $remUF = strtoupper(trim((string)($dados['remetente']['uf'] ?? '')));
+            if (empty($remUF)) $remUF = $uf;
+            $stdRem->enderReme->cMun = (string)$this->getCodigoMunicipio($remMun ?: 'SAO PAULO', $remUF);
+            $stdRem->enderReme->xMun = $remMun ?: 'SAO PAULO';
+            $stdRem->enderReme->UF = $remUF;
             $make->tagrem($stdRem);
 
             // DEST - Destinatário
             $cnpjCpfDest = preg_replace('/\D/', '', $dados['destinatario']['cnpjCpf'] ?? '');
             $stdDest = new \stdClass();
-            $stdDest->CNPJ = strlen($cnpjCpfDest) === 14 ? $cnpjCpfDest : null;
-            $stdDest->CPF = strlen($cnpjCpfDest) === 11 ? $cnpjCpfDest : null;
-            $stdDest->IE = '';
-            $stdDest->xNome = $dados['destinatario']['nome'] ?? '';
-            $stdDest->xFant = '';
-            $stdDest->fone = '';
-            $stdDest->email = '';
+            if (strlen($cnpjCpfDest) === 14) {
+                $stdDest->CNPJ = $cnpjCpfDest;
+            } elseif (strlen($cnpjCpfDest) === 11) {
+                $stdDest->CPF = $cnpjCpfDest;
+            }
+            $stdDest->xNome = (string)($dados['destinatario']['nome'] ?? '');
             $stdDest->enderDest = new \stdClass();
-            $stdDest->enderDest->xLgr = '';
-            $stdDest->enderDest->nro = '';
-            $stdDest->enderDest->xBairro = '';
-            $stdDest->enderDest->cMun = $this->getCodigoMunicipio($dados['destinatario']['municipio'] ?? '', $dados['destinatario']['uf'] ?? '');
-            $stdDest->enderDest->xMun = $dados['destinatario']['municipio'] ?? '';
-            $stdDest->enderDest->UF = $dados['destinatario']['uf'] ?? '';
-            $stdDest->enderDest->CEP = '';
+            $destMun = trim((string)($dados['destinatario']['municipio'] ?? ''));
+            $destUF = strtoupper(trim((string)($dados['destinatario']['uf'] ?? '')));
+            if (empty($destUF)) $destUF = $uf;
+            $stdDest->enderDest->cMun = (string)$this->getCodigoMunicipio($destMun ?: 'SAO PAULO', $destUF);
+            $stdDest->enderDest->xMun = $destMun ?: 'SAO PAULO';
+            $stdDest->enderDest->UF = $destUF;
             $make->tagdest($stdDest);
 
             // vPrest - Valores da Prestação
@@ -274,7 +254,8 @@ class CTeService
 
             // rodo - Modal Rodoviário (obrigatório para CT-e rodoviário)
             $stdRodo = new \stdClass();
-            $stdRodo->RNTRC = ''; // Registro Nacional de Transportadores Rodoviários de Carga (opcional)
+            // Não incluir RNTRC se vazio - pode causar problemas
+            // $stdRodo->RNTRC = ''; // Opcional
             $make->tagrodo($stdRodo);
 
             // Montar XML
