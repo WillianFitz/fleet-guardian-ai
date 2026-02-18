@@ -1,7 +1,7 @@
 FROM composer:2 AS deps
 WORKDIR /app
 COPY composer.json ./
-RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --ignore-platform-req=ext-soap
 
 FROM php:8.2-cli
 WORKDIR /app
