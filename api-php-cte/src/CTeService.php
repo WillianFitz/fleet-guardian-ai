@@ -190,6 +190,11 @@ class CTeService
             // Demais obrigatórios da ide
             $stdIde->retira = '0';
             $stdIde->indIEToma = '9';
+            // Campos opcionais do tagide - passar como string vazia para evitar trim(null) no MakeCTe (PHP 8.2)
+            $stdIde->indGlobalizado = $stdIde->indGlobalizado ?? '0';
+            $stdIde->xDetRetira = $stdIde->xDetRetira ?? '';
+            $stdIde->dhCont = $stdIde->dhCont ?? '';
+            $stdIde->xJust = $stdIde->xJust ?? '';
             
             // Validar campos obrigatórios antes de criar a tag
             // (baseado nos campos obrigatórios usados por MakeCTe::tagide)
@@ -318,118 +323,36 @@ class CTeService
             $make->tagrodo($stdRodo);
 
             // Tomador do serviço (OBRIGATÓRIO no monta())
-            // Criar IMEDIATAMENTE antes de monta() para garantir que não seja resetado
-            // Usar tagtoma3 (mais simples) para evitar problemas com tagtoma4
-            // 3 = Destinatário (tomador é o destinatário)
-            $stdToma3 = new \stdClass();
-            $stdToma3->toma = '3';
-            
-            // Garantir que tagtoma3 seja executado corretamente
-            // IMPORTANTE: tagtoma3 DEVE ser chamado IMEDIATAMENTE ANTES de monta() para que $this->toma3 seja um DOMElement
-            try {
-                error_log("CTeService::emitir - Dados TOMA3: " . json_encode($stdToma3, JSON_UNESCAPED_UNICODE));
-                $toma3Element = $make->tagtoma3($stdToma3);
-                if (empty($toma3Element) || !($toma3Element instanceof \DOMElement)) {
-                    throw new Exception("tagtoma3() não retornou um DOMElement válido. Retornou: " . gettype($toma3Element));
-                }
-                error_log("CTeService::emitir - tagtoma3() executado com sucesso, tipo: " . get_class($toma3Element));
-            } catch (\Throwable $e) {
-                error_log("CTeService::emitir - Erro ao chamar tagtoma3(): " . $e->getMessage());
-                error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
-                throw new Exception("Erro ao criar tag toma3: " . $e->getMessage());
+            // Usar tagtoma4 com dados completos do destinatário - evita bugs da biblioteca com toma3 vazio
+            // e conflitos insertBefore quando dhCont não existe no ide.
+            // toma=3 = Destinatário é o tomador
+            $stdToma4 = new \stdClass();
+            $stdToma4->toma = '3';
+            $stdToma4->CNPJ = '';
+            $stdToma4->CPF = '';
+            $stdToma4->IE = ''; // indIEToma=9: não contribuinte
+            $stdToma4->xNome = $ensureString($dados['destinatario']['nome'] ?? null, 'DESTINATARIO');
+            $stdToma4->xFant = '';
+            $stdToma4->fone = '';
+            $stdToma4->email = '';
+            if (strlen($cnpjCpfDest) === 14) {
+                $stdToma4->CNPJ = $cnpjCpfDest;
+            } elseif (strlen($cnpjCpfDest) === 11) {
+                $stdToma4->CPF = $cnpjCpfDest;
             }
 
-            // Montar XML
-            // WORKAROUND CRÍTICO: A biblioteca tem um bug onde toma3 pode ser resetado dentro de monta()
-            // Vamos usar uma abordagem diferente: criar um wrapper que intercepta monta() e garante que toma3 está válido
             try {
-                // Verificar estado antes
-                $reflection = new \ReflectionClass($make);
-                $toma3Property = $reflection->getProperty('toma3');
-                $toma3Property->setAccessible(true);
-                $toma3Value = $toma3Property->getValue($make);
-                error_log("CTeService::emitir - Estado de toma3 antes de monta(): " . gettype($toma3Value) . " - " . (empty($toma3Value) ? 'VAZIO' : 'PREENCHIDO'));
-                
-                // Verificar também o estado de ide e node
-                $ideProperty = $reflection->getProperty('ide');
-                $ideProperty->setAccessible(true);
-                $ideValue = $ideProperty->getValue($make);
-                if ($ideValue instanceof \DOMElement) {
-                    $node = $ideValue->getElementsByTagName("dhCont")->item(0);
-                    error_log("CTeService::emitir - Elemento dhCont encontrado: " . ($node ? 'SIM' : 'NÃO'));
-                }
-                
-                // Garantir que toma3 está válido antes de monta()
-                if (empty($toma3Value) || !($toma3Value instanceof \DOMElement)) {
-                    error_log("CTeService::emitir - AVISO: toma3 está vazio antes de monta(), recriando...");
-                    $make->tagtoma3($stdToma3);
-                    $toma3Value = $toma3Property->getValue($make);
-                    error_log("CTeService::emitir - Estado de toma3 após recriar: " . gettype($toma3Value));
-                }
-                
-                // Salvar backup de toma3 antes de monta()
-                $toma3Backup = $toma3Property->getValue($make);
-                
-                // Verificar também toma4 para garantir que não está interferindo
-                $toma4Property = $reflection->getProperty('toma4');
-                $toma4Property->setAccessible(true);
-                $toma4Value = $toma4Property->getValue($make);
-                error_log("CTeService::emitir - Estado de toma4 antes de monta(): " . gettype($toma4Value) . " - " . (empty($toma4Value) ? 'VAZIO' : 'PREENCHIDO'));
-                
-                // Garantir que toma4 está vazio para evitar conflito
-                if (!empty($toma4Value)) {
-                    error_log("CTeService::emitir - AVISO: toma4 não está vazio, limpando...");
-                    $toma4Property->setValue($make, '');
-                }
-                
-                error_log("CTeService::emitir - Chamando monta()...");
-                try {
-                    $make->monta();
-                } catch (\TypeError $e) {
-                    // Se o erro for insertBefore com string vazia, restaurar toma3 e tentar novamente
-                    if (strpos($e->getMessage(), 'insertBefore') !== false && strpos($e->getMessage(), 'string given') !== false) {
-                        error_log("CTeService::emitir - Erro detectado: toma3 foi resetado durante monta()");
-                        
-                        // Verificar estado atual de toma3 e toma4
-                        $toma3Current = $toma3Property->getValue($make);
-                        $toma4Current = $toma4Property->getValue($make);
-                        error_log("CTeService::emitir - Estado atual de toma3: " . gettype($toma3Current) . " - " . (empty($toma3Current) ? 'VAZIO' : 'PREENCHIDO'));
-                        error_log("CTeService::emitir - Estado atual de toma4: " . gettype($toma4Current) . " - " . (empty($toma4Current) ? 'VAZIO' : 'PREENCHIDO'));
-                        
-                        // Sempre recriar toma3 em vez de restaurar backup (mais confiável)
-                        error_log("CTeService::emitir - Recriando toma3 completamente...");
-                        $make->tagtoma3($stdToma3);
-                        // Garantir que toma4 está vazio
-                        $toma4Property->setValue($make, '');
-                        // Verificar que toma3 foi criado corretamente
-                        $toma3AfterRecreate = $toma3Property->getValue($make);
-                        error_log("CTeService::emitir - Estado de toma3 após recriar: " . gettype($toma3AfterRecreate) . " - " . ($toma3AfterRecreate instanceof \DOMElement ? 'DOMElement VÁLIDO' : 'INVÁLIDO'));
-                        if ($toma3AfterRecreate instanceof \DOMElement) {
-                            error_log("CTeService::emitir - Tentando monta() novamente após recriar toma3...");
-                            $make->monta();
-                        } else {
-                            throw new Exception("Não foi possível recriar toma3 corretamente após erro");
-                        }
-                    } else {
-                        throw $e;
-                    }
-                }
-                error_log("CTeService::emitir - monta() executado com sucesso");
-            } catch (\TypeError $e) {
-                // Se o erro for sobre tag ide não encontrada ou appChild, pode ser problema de inicialização
-                if (strpos($e->getMessage(), 'ide') !== false || 
-                    strpos($e->getMessage(), 'appChild') !== false ||
-                    strpos($e->getMessage(), 'DOMElement') !== false ||
-                    strpos($e->getMessage(), 'insertBefore') !== false) {
-                    error_log("CTeService::emitir - Erro detectado relacionado à tag ide/DOM: " . $e->getMessage());
-                    error_log("CTeService::emitir - Stack trace: " . $e->getTraceAsString());
-                    throw new Exception("Erro ao montar XML do CT-e: Problema na criação da estrutura XML. Verifique se todos os campos obrigatórios estão preenchidos corretamente. Erro: " . $e->getMessage());
-                } else {
-                    throw $e;
-                }
+                $make->tagtoma4($stdToma4);
+            } catch (\Throwable $e) {
+                error_log("CTeService::emitir - Erro ao chamar tagtoma4(): " . $e->getMessage());
+                throw new Exception("Erro ao criar tag toma4: " . $e->getMessage());
+            }
+
+            // Montar XML - ordem das tags já foi respeitada (ide, emit, rem, dest, vPrest, rodo, toma4)
+            try {
+                $make->monta();
             } catch (\Throwable $e) {
                 error_log("CTeService::emitir - Erro ao montar XML: " . $e->getMessage());
-                error_log("CTeService::emitir - Tipo: " . get_class($e));
                 error_log("CTeService::emitir - Trace: " . $e->getTraceAsString());
                 throw new Exception("Erro ao montar XML do CT-e: " . $e->getMessage());
             }
