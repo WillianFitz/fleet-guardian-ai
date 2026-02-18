@@ -1,6 +1,7 @@
 FROM composer:2 AS deps
 WORKDIR /app
 COPY composer.json composer.lock* ./
+COPY patches/ ./patches/
 
 # Instalar dependências com logs detalhados
 RUN echo "Installing dependencies..." && \
