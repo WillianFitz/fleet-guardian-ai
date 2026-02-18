@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature, Loader2, FileXml } from "lucide-react";
+import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature, Loader2, FileCode } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
 import { CTe, Vehicle, FluxoOrigemCTe } from "@/types/fleet";
@@ -597,7 +597,7 @@ const Ctes = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
                   { id: "chave" as const, label: "Chave de acesso", desc: "44 dígitos da NFe", icon: FileText },
-                  { id: "xml" as const, label: "Arquivo XML", desc: "Enviar arquivo da NF-e", icon: FileXml },
+                  { id: "xml" as const, label: "Arquivo XML", desc: "Enviar arquivo da NF-e", icon: FileCode },
                   { id: "sefaz" as const, label: "Buscar na SEFAZ", desc: "Distribuição DFe", icon: Search },
                 ].map((opt) => {
                   const Icon = opt.icon;
