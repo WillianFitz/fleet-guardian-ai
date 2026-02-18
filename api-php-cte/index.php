@@ -39,13 +39,21 @@ function jsonResponse(Response $response, $data, int $status = 200): Response {
 }
 
 try {
+    // Criar app Slim
     $app = AppFactory::create();
+    
+    // Configurar para capturar erros
+    $errorMiddleware = $app->addErrorMiddleware(true, true, true);
+    
 } catch (\Throwable $e) {
     http_response_code(500);
     header('Content-Type: application/json');
     echo json_encode([
         'error' => 'Erro ao inicializar aplicação',
-        'message' => $e->getMessage()
+        'message' => $e->getMessage(),
+        'file' => $e->getFile(),
+        'line' => $e->getLine(),
+        'trace' => $e->getTraceAsString()
     ]);
     exit;
 }
