@@ -531,6 +531,51 @@ export default {
         }
       }
 
+      // ===== ADMIN: limpar bloqueio NFe (protegido) =====
+      if (path === "/api/admin/clear-nfe-block" && request.method === "POST") {
+        // Header de administração: X-Admin-Secret ou Authorization: Bearer <secret>
+        const adminHeader = request.headers.get("X-Admin-Secret") || (request.headers.get("Authorization")?.startsWith("Bearer ") ? request.headers.get("Authorization")!.slice("Bearer ".length) : null);
+        const secret = getAuthSecret(env);
+        if (!adminHeader || adminHeader !== secret) {
+          return errorResponse("Unauthorized", 401);
+        }
+        try {
+          const body = await request.json() as { tenantId?: string; all?: boolean };
+          if (body?.all) {
+            await env.DB.prepare("UPDATE nfe_search_state SET blocked_until = NULL, in_progress = 0").run();
+            return jsonResponse({ success: true, message: "Cleared blocked_until for all tenants" });
+          }
+          if (!body?.tenantId) {
+            return errorResponse("tenantId is required unless all=true", 400);
+          }
+          await env.DB.prepare("UPDATE nfe_search_state SET blocked_until = NULL, in_progress = 0 WHERE tenant_id = ?").bind(body.tenantId).run();
+          return jsonResponse({ success: true, tenantId: body.tenantId });
+        } catch (e: any) {
+          return errorResponse(`Error clearing block: ${e.message}`, 500);
+        }
+      }
+
+      // ===== ADMIN: consultar estado de busca NFe (protegido) =====
+      if (path === "/api/admin/nfe-state" && request.method === "GET") {
+        const adminHeader = request.headers.get("X-Admin-Secret") || (request.headers.get("Authorization")?.startsWith("Bearer ") ? request.headers.get("Authorization")!.slice("Bearer ".length) : null);
+        const secret = getAuthSecret(env);
+        if (!adminHeader || adminHeader !== secret) {
+          return errorResponse("Unauthorized", 401);
+        }
+        try {
+          const urlParams = new URL(request.url).searchParams;
+          const tenantId = urlParams.get("tenantId");
+          if (!tenantId) {
+            const res = await env.DB.prepare("SELECT tenant_id, last_ult_nsu, last_search_at, in_progress, blocked_until FROM nfe_search_state").all();
+            return jsonResponse({ data: res.results || [] });
+          }
+          const row = await env.DB.prepare("SELECT tenant_id, last_ult_nsu, last_search_at, in_progress, blocked_until FROM nfe_search_state WHERE tenant_id = ?").bind(tenantId).first();
+          return jsonResponse({ data: row || null });
+        } catch (e: any) {
+          return errorResponse(`Error reading state: ${e.message}`, 500);
+        }
+      }
+
       if (path === "/api/cte/consultar" && request.method === "GET") {
         if (!env.CTE_API_URL) {
           return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
@@ -631,7 +676,7 @@ export default {
  
           // Verificar estado de buscas NFe para este tenant (evita re-tentativas que causem bloqueio)
           const now = new Date().toISOString();
-          const state = await env.DB.prepare("SELECT tenant_id, last_ult_nsu, last_search_at, in_progress, blocked_until FROM nfe_search_state WHERE tenant_id = ?")
+          const state = await env.DB.prepare("SELECT tenant_id, last_ult_nsu, last_search_at, in_progress, blocked_until, retry_count, next_retry_at FROM nfe_search_state WHERE tenant_id = ?")
             .bind(tenantId)
             .first();
 
@@ -639,6 +684,12 @@ export default {
             const blockedUntil = new Date(state.blocked_until);
             if (blockedUntil > new Date()) {
               return jsonResponse({ error: `Busca temporariamente bloqueada pela SEFAZ até ${state.blocked_until} (SEFAZ cStat 656)` }, 429);
+            }
+          }
+          if (state && state.next_retry_at) {
+            const nextRetry = new Date(state.next_retry_at);
+            if (nextRetry > new Date()) {
+              return jsonResponse({ error: `Busca com retry agendado para ${state.next_retry_at}` }, 429);
             }
           }
 
@@ -653,12 +704,20 @@ export default {
             await env.DB.prepare("INSERT INTO nfe_search_state (tenant_id, last_ult_nsu, last_search_at, in_progress) VALUES (?, ?, ?, ?)").bind(tenantId, 0, now, 1).run();
           }
 
-          const phpBody = {
+          // Allow fullScan only for admin callers
+          const adminHeader = request.headers.get("X-Admin-Secret") || (request.headers.get("Authorization")?.startsWith("Bearer ") ? request.headers.get("Authorization")!.slice("Bearer ".length) : null);
+          const secret = getAuthSecret(env);
+
+          const phpBody: any = {
             certificado: { pfxBase64: tenant.certificado_pfx_base64, password: tenant.certificado_password },
             empresa: { cnpj: tenant.cnpj, razaoSocial: tenant.nome, siglaUF: tenant.uf || "SP" },
             ambiente,
             ultNSU: state?.last_ult_nsu ?? (body.ultNSU ?? 0),
           };
+          // If caller explicitly asked for fullScan and is admin, allow it
+          if ((body.fullScan === true || body.fullScan === "true") && adminHeader && adminHeader === secret) {
+            phpBody.fullScan = true;
+          }
 
           let phpData: any;
           try {
@@ -681,18 +740,30 @@ export default {
               return jsonResponse({ error: phpData.error || "Erro ao buscar NF-e na SEFAZ" }, phpResponse.status);
             }
 
-            // Se SEFAZ indicou bloqueio (cStat 656), persiste bloqueio no DB para evitar novas tentativas
+            // Se SEFAZ indicou bloqueio (cStat 656) ou outro status, aplicar backoff/exponential retry
             const cStat = String(phpData.cStat || phpData.cstat || "");
             const ultNSUReturned = phpData.ultNSU ?? phpData.ultNsu ?? null;
             let blockedUntil: string | null = null;
+            let retryCount = state?.retry_count ?? 0;
+            let nextRetryAt: string | null = null;
+
             if (cStat === "656") {
-              blockedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora
+              // set blocked until 1 hour as required by SEFAZ
+              blockedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+              // increment retry_count and schedule exponential backoff (minutes)
+              retryCount = Math.min((retryCount || 0) + 1, 6);
+              const delayMinutes = Math.pow(2, retryCount - 1); // 1,2,4,8,...
+              nextRetryAt = new Date(Date.now() + delayMinutes * 60 * 1000).toISOString();
+            } else {
+              // success or neutral: reset retry counters
+              retryCount = 0;
+              nextRetryAt = null;
             }
 
             // Atualizar estado
             const newUlt = ultNSUReturned !== null ? Number(ultNSUReturned) : state?.last_ult_nsu ?? 0;
-            await env.DB.prepare("UPDATE nfe_search_state SET in_progress = 0, last_ult_nsu = ?, last_search_at = ?, blocked_until = ? WHERE tenant_id = ?")
-              .bind(newUlt, new Date().toISOString(), blockedUntil, tenantId)
+            await env.DB.prepare("UPDATE nfe_search_state SET in_progress = 0, last_ult_nsu = ?, last_search_at = ?, blocked_until = ?, retry_count = ?, next_retry_at = ? WHERE tenant_id = ?")
+              .bind(newUlt, new Date().toISOString(), blockedUntil, retryCount, nextRetryAt, tenantId)
               .run();
 
             return jsonResponse(phpData);

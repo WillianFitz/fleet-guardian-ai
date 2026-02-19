@@ -324,8 +324,11 @@ $app->post('/nfe-busca-sefaz', function (Request $request, Response $response): 
         }
         $ambiente = $body['ambiente'] ?? 'homologacao';
         $ultNSU = (int)($body['ultNSU'] ?? 0);
+        // fullScan: se true, permite varredura completa; senão, busca apenas 1 página (modo seguro)
+        $fullScan = isset($body['fullScan']) ? (bool)$body['fullScan'] : false;
+        $maxIter = $fullScan ? 50 : 1;
         $buscaService = new NFeBuscaSefazService($tempCertPath, $certPassword, $empresaDados, $ambiente);
-        $resultado = $buscaService->buscar($ultNSU);
+        $resultado = $buscaService->buscar($ultNSU, $maxIter);
         @unlink($tempCertPath);
         return jsonResponse($response, $resultado);
     } catch (\Exception $e) {

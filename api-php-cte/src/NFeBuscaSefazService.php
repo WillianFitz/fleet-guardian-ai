@@ -42,14 +42,21 @@ class NFeBuscaSefazService
      * @param int $ultNSU Último NSU recebido (0 para primeira consulta)
      * @return array ['nfe' => [...], 'ultNSU' => int, 'maxNSU' => int, 'cStat' => string, 'xMotivo' => string]
      */
-    public function buscar(int $ultNSU = 0): array
+    /**
+     * @param int $ultNSU Último NSU recebido (0 para primeira consulta)
+     * @param int $maxIter Máximo de iterações/páginas a buscar nesta chamada (1 = somente 1 página)
+     * @return array ['nfe' => [...], 'ultNSU' => int, 'maxNSU' => int, 'cStat' => string, 'xMotivo' => string]
+     */
+    public function buscar(int $ultNSU = 0, int $maxIter = 1): array
     {
         $ultNSU = (int) $ultNSU;
         $allNfe = [];
         $maxNSU = 0;
         $cStat = '';
         $xMotivo = '';
-        $maxIter = 50; // segurança: no máximo 50 páginas
+        // Segurança: limitar máximo absoluto para evitar varreduras massivas
+        $absoluteMax = 50;
+        $maxIter = max(1, min((int)$maxIter, $absoluteMax));
         $iter = 0;
 
         do {
@@ -75,6 +82,9 @@ class NFeBuscaSefazService
             if ($ultNSU >= $maxNSU || $cStat === '137') {
                 break;
             }
+            // Evitar ráfagas muito rápidas contra a SEFAZ
+            // Pequena pausa entre páginas (200ms) — ajustável conforme necessidade
+            usleep(200000);
             $iter++;
         } while ($iter < $maxIter);
 
