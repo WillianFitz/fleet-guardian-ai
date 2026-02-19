@@ -628,29 +628,79 @@ export default {
           if (!tenant?.certificado_pfx_base64 || !tenant?.certificado_password) {
             return errorResponse("Certificado digital não configurado. Faça upload nas Configurações.", 400);
           }
+ 
+          // Verificar estado de buscas NFe para este tenant (evita re-tentativas que causem bloqueio)
+          const now = new Date().toISOString();
+          const state = await env.DB.prepare("SELECT tenant_id, last_ult_nsu, last_search_at, in_progress, blocked_until FROM nfe_search_state WHERE tenant_id = ?")
+            .bind(tenantId)
+            .first();
+
+          if (state && state.blocked_until) {
+            const blockedUntil = new Date(state.blocked_until);
+            if (blockedUntil > new Date()) {
+              return jsonResponse({ error: `Busca temporariamente bloqueada pela SEFAZ até ${state.blocked_until} (SEFAZ cStat 656)` }, 429);
+            }
+          }
+
+          if (state && state.in_progress) {
+            return jsonResponse({ error: "Busca já em andamento para este tenant. Tente novamente mais tarde." }, 409);
+          }
+
+          // Marcar busca em andamento
+          if (state) {
+            await env.DB.prepare("UPDATE nfe_search_state SET in_progress = 1, last_search_at = ? WHERE tenant_id = ?").bind(now, tenantId).run();
+          } else {
+            await env.DB.prepare("INSERT INTO nfe_search_state (tenant_id, last_ult_nsu, last_search_at, in_progress) VALUES (?, ?, ?, ?)").bind(tenantId, 0, now, 1).run();
+          }
 
           const phpBody = {
             certificado: { pfxBase64: tenant.certificado_pfx_base64, password: tenant.certificado_password },
             empresa: { cnpj: tenant.cnpj, razaoSocial: tenant.nome, siglaUF: tenant.uf || "SP" },
             ambiente,
-            ultNSU: body.ultNSU ?? 0,
+            ultNSU: state?.last_ult_nsu ?? (body.ultNSU ?? 0),
           };
-          const phpResponse = await fetch(`${env.CTE_API_URL}/nfe-busca-sefaz`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(phpBody),
-          });
-          const phpText = await phpResponse.text();
+
           let phpData: any;
           try {
-            phpData = phpText ? JSON.parse(phpText) : {};
-          } catch {
-            return errorResponse(`Resposta inválida da API: HTTP ${phpResponse.status}`, 502);
+            const phpResponse = await fetch(`${env.CTE_API_URL}/nfe-busca-sefaz`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(phpBody),
+            });
+            const phpText = await phpResponse.text();
+            try {
+              phpData = phpText ? JSON.parse(phpText) : {};
+            } catch {
+              // Garantir que in_progress seja removido
+              await env.DB.prepare("UPDATE nfe_search_state SET in_progress = 0 WHERE tenant_id = ?").bind(tenantId).run();
+              return errorResponse(`Resposta inválida da API: HTTP ${phpResponse.status}`, 502);
+            }
+            if (!phpResponse.ok) {
+              // Atualizar in_progress = 0
+              await env.DB.prepare("UPDATE nfe_search_state SET in_progress = 0 WHERE tenant_id = ?").bind(tenantId).run();
+              return jsonResponse({ error: phpData.error || "Erro ao buscar NF-e na SEFAZ" }, phpResponse.status);
+            }
+
+            // Se SEFAZ indicou bloqueio (cStat 656), persiste bloqueio no DB para evitar novas tentativas
+            const cStat = String(phpData.cStat || phpData.cstat || "");
+            const ultNSUReturned = phpData.ultNSU ?? phpData.ultNsu ?? null;
+            let blockedUntil: string | null = null;
+            if (cStat === "656") {
+              blockedUntil = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hora
+            }
+
+            // Atualizar estado
+            const newUlt = ultNSUReturned !== null ? Number(ultNSUReturned) : state?.last_ult_nsu ?? 0;
+            await env.DB.prepare("UPDATE nfe_search_state SET in_progress = 0, last_ult_nsu = ?, last_search_at = ?, blocked_until = ? WHERE tenant_id = ?")
+              .bind(newUlt, new Date().toISOString(), blockedUntil, tenantId)
+              .run();
+
+            return jsonResponse(phpData);
+          } catch (e: any) {
+            // Garantir que in_progress seja removido em caso de erro
+            await env.DB.prepare("UPDATE nfe_search_state SET in_progress = 0 WHERE tenant_id = ?").bind(tenantId).run();
+            return errorResponse(`Erro ao buscar NF-e na SEFAZ: ${e.message}`, 500);
           }
-          if (!phpResponse.ok) {
-            return jsonResponse({ error: phpData.error || "Erro ao buscar NF-e na SEFAZ" }, phpResponse.status);
-          }
-          return jsonResponse(phpData);
         } catch (e: any) {
           return errorResponse(`Erro ao buscar NF-e na SEFAZ: ${e.message}`, 500);
         }

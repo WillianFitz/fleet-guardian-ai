@@ -57,6 +57,16 @@ class NFeBuscaSefazService
             $parsed = $this->parseResponse($response);
             $cStat = $parsed['cStat'] ?? '';
             $xMotivo = $parsed['xMotivo'] ?? '';
+            // Se SEFAZ retornou consumo indevido (cStat 656), abortamos e devolvemos a informação
+            if ($cStat === '656') {
+                return [
+                    'nfe' => $allNfe,
+                    'ultNSU' => $ultNSU,
+                    'maxNSU' => $maxNSU,
+                    'cStat' => $cStat,
+                    'xMotivo' => $xMotivo,
+                ];
+            }
             if (!empty($parsed['nfe'])) {
                 $allNfe = array_merge($allNfe, $parsed['nfe']);
             }
@@ -94,6 +104,12 @@ class NFeBuscaSefazService
         $xMotivo = $this->firstNodeValue($xpath, ['//xMotivo', '//dfe:xMotivo', '//*[local-name()="xMotivo"]']) ?: 'Erro desconhecido';
         $result['cStat'] = $cStat;
         $result['xMotivo'] = $xMotivo;
+
+        // cStat 656 => consumo indevido / bloqueio temporário para o CNPJ.
+        // Não lançamos exceção aqui para permitir que o caller trate o bloqueio e persista estado.
+        if ($cStat === '656') {
+            return $result;
+        }
 
         if ($cStat !== '138' && $cStat !== '137') {
             throw new \Exception("SEFAZ: $xMotivo (cStat: $cStat)");
