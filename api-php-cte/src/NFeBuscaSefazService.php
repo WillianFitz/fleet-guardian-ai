@@ -165,6 +165,8 @@ class NFeBuscaSefazService
             if ($isResNFe) {
                 $item = $this->parseResNFe($content);
                 if ($item) {
+                    // incluir o XML completo (decodificado / descomprimido) no resultado
+                    $item['xml'] = $content;
                     $result['nfe'][] = $item;
                 }
             }
