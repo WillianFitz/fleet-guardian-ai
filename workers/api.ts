@@ -747,6 +747,50 @@ export default {
           }
 
           let nfe = phpData.nfe;
+          // If PHP returned node-mde structure: phpData.data.docZip or phpData.docZip
+          const docZipArr = (phpData.data && phpData.data.docZip) || phpData.docZip || phpData.data?.docZip;
+          if (!nfe && Array.isArray(docZipArr) && docZipArr.length > 0) {
+            // find first procNFe / nfeProc entry
+            const pick = docZipArr.find((d: any) => {
+              const schema = String(d.schema || "").toLowerCase();
+              return schema.includes("procnfe") || (d.xml && String(d.xml).toLowerCase().includes("<nfeprom"));
+            }) || docZipArr[0];
+            const xml = pick.xml || pick.xml || "";
+            // try to extract useful fields from xml quickly
+            const extract = (tag: string) => {
+              const re = new RegExp(`<(?:[^>]*:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:[^>]*:)?${tag}>`, "i");
+              const m = String(xml).match(re);
+              return m ? m[1].trim() : "";
+            };
+            const ch = extract("chNFe") || extract("Id") || "";
+            const nnum = extract("nNF") || (ch ? ch.substr(25, 9) : "");
+            const xNomeEmit = extract("xNome") || extract("xNomeEmit") || "";
+            // find second xNome for dest if possible
+            const xNomeMatches = Array.from(String(xml).matchAll(/<(?:[^>]*:)?xNome[^>]*>([\s\S]*?)<\/(?:[^>]*:)?xNome>/gi)).map((m) => m[1].trim());
+            const xNomeDest = xNomeMatches[1] || extract("xNomeDest") || "";
+            const vNFVal = extract("vNF") || extract("vProd") || "0";
+            const vNF = Number(String(vNFVal).replace(",", ".").replace(/[^0-9.\-]/g, "")) || 0;
+            const dhEmi = extract("dhEmi") || extract("dEmi") || "";
+            const placa = extract("placa") || extract("placa") || "";
+            // cnpj/cpf emit/dest
+            const emitCnpj = extract("CNPJ") || extract("CPF") || "";
+            const destCnpj = (() => {
+              // try dest CNPJ specifically
+              const destMatch = xml.match(/<dest[^\>]*>[\s\S]*?<(?:[^>]*:)?CNPJ[^>]*>([\s\S]*?)<\/(?:[^>]*:)?CNPJ>/i);
+              return destMatch ? destMatch[1].trim() : extract("CNPJ");
+            })();
+            nfe = {
+              chave: ch,
+              nfe: nnum,
+              xNomeEmit,
+              xNomeDest,
+              vNF,
+              dhEmi,
+              placa,
+              emitCnpj,
+              destCnpj
+            };
+          }
           // Fallback: se PHP retornou raw XML (SOAP), tentar extrair informações úteis
           if (!nfe && phpData.raw) {
             const xml = String(phpData.raw);
