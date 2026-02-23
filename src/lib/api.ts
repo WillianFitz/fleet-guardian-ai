@@ -85,10 +85,27 @@ export const api = {
   async create<T>(resource: string, data: Omit<T, "id">): Promise<T> {
     if (!isApiConfigured()) throw new Error("API not configured");
     await ensureTenant();
+    // Sanitize payload for known resources to avoid inserting unsupported columns (D1 schema constraints)
+    let bodyData: Record<string, any> = { ...(data as Record<string, any>) };
+    if (resource === "ctes") {
+      const allowed = new Set([
+        "chave","numero","serie","veiculoPlaca","veiculoModelo","dataEmissao","dataInicioViagem",
+        "valorPrestacao","valorFrete","remetenteNome","remetenteCnpjCpf","remetenteCep","remetenteLogradouro",
+        "remetenteNumero","remetenteBairro","remetenteMunicipio","remetenteUf","destinatarioNome","destinatarioCnpjCpf",
+        "destinatarioCep","destinatarioLogradouro","destinatarioNumero","destinatarioBairro","destinatarioMunicipio",
+        "destinatarioUf","municipioOrigem","ufOrigem","municipioDestino","ufDestino","infCarga","informacoesAdicionais",
+        "tomador","numeroNota","hasExpedidor","hasRecebedor","cfop","emitirRetroativo","textoNota","status"
+      ]);
+      const filtered: Record<string, any> = {};
+      for (const [k, v] of Object.entries(bodyData)) {
+        if (allowed.has(k)) filtered[k] = v;
+      }
+      bodyData = filtered;
+    }
     const res = await fetch(`${API_URL}/api/${resource}`, {
       method: "POST",
       headers: await getHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify(bodyData),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
