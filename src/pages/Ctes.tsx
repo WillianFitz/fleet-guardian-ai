@@ -196,13 +196,16 @@ const Ctes = () => {
         textoNota: `Referente à NF-e ${nnum || ""} - CHAVE ${ch || ""}`,
       };
 
-      const created = await api.create("ctes", payload);
-      toast({ title: "Rascunho criado", description: "Abrindo formulário..." });
-      if (created?.id) {
-        navigate(`/ctes?openDraftId=${created.id}`);
-      } else {
-        navigate("/ctes");
-      }
+      // Ao invés de tentar persistir no servidor (pode estar com erro), apenas abre o diálogo com o formulário preenchido
+      setForm((p) => ({
+        ...p,
+        ...payload,
+        fluxoOrigem: "nfe",
+      }));
+      setEditing(null);
+      setShowNfeTipoStep(false);
+      setDialogOpen(true);
+      toast({ title: "Dados importados", description: "Revise os campos e clique em Salvar para criar o rascunho." });
     } catch (err: any) {
       toast({ title: "Erro ao importar XML", description: err?.message || "Arquivo inválido", variant: "destructive" });
     } finally {
