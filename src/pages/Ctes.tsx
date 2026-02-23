@@ -525,6 +525,20 @@ const Ctes = () => {
   const handleEmitir = async (cte: CTe) => {
     setEmitting(true);
     try {
+      // Re-fetch tenant config to ensure ambiente is up-to-date (avoid stale UI state)
+      let emitAmbiente = ambienteAtual;
+      try {
+        const tenantRes = await fetch(`${API_URL}/api/tenants/${(tenant?.id)}`, {
+          headers: { "Content-Type": "application/json" },
+        });
+        if (tenantRes.ok) {
+          const tenantJson = await tenantRes.json();
+          emitAmbiente = tenantJson.data?.ambienteCte || ambienteAtual;
+        }
+      } catch {
+        // ignore, use existing ambienteAtual
+      }
+
       const payload: Record<string, unknown> = {
         numero: cte.numero,
         serie: cte.serie,
@@ -567,7 +581,7 @@ const Ctes = () => {
       if (cte.textoNota) payload.textoNota = cte.textoNota;
       if (typeof cte.hasExpedidor !== "undefined") payload.hasExpedidor = cte.hasExpedidor;
       if (typeof cte.hasRecebedor !== "undefined") payload.hasRecebedor = cte.hasRecebedor;
-      const result = await cteApi.emitir(payload, ambienteAtual);
+      const result = await cteApi.emitir(payload, emitAmbiente as "producao" | "homologacao");
       if (result.error) {
         throw new Error(result.error);
       }
