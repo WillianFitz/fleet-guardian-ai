@@ -786,11 +786,11 @@ export default {
             const dhEmi = extract("dhEmi") || extract("dEmi") || "";
             const placa = extract("placa") || extract("placa") || "";
             // cnpj/cpf emit/dest
-            const emitCnpj = extract("CNPJ") || extract("CPF") || "";
-            const destCnpj = (() => {
-              // try dest CNPJ specifically
+            // Prefer explicit parent extraction to avoid grabbing the wrong CNPJ (emit vs dest)
+            const emitCnpj = extractFromParent("emit", "CNPJ") || extractFromParent("emit", "CPF") || extract("CNPJ") || extract("CPF") || "";
+            const destCnpj = extractFromParent("dest", "CNPJ") || extractFromParent("dest", "CPF") || (() => {
               const destMatch = xml.match(/<dest[^\>]*>[\s\S]*?<(?:[^>]*:)?CNPJ[^>]*>([\s\S]*?)<\/(?:[^>]*:)?CNPJ>/i);
-              return destMatch ? destMatch[1].trim() : extract("CNPJ");
+              return destMatch ? destMatch[1].trim() : "";
             })();
             // extract address fields from enderEmit / enderDest
             const extractFromParent = (parent: string, tag: string) => {
