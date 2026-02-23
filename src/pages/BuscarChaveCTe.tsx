@@ -8,8 +8,11 @@ export default function BuscarChaveCTe() {
   const navigate = useNavigate();
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
+  const [mode, setMode] = useState<"chave" | "sefaz">("chave");
   const [chave, setChave] = useState("");
   const [loading, setLoading] = useState(false);
+  const [sefazLoading, setSefazLoading] = useState(false);
+  const [sefazResult, setSefazResult] = useState<Array<any>>([]);
 
   const handleBuscar = async () => {
     const digits = (chave || "").replace(/\D/g, "");
@@ -50,30 +53,119 @@ export default function BuscarChaveCTe() {
     }
   };
 
+  const handleBuscarSefaz = async () => {
+    setSefazLoading(true);
+    setSefazResult([]);
+    try {
+      const res = await cteApi.buscaNFeSefaz(ambienteAtual);
+      if (res?.nfe) {
+        setSefazResult(res.nfe);
+        if (!res.nfe.length) {
+          toast({ title: "Nenhuma NF-e encontrada", description: "Não foram encontradas NF-e para este CNPJ.", variant: "warning" });
+        }
+      } else {
+        toast({ title: "Resposta inválida", description: "Nenhuma NF-e retornada.", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro ao buscar na SEFAZ", description: e?.message || "Erro desconhecido", variant: "destructive" });
+    } finally {
+      setSefazLoading(false);
+    }
+  };
+
+  const handleSelectSefazItem = (item: any) => {
+    try {
+      localStorage.setItem("fleet_pending_cte", JSON.stringify({
+        chaveNFe: item.chave,
+        remetenteNome: item.xNomeEmit,
+        destinatarioNome: item.xNomeDest,
+        valorPrestacao: item.vNF,
+        infCarga: [{ numero: item.nfe || "", produto: "Mercadoria", valor: item.vNF || 0, peso: 0, chave: item.chave }],
+      }));
+    } catch {
+      // ignore
+    }
+    toast({ title: "NF-e selecionada", description: "Abrindo formulário de CTe..." });
+    navigate("/ctes");
+  };
+
   return (
     <div className="min-h-screen flex items-start justify-center bg-background p-4 pt-8">
-      <div className="w-full max-w-lg sm:max-w-xl bg-card border border-border rounded-lg p-4 sm:p-6">
-        <h2 className="text-lg font-semibold mb-2">Buscar por chave</h2>
-        <p className="text-sm text-muted-foreground mb-4">Informe a chave da NF-e (44 dígitos) para criar um rascunho de CT-e ou consultar o documento.</p>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <input
-            autoFocus
-            value={chave}
-            onChange={(e) => setChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
-            placeholder="Informe a chave da NF-e (44 dígitos)"
-            className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 transition w-full"
-          />
-          <button
-            onClick={handleBuscar}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
-          >
-            {loading ? "Buscando..." : "Buscar"}
-          </button>
+      <div className="w-full max-w-3xl bg-card border border-border rounded-lg p-4 sm:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Buscar NF-e (SEFAZ)</h2>
+            <p className="text-sm text-muted-foreground">Busque NF-e disponíveis para o CNPJ configurado no tenant.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setMode("chave")} className={`px-3 py-1 rounded ${mode === "chave" ? "bg-primary text-primary-foreground" : "bg-muted/20 text-muted-foreground"}`}>Por chave</button>
+            <button onClick={() => setMode("sefaz")} className={`px-3 py-1 rounded ${mode === "sefaz" ? "bg-primary text-primary-foreground" : "bg-muted/20 text-muted-foreground"}`}>Buscar na SEFAZ</button>
+          </div>
         </div>
-        <div className="mt-4 text-xs text-muted-foreground">
-          <div>Ambiente: {ambienteAtual === "producao" ? "Produção" : "Homologação"}</div>
-        </div>
+
+        {mode === "chave" && (
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              autoFocus
+              value={chave}
+              onChange={(e) => setChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
+              placeholder="Informe a chave da NF-e (44 dígitos)"
+              className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 transition w-full"
+            />
+            <button
+              onClick={handleBuscar}
+              disabled={loading}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+            >
+              {loading ? "Buscando..." : "Buscar"}
+            </button>
+          </div>
+        )}
+
+        {mode === "sefaz" && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <button onClick={handleBuscarSefaz} disabled={sefazLoading} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50">
+                {sefazLoading ? "Buscando..." : "Buscar notas do CNPJ"}
+              </button>
+              <div className="text-xs text-muted-foreground">Ambiente: {ambienteAtual === "producao" ? "Produção" : "Homologação"}</div>
+            </div>
+
+            {sefazResult.length > 0 && (
+              <div className="overflow-x-auto border border-border rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left px-3 py-2 text-xs font-semibold">Chave</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold">NF-e</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
+                      <th className="text-left px-3 py-2 text-xs font-semibold">Dest.</th>
+                      <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
+                      <th className="text-right px-3 py-2 text-xs font-semibold">Emissão</th>
+                      <th className="px-3 py-2 text-xs font-semibold">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sefazResult.map((r: any, idx: number) => (
+                      <tr key={idx} className="border-t border-border">
+                        <td className="px-3 py-2 font-mono">{r.chave || "—"}</td>
+                        <td className="px-3 py-2">{r.nfe || "—"}</td>
+                        <td className="px-3 py-2 max-w-[220px] truncate">{r.xNomeEmit || r.emitente || "—"}</td>
+                        <td className="px-3 py-2 max-w-[220px] truncate">{r.xNomeDest || r.destinatario || "—"}</td>
+                        <td className="px-3 py-2 text-right font-medium">R$ {(r.vNF || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                        <td className="px-3 py-2 text-right">{r.dhEmi ? String(r.dhEmi).split("T")[0] : (r.dEmi || "—")}</td>
+                        <td className="px-3 py-2 text-center">
+                          <button onClick={() => handleSelectSefazItem(r)} className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs">Usar</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   );
