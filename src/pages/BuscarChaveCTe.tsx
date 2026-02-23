@@ -13,6 +13,14 @@ export default function BuscarChaveCTe() {
   const [loading, setLoading] = useState(false);
   const [sefazLoading, setSefazLoading] = useState(false);
   const [sefazResult, setSefazResult] = useState<Array<any>>([]);
+  // ler query param 'mode' para inicializar (ex: ?mode=sefaz)
+  try {
+    const qp = new URLSearchParams(window.location.search);
+    const qm = qp.get("mode");
+    if (qm === "sefaz" && mode !== "sefaz") setMode("sefaz");
+  } catch {
+    // ignore (SSR safety)
+  }
 
   const handleBuscar = async () => {
     const digits = (chave || "").replace(/\D/g, "");

@@ -353,7 +353,13 @@ const Ctes = () => {
     // Para SEFAZ: permanece neste passo para buscar/listar as NF-e do CNPJ.
     // Para Chave: abrir página dedicada para digitar a chave.
     // Para XML: avança direto para o cadastro do CT-e.
-    if (tipo === "sefaz") return;
+    if (tipo === "sefaz") {
+      // Fechar diálogo e navegar para a página dedicada de busca SEFAZ
+      setDialogOpen(false);
+      setShowNfeTipoStep(false);
+      navigate("/ctes/buscar-chave?mode=sefaz");
+      return;
+    }
     if (tipo === "chave") {
       // Fechar diálogo e navegar para a página dedicada de busca por chave
       setDialogOpen(false);
