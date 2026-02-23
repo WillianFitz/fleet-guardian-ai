@@ -775,6 +775,12 @@ export default {
               const m = String(xml).match(re);
               return m ? m[1].trim() : "";
             };
+            // helper to extract a tag inside a parent node (e.g., enderEmit -> CEP)
+            const extractFromParent = (parent: string, tag: string) => {
+              const re = new RegExp(`<${parent}[^>]*>[\\s\\S]*?<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>[\\s\\S]*?<\\/${parent}>`, "i");
+              const m = String(xml).match(re);
+              return m ? m[1].trim() : "";
+            };
             const ch = extract("chNFe") || extract("Id") || "";
             const nnum = extract("nNF") || (ch ? ch.substr(25, 9) : "");
             const xNomeEmit = extract("xNome") || extract("xNomeEmit") || "";
@@ -792,12 +798,6 @@ export default {
               const destMatch = xml.match(/<dest[^\>]*>[\s\S]*?<(?:[^>]*:)?CNPJ[^>]*>([\s\S]*?)<\/(?:[^>]*:)?CNPJ>/i);
               return destMatch ? destMatch[1].trim() : "";
             })();
-            // extract address fields from enderEmit / enderDest
-            const extractFromParent = (parent: string, tag: string) => {
-              const re = new RegExp(`<${parent}[^>]*>[\\s\\S]*?<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>[\\s\\S]*?<\\/${parent}>`, "i");
-              const m = String(xml).match(re);
-              return m ? m[1].trim() : "";
-            };
             const remetenteCep = extractFromParent("enderEmit", "CEP") || extract("CEP") || "";
             const remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || extract("xLgr") || "";
             const remetenteNumero = extractFromParent("enderEmit", "nro") || extract("nro") || "";
