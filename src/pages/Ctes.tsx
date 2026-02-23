@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { api, cteApi } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import KpiCard from "@/components/dashboard/KpiCard";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 
 const statusLabels: Record<string, string> = {
   rascunho: "Rascunho",
@@ -88,6 +88,7 @@ const Ctes = () => {
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
   const navigate = useNavigate();
+  const location = useLocation();
   const [buscarChave, setBuscarChave] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [buscarResult, setBuscarResult] = useState<Array<any>>([]);
@@ -414,6 +415,27 @@ const Ctes = () => {
       // ignore
     }
   }, []);
+
+  // Abrir rascunho criado externamente (ex: /ctes?openDraftId=...)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(location.search);
+      const openId = params.get("openDraftId");
+      if (openId) {
+        const item = items.find((i) => i.id === openId);
+        if (item) {
+          // abrir diálogo para editar
+          setEditing(item);
+          setForm(item);
+          setDialogOpen(true);
+          // remover query param
+          navigate("/ctes", { replace: true });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [location.search, items, navigate]);
 
   const handleBuscaNFeSefaz = async () => {
     // Se já consumimos até o maxNSU, não chamar de novo para evitar rejeição 656 (consumo indevido)

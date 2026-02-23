@@ -140,6 +140,18 @@ export const cteApi = {
     }
     return json;
   },
+  async fromNfe(chave: string, ambiente?: "producao" | "homologacao") {
+    const res = await fetch(`${API_URL}/api/ctes/from-nfe`, {
+      method: "POST",
+      headers: await getHeaders(),
+      body: JSON.stringify({ chave, ambiente: ambiente || "homologacao" }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || json.message || `Falha ao criar rascunho de CTe a partir da NF-e: ${res.status}`);
+    }
+    return json;
+  },
   async consultar(chave: string, ambiente?: "producao" | "homologacao"): Promise<{ status: string; protocolo?: string; xml?: string; error?: string }> {
     const url = new URL(`${API_URL}/api/cte/consultar`);
     url.searchParams.set("chave", chave);

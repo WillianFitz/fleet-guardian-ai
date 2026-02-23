@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cteApi } from "@/lib/api";
+import { useLocation } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
 
 function parseCteXml(xmlText: string, chave?: string) {
@@ -45,11 +46,29 @@ export default function BuscarChaveCTe() {
     setLoading(true);
     setResults([]);
     try {
-      const res = await cteApi.consultar(digits);
-      const xml = res.xml || res.raw || "";
-      const parsed = parseCteXml(xml, digits);
-      setResults(parsed.items || []);
-      toast({ title: "CT-e consultado", description: `Encontradas ${parsed.items.length} entradas.` });
+      // Detecta o modelo (posições 21-22 na chave): '55' = NF-e, '57' = CT-e
+      const modelo = digits.slice(20, 22);
+      if (modelo === "55") {
+        // NF-e → criar rascunho de CTe a partir da NF-e
+        const created = await cteApi.fromNfe(digits);
+        const cteData = created?.data ?? created;
+        if (cteData && cteData.id) {
+          toast({ title: "Rascunho criado", description: "CTe rascunho criado a partir da NF-e. Abrindo formulário..." });
+          navigate(`/ctes?openDraftId=${cteData.id}`);
+          return;
+        } else {
+          toast({ title: "Sucesso", description: "Rascunho criado, abra a lista de CT-e.", variant: "success" });
+          navigate("/ctes");
+          return;
+        }
+      } else {
+        // CT-e ou outro → consulta direta de CT-e
+        const res = await cteApi.consultar(digits);
+        const xml = res.xml || res.raw || "";
+        const parsed = parseCteXml(xml, digits);
+        setResults(parsed.items || []);
+        toast({ title: "CT-e consultado", description: `Encontradas ${parsed.items.length} entradas.` });
+      }
     } catch (e: any) {
       const errMsg = e?.message || "Erro desconhecido";
       const body = e?.body ? JSON.stringify(e.body).slice(0, 1000) : "";
