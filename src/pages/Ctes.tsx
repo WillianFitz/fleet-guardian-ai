@@ -294,11 +294,41 @@ const Ctes = () => {
     const auto = `PLACA DO VEICULO ${form.veiculoPlaca || ""} REFERENTE A CONTROLE DE CTE Nº ${form.numero || ""}, REFERENTE A NOTA Nº ${form.numeroNota || ""}`;
     const newForm = { ...form, textoNota: form.textoNota && form.textoNota.trim() ? form.textoNota : auto };
 
+    // Preencher origem/destino automaticamente se estiverem vazios
+    const filled = { ...newForm };
+    filled.municipioOrigem = filled.municipioOrigem || filled.remetenteMunicipio || "";
+    filled.ufOrigem = filled.ufOrigem || filled.remetenteUf || "";
+    filled.municipioDestino = filled.municipioDestino || filled.destinatarioMunicipio || "";
+    filled.ufDestino = filled.ufDestino || filled.destinatarioUf || "";
+
+    // Tentar casar veículo pela placa se veiculoId não estiver definido
+    const normalizePlaca = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if ((!filled.veiculoId || String(filled.veiculoId).trim() === "") && filled.veiculoPlaca) {
+      const placaNorm = normalizePlaca(String(filled.veiculoPlaca));
+      toast({ title: "Procurando veículo", description: `Placa extraída: ${filled.veiculoPlaca} → ${placaNorm}. Veículos carregados: ${vehicles.length}.` });
+      let match = vehicles.find((v) => normalizePlaca(v.placa) === placaNorm);
+      if (!match) {
+        const last4 = placaNorm.slice(-4);
+        match = vehicles.find((v) => normalizePlaca(v.placa).slice(-4) === last4);
+        if (match) {
+          toast({ title: "Match parcial por sufixo", description: `Placa ${match.placa} encontrada por últimos 4 caracteres (${last4}).`, variant: "info" });
+        }
+      }
+      if (match) {
+        filled.veiculoId = match.id;
+        filled.veiculoModelo = match.modelo || "";
+        toast({ title: "Veículo selecionado", description: `Placa ${match.placa} aplicada automaticamente.` });
+      } else {
+        const sample = vehicles.slice(0, 5).map((v) => v.placa).join(", ") || "nenhum";
+        toast({ title: "Veículo não encontrado", description: `Placa ${filled.veiculoPlaca} não encontrada. Exemplos: ${sample}`, variant: "warning" });
+      }
+    }
+
     if (editing) {
-      update(editing.id, newForm);
+      update(editing.id, filled);
       toast({ title: "CTe atualizado!" });
     } else {
-      add(newForm);
+      add(filled);
       toast({ title: "CTe cadastrado!" });
     }
     setDialogOpen(false);
