@@ -391,7 +391,12 @@ $app->post('/nfe/consultar', function (Request $request, Response $response): Re
                 $ch = curl_init($nodeUrl);
                 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                 curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                $headers = ['Content-Type: application/json'];
+                $nodeAuth = getenv('NODE_AUTH_TOKEN');
+                if ($nodeAuth) {
+                    $headers[] = 'Authorization: Bearer ' . $nodeAuth;
+                }
+                curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
                 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($nodeReq));
                 curl_setopt($ch, CURLOPT_TIMEOUT, 25); // 25s timeout to avoid long waits
                 $nodeResText = curl_exec($ch);

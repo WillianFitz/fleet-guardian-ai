@@ -779,6 +779,24 @@ export default {
               const destMatch = xml.match(/<dest[^\>]*>[\s\S]*?<(?:[^>]*:)?CNPJ[^>]*>([\s\S]*?)<\/(?:[^>]*:)?CNPJ>/i);
               return destMatch ? destMatch[1].trim() : extract("CNPJ");
             })();
+            // extract address fields from enderEmit / enderDest
+            const extractFromParent = (parent: string, tag: string) => {
+              const re = new RegExp(`<${parent}[^>]*>[\\s\\S]*?<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>[\\s\\S]*?<\\/${parent}>`, "i");
+              const m = String(xml).match(re);
+              return m ? m[1].trim() : "";
+            };
+            const remetenteCep = extractFromParent("enderEmit", "CEP") || extract("CEP") || "";
+            const remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || extract("xLgr") || "";
+            const remetenteNumero = extractFromParent("enderEmit", "nro") || extract("nro") || "";
+            const remetenteBairro = extractFromParent("enderEmit", "xBairro") || extract("xBairro") || "";
+            const remetenteMunicipio = extractFromParent("enderEmit", "xMun") || extract("xMun") || "";
+            const remetenteUf = extractFromParent("enderEmit", "UF") || extract("UF") || "";
+            const destinatarioCep = extractFromParent("enderDest", "CEP") || "";
+            const destinatarioLogradouro = extractFromParent("enderDest", "xLgr") || "";
+            const destinatarioNumero = extractFromParent("enderDest", "nro") || "";
+            const destinatarioBairro = extractFromParent("enderDest", "xBairro") || "";
+            const destinatarioMunicipio = extractFromParent("enderDest", "xMun") || "";
+            const destinatarioUf = extractFromParent("enderDest", "UF") || "";
             nfe = {
               chave: ch,
               nfe: nnum,
@@ -826,6 +844,22 @@ export default {
             chave_origem: nfe.chave || "",
             remetente_nome: nfe.xNomeEmit || "",
             destinatario_nome: nfe.xNomeDest || "",
+            // CNPJs/CPFs e endereços extraídos do XML (quando disponíveis)
+            remetenteCnpjCpf: nfe.emitCnpj || nfe.emitCnpj || "",
+            destinatarioCnpjCpf: nfe.destCnpj || nfe.destCnpj || "",
+            remetenteCep: nfe.remetenteCep || remetenteCep || null,
+            remetenteLogradouro: nfe.remetenteLogradouro || remetenteLogradouro || null,
+            remetenteNumero: nfe.remetenteNumero || remetenteNumero || null,
+            remetenteBairro: nfe.remetenteBairro || remetenteBairro || null,
+            remetenteMunicipio: nfe.remetenteMunicipio || remetenteMunicipio || null,
+            remetenteUf: nfe.remetenteUf || remetenteUf || null,
+            destinatarioCep: nfe.destinatarioCep || destinatarioCep || null,
+            destinatarioLogradouro: nfe.destinatarioLogradouro || destinatarioLogradouro || null,
+            destinatarioNumero: nfe.destinatarioNumero || destinatarioNumero || null,
+            destinatarioBairro: nfe.destinatarioBairro || destinatarioBairro || null,
+            destinatarioMunicipio: nfe.destinatarioMunicipio || destinatarioMunicipio || null,
+            destinatarioUf: nfe.destinatarioUf || destinatarioUf || null,
+            veiculoPlaca: nfe.placa || nfe.veiculoPlaca || null,
             // preencher valor_prestacao/valor_total para consistência com frontend e schema
             valor_prestacao: nfe.vNF || 0,
             valor_total: nfe.vNF || 0,

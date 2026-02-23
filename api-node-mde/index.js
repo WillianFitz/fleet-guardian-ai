@@ -31,6 +31,15 @@ app.post("/nfe/consultar", async (req, res) => {
     const ambiente = (body.ambiente || "homologacao").toLowerCase();
     const tpAmb = ambiente === "producao" ? "1" : "2";
 
+    // Simple token validation (optional): if NODE_AUTH_TOKEN is set, require Authorization header
+    const expectedToken = process.env.NODE_AUTH_TOKEN;
+    if (expectedToken) {
+      const auth = (req.headers.authorization || "");
+      if (!auth.startsWith("Bearer ") || auth.slice(7) !== expectedToken) {
+        return res.status(401).json({ error: "unauthorized" });
+      }
+    }
+
     const empresa = body.empresa || {};
     const siglaUF = (empresa.siglaUF || empresa.uf || "SP").toUpperCase();
     const cUFAutor = body.cUFAutor || mapUfToCuf(siglaUF);
