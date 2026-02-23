@@ -851,6 +851,19 @@ export default {
               emitCnpj,
               destCnpj
             };
+            // attempt to find vehicle by placa in DB and add veiculoId to nfe object
+            try {
+              const placaNorm = String(placa || "").trim();
+              if (placaNorm) {
+                const row = await env.DB.prepare("SELECT id, placa, modelo FROM vehicles WHERE lower(placa) = lower(?)").bind(placaNorm).first();
+                if (row) {
+                  (nfe as any).veiculoId = row.id;
+                  (nfe as any).veiculoModelo = row.modelo || null;
+                }
+              }
+            } catch {
+              // ignore db lookup errors
+            }
           }
           // Fallback: se PHP retornou raw XML (SOAP), tentar extrair informações úteis
           if (!nfe && phpData.raw) {
@@ -944,6 +957,7 @@ export default {
             destinatarioMunicipio: nfe.destinatarioMunicipio || destinatarioMunicipio || null,
             destinatarioUf: nfe.destinatarioUf || destinatarioUf || null,
             veiculoPlaca: nfe.placa || nfe.veiculoPlaca || null,
+            veiculoId: (nfe as any).veiculoId || null,
             // origem/destino (município/UF) - prefer explicit extracted values
             municipioOrigem: nfe.remetenteMunicipio || remetenteMunicipio || null,
             ufOrigem: nfe.remetenteUf || remetenteUf || null,

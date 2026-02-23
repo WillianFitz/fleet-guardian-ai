@@ -1097,8 +1097,16 @@ const Ctes = () => {
           <div className="col-span-1 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Veículo</label>
             <select
-              value={vehicles.find((v) => v.placa === form.veiculoPlaca)?.id ?? ""}
-              onChange={(e) => e.target.value && handleVehicleSelect(e.target.value)}
+              value={form.veiculoId || (vehicles.find((v) => v.placa === form.veiculoPlaca)?.id ?? "")}
+              onChange={(e) => {
+                const vid = e.target.value;
+                if (vid) {
+                  const v = vehicles.find((x) => x.id === vid);
+                  if (v) {
+                    setForm((prev) => ({ ...prev, veiculoPlaca: v.placa, veiculoModelo: v.modelo, veiculoId: v.id }));
+                  }
+                }
+              }}
               className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             >
               <option value="">Selecione...</option>
@@ -1131,7 +1139,14 @@ const Ctes = () => {
           {/* Campos adicionais solicitados: CFOP, Valor Frete, Tomador, Número da nota origem, toggles */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">CFOP</label>
-            <input value={form.cfop ?? "5353"} onChange={(e) => setField("cfop", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+            <select value={form.cfop ?? "5353"} onChange={(e) => setField("cfop", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm">
+              <option value="">Selecione CFOP...</option>
+              <option value="5353">5353 - Serviço de Transporte de Cargas</option>
+              <option value="5254">5254 - Remessa p/ industrialização</option>
+              <option value="5933">5933 - Operações de transporte</option>
+              <option value="0000">0000 - Outro / Manual</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">Sugestão automática: 5353 para CT-e originados de NF-e (ajuste conforme necessário).</p>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor do Frete (R$)</label>
