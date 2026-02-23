@@ -391,8 +391,22 @@ class CTeService
         try {
             $tpAmb = $this->config['tpAmb'];
 
-            // Consultar na SEFAZ
-            $response = $this->tools->sefazConsulta($chave, $tpAmb);
+            // Consultar na SEFAZ (compat wrapper entre versões da biblioteca)
+            $response = null;
+            if (method_exists($this->tools, 'sefazConsulta')) {
+                // método usado em algumas versões
+                $response = $this->tools->sefazConsulta($chave, $tpAmb);
+            } elseif (method_exists($this->tools, 'sefazConsultaCTe')) {
+                // variação de nome possível
+                $response = $this->tools->sefazConsultaCTe($chave, $tpAmb);
+            } elseif (method_exists($this->tools, 'sefazConsCTe')) {
+                // outra variação possível
+                $response = $this->tools->sefazConsCTe($chave, $tpAmb);
+            } else {
+                // Logar métodos disponíveis para diagnóstico
+                error_log("CTeService::consultar - método de consulta SEFAZ não encontrado em Tools. Métodos disponíveis: " . implode(', ', get_class_methods($this->tools)));
+                throw new Exception("Método de consulta SEFAZ não disponível na biblioteca (verifique versão do nfephp-org/sped-cte).");
+            }
 
             // Padronizar resposta
             $std = new Standardize($response);
