@@ -87,7 +87,6 @@ const Ctes = () => {
   const { items: clients, add: addClient, update: updateClient } = useStore<any>("clients", []);
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
-  const [showBuscarChave, setShowBuscarChave] = useState(false);
   const [buscarChave, setBuscarChave] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [buscarResult, setBuscarResult] = useState<Array<any>>([]);
@@ -388,8 +387,13 @@ const Ctes = () => {
   const handleNfeTipoSelect = (tipo: "xml" | "chave" | "sefaz") => {
     setNfeOrigemTipo(tipo);
     // Para SEFAZ: permanece neste passo para buscar/listar as NF-e do CNPJ.
-    // Para Chave/XML: avança direto para o cadastro do CT-e.
+    // Para Chave: permanece no passo para permitir buscar a chave do CT-e dentro do fluxo.
+    // Para XML: avança direto para o cadastro do CT-e.
     if (tipo === "sefaz") return;
+    if (tipo === "chave") {
+      setShowNfeTipoStep(true);
+      return;
+    }
     setShowNfeTipoStep(false);
   };
 
@@ -565,14 +569,6 @@ const Ctes = () => {
           >
             <Plus className="w-4 h-4" />
             Novo CTe
-          </button>
-          <button
-            onClick={() => setShowBuscarChave(true)}
-            className="flex items-center gap-2 border border-border bg-muted/50 text-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm hover:bg-muted transition-colors"
-            title="Buscar CT-e por chave de acesso"
-          >
-            <Search className="w-4 h-4" />
-            Buscar por Chave CT-e
           </button>
         </div>
       </div>
@@ -823,103 +819,7 @@ const Ctes = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Buscar CT-e por Chave */}
-      <Dialog open={showBuscarChave} onOpenChange={setShowBuscarChave}>
-        <DialogContent className="bg-card border-border max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-sm sm:text-base text-foreground">Buscar CT-e por chave de acesso (44 dígitos)</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-2">
-            <div className="flex gap-2">
-              <input
-                value={buscarChave}
-                onChange={(e) => setBuscarChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
-                placeholder="Informe a chave do CT-e (44 dígitos)"
-                className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              />
-              <button
-                onClick={handleBuscarChaveCTe}
-                disabled={buscando}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {buscando ? "Buscando..." : "Buscar"}
-              </button>
-            </div>
-
-            {/* Resultados */}
-            {buscarResult.length > 0 && (
-              <>
-                <div className="overflow-x-auto border border-border rounded-lg">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold">Produto</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
-                        <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
-                        <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
-                        <th className="text-right px-3 py-2 text-xs font-semibold">Peso ({pesoUnit})</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {buscarResult.map((r, idx) => (
-                        <tr key={idx} className="border-t border-border">
-                          <td className="px-3 py-2 font-mono">{r.numero || "—"}</td>
-                          <td className="px-3 py-2">{r.produto || "—"}</td>
-                          <td className="px-3 py-2 max-w-[160px] truncate">{r.emitenteNome || "—"}</td>
-                          <td className="px-3 py-2 max-w-[160px] truncate">{r.destinatarioNome || "—"}</td>
-                          <td className="px-3 py-2 text-right font-medium">R$ {(Number(r.valor) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                          <td className="px-3 py-2 text-right">{(Number(r.peso) || 0) / (pesoUnit === "t" ? 1000 : 1)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Resumo */}
-                <div className="flex items-center justify-between gap-4 mt-2">
-                  <div className="text-sm text-muted-foreground">
-                    <div>Produtos: <strong>{buscarResult.length}</strong></div>
-                    <div>Predominante: <strong>{resumoBuscar().predominante || "—"}</strong></div>
-                    <div>Valor total: <strong>R$ {resumoBuscar().totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>
-                    <div>Peso total: <strong>{resumoBuscar().pesoDisplay.toLocaleString(undefined, { maximumFractionDigits: 3 })} {pesoUnit}</strong></div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-muted-foreground">Unidade</label>
-                    <select value={pesoUnit} onChange={(e) => setPesoUnit(e.target.value as "kg" | "t")} className="bg-muted/50 border border-border rounded px-2 py-1 text-sm">
-                      <option value="kg">kg</option>
-                      <option value="t">t</option>
-                    </select>
-                    <button
-                      onClick={() => {
-                        // Preenche o formulário do CTe com o primeiro item (ou dados gerais) e abre o diálogo de edição
-                        const primeiro = buscarResult[0] || {};
-                        setForm((p) => ({
-                          ...p,
-                          chaveCTe: buscarChave.replace(/\D/g, ""),
-                          chave: buscarChave.replace(/\D/g, ""),
-                          numero: primeiro.numero || p.numero || "",
-                          numeroNota: primeiro.numero || p.numeroNota || "",
-                          remetenteNome: primeiro.emitenteNome || p.remetenteNome,
-                          destinatarioNome: primeiro.destinatarioNome || p.destinatarioNome,
-                          valorPrestacao: primeiro.valor || p.valorPrestacao || 0,
-                          infCarga: buscarResult,
-                        }));
-                        setShowBuscarChave(false);
-                        setDialogOpen(true);
-                        setShowNfeTipoStep(false);
-                      }}
-                      className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
-                    >
-                      Próximo
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setShowNfeTipoStep(false); }}>
         <DialogContent className="bg-card border-border max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
@@ -954,61 +854,92 @@ const Ctes = () => {
                   );
                 })}
               </div>
-
-              {/* SEFAZ: buscar e listar NF-e do CNPJ (não abre o formulário vazio) */}
-              {nfeOrigemTipo === "sefaz" && (
+              
+              {/* Chave: permitir buscar CT-e diretamente dentro deste fluxo */}
+              {nfeOrigemTipo === "chave" && (
                 <div className="mt-5 space-y-3">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      value={buscarChave}
+                      onChange={(e) => setBuscarChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
+                      placeholder="Informe a chave do CT-e (44 dígitos)"
+                      className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                    />
                     <button
                       type="button"
-                      onClick={handleBuscaNFeSefaz}
-                      disabled={nfeSefazLoading || tenant?.certificadoStatus === "nao_configurado"}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleBuscarChaveCTe}
+                      disabled={buscando}
+                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {nfeSefazLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                      {nfeSefazLoading ? "Buscando..." : "Buscar na SEFAZ"}
+                      {buscando ? "Buscando..." : "Buscar CT-e"}
                     </button>
-                    <span className="text-xs text-muted-foreground">
-                      Ambiente: <strong>{ambienteAtual === "producao" ? "Produção" : "Homologação"}</strong> — NF-e do CNPJ do certificado
-                    </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Se não aparecer nenhuma nota, confira em Configurações se o ambiente (homologação/produção) é o mesmo em que as NF-e foram emitidas e se o certificado é do mesmo CNPJ.
-                  </p>
 
-                  {nfeSefazResult.length > 0 && (
-                    <div className="border border-border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted/50 sticky top-0">
-                          <tr>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Emissão</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
-                            <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
-                            <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
-                            <th className="px-2 py-2"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {nfeSefazResult.map((n) => (
-                            <tr
-                              key={n.chave}
-                              className="border-t border-border hover:bg-muted/30 cursor-pointer"
-                              onClick={() => handleSelectNFeSefaz(n)}
-                            >
-                              <td className="px-3 py-2 font-mono">{n.nfe}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{n.dhEmi ? new Date(n.dhEmi).toLocaleDateString("pt-BR") : "—"}</td>
-                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeEmit}>{n.xNomeEmit || "—"}</td>
-                              <td className="px-3 py-2 max-w-[120px] truncate" title={n.xNomeDest}>{n.xNomeDest || "—"}</td>
-                              <td className="px-3 py-2 text-right font-medium">R$ {n.vNF?.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) ?? "0,00"}</td>
-                              <td className="px-2 py-2">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); handleSelectNFeSefaz(n); }} className="text-primary text-xs font-medium">Usar</button>
-                              </td>
+                  {buscarResult.length > 0 && (
+                    <>
+                      <div className="overflow-x-auto border border-border rounded-lg">
+                        <table className="w-full text-sm">
+                          <thead className="bg-muted/50">
+                            <tr>
+                              <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
+                              <th className="text-left px-3 py-2 text-xs font-semibold">Produto</th>
+                              <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
+                              <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
+                              <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
+                              <th className="text-right px-3 py-2 text-xs font-semibold">Peso ({pesoUnit})</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                          </thead>
+                          <tbody>
+                            {buscarResult.map((r, idx) => (
+                              <tr key={idx} className="border-t border-border">
+                                <td className="px-3 py-2 font-mono">{r.numero || "—"}</td>
+                                <td className="px-3 py-2">{r.produto || "—"}</td>
+                                <td className="px-3 py-2 max-w-[160px] truncate">{r.emitenteNome || "—"}</td>
+                                <td className="px-3 py-2 max-w-[160px] truncate">{r.destinatarioNome || "—"}</td>
+                                <td className="px-3 py-2 text-right font-medium">R$ {(Number(r.valor) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                                <td className="px-3 py-2 text-right">{(Number(r.peso) || 0) / (pesoUnit === "t" ? 1000 : 1)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4 mt-2">
+                        <div className="text-sm text-muted-foreground">
+                          <div>Produtos: <strong>{buscarResult.length}</strong></div>
+                          <div>Predominante: <strong>{resumoBuscar().predominante || "—"}</strong></div>
+                          <div>Valor total: <strong>R$ {resumoBuscar().totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>
+                          <div>Peso total: <strong>{resumoBuscar().pesoDisplay.toLocaleString(undefined, { maximumFractionDigits: 3 })} {pesoUnit}</strong></div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-muted-foreground">Unidade</label>
+                          <select value={pesoUnit} onChange={(e) => setPesoUnit(e.target.value as "kg" | "t")} className="bg-muted/50 border border-border rounded px-2 py-1 text-sm">
+                            <option value="kg">kg</option>
+                            <option value="t">t</option>
+                          </select>
+                          <button
+                            onClick={() => {
+                              const primeiro = buscarResult[0] || {};
+                              setForm((p) => ({
+                                ...p,
+                                chaveCTe: buscarChave.replace(/\D/g, ""),
+                                chave: buscarChave.replace(/\D/g, ""),
+                                numero: primeiro.numero || p.numero || "",
+                                numeroNota: primeiro.numero || p.numeroNota || "",
+                                remetenteNome: primeiro.emitenteNome || p.remetenteNome,
+                                destinatarioNome: primeiro.destinatarioNome || p.destinatarioNome,
+                                valorPrestacao: primeiro.valor || p.valorPrestacao || 0,
+                                infCarga: buscarResult,
+                              }));
+                              setShowNfeTipoStep(false);
+                            }}
+                            className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+                          >
+                            Usar e continuar
+                          </button>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
