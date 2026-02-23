@@ -375,12 +375,26 @@ $app->post('/nfe/consultar', function (Request $request, Response $response): Re
         }
         $ambiente = $body['ambiente'] ?? 'homologacao';
         $buscaService = new NFeBuscaSefazService($tempCertPath, $certPassword, $empresaDados, $ambiente);
+        // 1) tentar buscar via Distribuição DFe (varredura)
         $item = $buscaService->buscarPorChave($chave, 50);
-        @unlink($tempCertPath);
-        if (!$item) {
-            return jsonResponse($response, ['error' => 'NF-e não encontrada na Distribuição DFe para o CNPJ/empresa informada'], 404);
+        if ($item) {
+            @unlink($tempCertPath);
+            return jsonResponse($response, ['nfe' => $item]);
         }
-        return jsonResponse($response, ['nfe' => $item]);
+
+        // 2) fallback: tentar consulta direta por chave (sefazConsulta)
+        try {
+            $consult = $buscaService->consultarPorChave($chave);
+            @unlink($tempCertPath);
+            if (!empty($consult['parsed'])) {
+                return jsonResponse(['nfe' => $consult['parsed']]);
+            }
+            // retornar raw se não houver parsed
+            return jsonResponse(['raw' => $consult['raw']]);
+        } catch (\Exception $e) {
+            @unlink($tempCertPath);
+            return jsonResponse($response, ['error' => 'NF-e não encontrada na Distribuição DFe para o CNPJ/empresa informada e consulta direta falhou: ' . $e->getMessage()], 404);
+        }
     } catch (\Exception $e) {
         return jsonResponse($response, [
             'error' => $e->getMessage(),

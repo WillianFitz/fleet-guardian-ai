@@ -104,6 +104,61 @@ class NFeBuscaSefazService
     }
 
     /**
+     * Consulta diretamente a SEFAZ pela chave da NF-e (consulta por chave).
+     * Tenta múltiplos nomes de método que podem existir na versão da biblioteca.
+     * Retorna array com 'raw' => resposta bruta (XML/soap) e, se possível, 'parsed' => resultado do parseResNFe().
+     *
+     * @param string $chave
+     * @return array
+     */
+    public function consultarPorChave(string $chave): array
+    {
+        $response = null;
+        $possible = ['sefazConsulta', 'sefazConsultaNFe', 'sefazConsNFe', 'sefazConsultaChave', 'sefazConsultaNfe'];
+        foreach ($possible as $m) {
+            if (method_exists($this->tools, $m)) {
+                try {
+                    $response = $this->tools->{$m}($chave);
+                    break;
+                } catch (\Throwable $e) {
+                    // tentar próximo método
+                }
+            }
+        }
+
+        if ($response === null) {
+            throw new \Exception("Consulta por chave não suportada pela biblioteca nfephp utilizada.");
+        }
+
+        // Tentar extrair/parsear uma NF-e dentro da resposta (pode vir como envelope SOAP ou docZip)
+        $parsed = null;
+        try {
+            // Se a resposta contém docZip base64, tentamos usar parseResponse para extrair resNFe
+            $tmp = $this->parseResponse((string)$response);
+            if (!empty($tmp['nfe'])) {
+                // selecionar possível item com chave
+                foreach ($tmp['nfe'] as $item) {
+                    if (!empty($item['chave']) && $item['chave'] === $chave) {
+                        $parsed = $item;
+                        break;
+                    }
+                }
+                if ($parsed === null) {
+                    $parsed = $tmp['nfe'][0];
+                }
+            } else {
+                // fallback: tentar parseResNFe diretamente se a resposta contiver um XML resNFe/infNFe
+                $maybe = $this->parseResNFe((string)$response);
+                if ($maybe) $parsed = $maybe;
+            }
+        } catch (\Throwable $e) {
+            // ignora parse errors
+        }
+
+        return ['raw' => (string)$response, 'parsed' => $parsed];
+    }
+
+    /**
      * Busca uma NF-e específica pela chave (chNFe) na Distribuição DFe.
      * Retorna o item (mesma estrutura de parseResNFe) ou null se não encontrada.
      * @param string $chaveNF
