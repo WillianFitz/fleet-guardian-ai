@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "@/hooks/use-toast";
-import { cteApi } from "@/lib/api";
+import { cteApi, api } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 
 export default function BuscarChaveCTe() {
@@ -254,6 +254,26 @@ export default function BuscarChaveCTe() {
                         emitirRetroativo: false,
                         textoNota: `Referente à NF-e ${nnum || ""} - CHAVE ${ch || ""}`,
                       };
+                      // map origem/destino fields
+                      payload.municipioOrigem = remetenteMunicipio || null;
+                      payload.ufOrigem = remetenteUf || null;
+                      payload.municipioDestino = destinatarioMunicipio || null;
+                      payload.ufDestino = destinatarioUf || null;
+                      // try to match vehicle from server-side vehicles list
+                      try {
+                        const vehicles = await api.list("vehicles");
+                        const normalize = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                        if (payload.veiculoPlaca) {
+                          const placaNorm = normalize(payload.veiculoPlaca);
+                          const match = (vehicles || []).find((v: any) => normalize(v.placa) === placaNorm);
+                          if (match) {
+                            payload.veiculoId = match.id;
+                            payload.veiculoModelo = match.modelo || null;
+                          }
+                        }
+                      } catch {
+                        // ignore vehicle matching failures
+                      }
                       // sanitize payload: keep only columns supported by D1 schema (camelCase keys)
                       const allowed = new Set([
                         "chave","numero","serie","veiculoPlaca","veiculoModelo","dataEmissao","dataInicioViagem",

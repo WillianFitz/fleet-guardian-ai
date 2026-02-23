@@ -1065,7 +1065,22 @@ const Ctes = () => {
                             hasRecebedor: 0,
                             emitirRetroativo: 0,
                             textoNota: `Referente à NF-e ${nnum || ""} - CHAVE ${ch || ""}`,
+                            // map origem/destino
+                            municipioOrigem: remetenteMunicipio || null,
+                            ufOrigem: remetenteUf || null,
+                            municipioDestino: destinatarioMunicipio || null,
+                            ufDestino: destinatarioUf || null,
                           };
+                          // try to match vehicle by plate (frontend vehicles store)
+                          if (payload.veiculoPlaca) {
+                            const normalizePlaca = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                            const placaNorm = normalizePlaca(payload.veiculoPlaca);
+                            const match = vehicles.find((v) => normalizePlaca(v.placa) === placaNorm);
+                            if (match) {
+                              payload.veiculoId = match.id;
+                              payload.veiculoModelo = match.modelo || null;
+                            }
+                          }
 
       // Tentar criar rascunho no servidor (mesmo comportamento que busca por chave)
       try {
