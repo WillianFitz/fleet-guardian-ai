@@ -746,7 +746,30 @@ export default {
             return jsonResponse({ error: phpData.error || "Erro ao consultar NF-e" }, phpResponse.status);
           }
 
-          const nfe = phpData.nfe;
+          let nfe = phpData.nfe;
+          // Fallback: se PHP retornou raw XML (SOAP), tentar extrair informações úteis
+          if (!nfe && phpData.raw) {
+            const xml = String(phpData.raw);
+            const extractTag = (tag: string) => {
+              const re = new RegExp(`<(?:(?:[^>]*:)?${tag})(?:[^>]*)>([\\s\\S]*?)<\\/(?:[^>]*:)?${tag}>`, "i");
+              const m = xml.match(re);
+              return m ? m[1].trim() : "";
+            };
+            const ch = extractTag("chNFe") || "";
+            const nnum = extractTag("nNF") || (ch ? ch.substr(25, 9) : "");
+            const xNomeMatches = Array.from(xml.matchAll(/<(?:[^>]*:)?xNome[^>]*>([\s\S]*?)<\/(?:[^>]*:)?xNome>/gi)).map((m) => (m[1] || "").trim());
+            const xNomeEmit = xNomeMatches[0] || extractTag("xNomeEmit") || "";
+            const xNomeDest = xNomeMatches[1] || extractTag("xNomeDest") || "";
+            const vNFVal = extractTag("vNF") || extractTag("vProd") || "0";
+            const vNF = Number(vNFVal.replace(",", ".").replace(/[^0-9.\-]/g, "")) || 0;
+            nfe = {
+              chave: ch,
+              nfe: nnum,
+              xNomeEmit,
+              xNomeDest,
+              vNF,
+            };
+          }
           if (!nfe) return errorResponse("NF-e não encontrada ou resposta inválida", 404);
 
           // Montar payload mínimo para rascunho de CTe baseado na NF-e
