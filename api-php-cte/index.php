@@ -387,10 +387,10 @@ $app->post('/nfe/consultar', function (Request $request, Response $response): Re
             $consult = $buscaService->consultarPorChave($chave);
             @unlink($tempCertPath);
             if (!empty($consult['parsed'])) {
-                return jsonResponse(['nfe' => $consult['parsed']]);
+                return jsonResponse($response, ['nfe' => $consult['parsed']]);
             }
             // retornar raw se não houver parsed
-            return jsonResponse(['raw' => $consult['raw']]);
+            return jsonResponse($response, ['raw' => $consult['raw']]);
         } catch (\Exception $e) {
             @unlink($tempCertPath);
             return jsonResponse($response, ['error' => 'NF-e não encontrada na Distribuição DFe para o CNPJ/empresa informada e consulta direta falhou: ' . $e->getMessage()], 404);
