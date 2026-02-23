@@ -914,6 +914,11 @@ export default {
             destinatarioMunicipio: nfe.destinatarioMunicipio || destinatarioMunicipio || null,
             destinatarioUf: nfe.destinatarioUf || destinatarioUf || null,
             veiculoPlaca: nfe.placa || nfe.veiculoPlaca || null,
+            // origem/destino (município/UF) - prefer explicit extracted values
+            municipioOrigem: nfe.remetenteMunicipio || remetenteMunicipio || null,
+            ufOrigem: nfe.remetenteUf || remetenteUf || null,
+            municipioDestino: nfe.destinatarioMunicipio || destinatarioMunicipio || null,
+            ufDestino: nfe.destinatarioUf || destinatarioUf || null,
             // preencher valor_prestacao/valor_total para consistência com frontend e schema
             valor_prestacao: nfe.vNF || 0,
             valor_total: nfe.vNF || 0,
