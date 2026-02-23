@@ -89,10 +89,7 @@ const Ctes = () => {
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
   const navigate = useNavigate();
   const location = useLocation();
-  const [buscarChave, setBuscarChave] = useState("");
-  const [buscando, setBuscando] = useState(false);
-  const [buscarResult, setBuscarResult] = useState<Array<any>>([]);
-  const [pesoUnit, setPesoUnit] = useState<"kg" | "t">("kg");
+  // inline busca por chave foi movida para página dedicada (/ctes/buscar-chave)
   const [editClientOpen, setEditClientOpen] = useState(false);
   const [editClientType, setEditClientType] = useState<"remetente" | "destinatario" | null>(null);
   const [editClientForm, setEditClientForm] = useState({
@@ -281,69 +278,9 @@ const Ctes = () => {
     }
   }
 
-  const handleBuscarChaveCTe = async () => {
-    const digits = buscarChave.replace(/\D/g, "");
-    if (digits.length !== 44) {
-      toast({ title: "Chave inválida", description: "Informe 44 dígitos da chave do CT-e.", variant: "destructive" });
-      return;
-    }
-    setBuscando(true);
-    setBuscarResult([]);
-    try {
-      const res = await cteApi.consultar(digits, ambienteAtual);
-      if (res.error) throw new Error(res.error);
-      // If backend returned parsed doc (nfe), fill preview from parsed data first
-      const backendNfe = res.nfe || res.parsed || res.data?.nfe || null;
-      if (backendNfe) {
-        // try to build items from backend parsed structure
-        const items = [];
-        if (backendNfe.items && backendNfe.items.length) {
-          backendNfe.items.forEach((it: any) => items.push(it));
-        } else {
-          items.push({
-            numero: backendNfe.nfe || "",
-            produto: backendNfe.produto || "",
-            valor: backendNfe.vNF || backendNfe.valor || 0,
-            peso: backendNfe.peso || 0,
-            emitenteNome: backendNfe.xNomeEmit || backendNfe.emitenteNome || "",
-            destinatarioNome: backendNfe.xNomeDest || backendNfe.destinatarioNome || "",
-            chave: backendNfe.chave || digits
-          });
-        }
-        setBuscarResult(items);
-      } else {
-        const xml = res.xml || res.raw || "";
-        const parsed = parseCteXml(xml, digits);
-        setBuscarResult(parsed.items || []);
-      }
-      if ((parsed.items || []).length === 0) {
-        toast({ title: "Nenhuma carga encontrada no XML", description: "O CT-e foi consultado mas não foram encontrados detalhes de carga no XML.", variant: "warning" });
-      } else {
-        toast({ title: "CT-e encontrado", description: `Encontradas ${parsed.items.length} entradas.` });
-      }
-      // show toast when rascunho is created/used
-      if (backendNfe) {
-        toast({ title: "Dados obtidos", description: "Importados dados da NF-e via SEFAZ.", variant: "success" });
-      }
-    } catch (e: any) {
-      toast({ title: "Erro ao consultar CT-e", description: e?.message || "Erro desconhecido", variant: "destructive" });
-    } finally {
-      setBuscando(false);
-    }
-  };
+  // Busca por chave removida do modal — usa página dedicada.
 
-  const resumoBuscar = () => {
-    const totalValor = buscarResult.reduce((s, it) => s + (Number(it.valor) || 0), 0);
-    const totalPesoKg = buscarResult.reduce((s, it) => s + (Number(it.peso) || 0), 0);
-    let pesoDisplay = totalPesoKg;
-    if (pesoUnit === "t") pesoDisplay = totalPesoKg / 1000;
-    const produtoPredominante = buscarResult
-      .map((r) => r.produto || "")
-      .filter(Boolean)
-      .reduce((acc: Record<string, number>, p: string) => { acc[p] = (acc[p] || 0) + 1; return acc; }, {});
-    const predominante = Object.keys(produtoPredominante).sort((a, b) => (produtoPredominante[b] - produtoPredominante[a]))[0] || "";
-    return { totalValor, totalPesoKg, pesoDisplay, predominante };
-  };
+  // resumoBuscar removido — função relacionada à busca inline eliminada
 
   const openClientEditor = (type: "remetente" | "destinatario") => {
     setEditClientType(type);
@@ -939,94 +876,7 @@ const Ctes = () => {
                 })}
               </div>
               
-              {/* Chave: permitir buscar CT-e diretamente dentro deste fluxo */}
-              {nfeOrigemTipo === "chave" && (
-                <div className="mt-5 space-y-3">
-                  <div className="flex gap-2 items-center">
-                    <input
-                      value={buscarChave}
-                      onChange={(e) => setBuscarChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
-                      placeholder="Informe a chave da NF-e (44 dígitos)"
-                      className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 transition"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleBuscarChaveCTe}
-                      disabled={buscando}
-                      className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {buscando ? "Buscando..." : "Buscar"}
-                    </button>
-                  </div>
-
-                  {buscarResult.length > 0 && (
-                    <>
-                      <div className="overflow-x-auto border border-border rounded-lg">
-                        <table className="w-full text-sm">
-                          <thead className="bg-muted/50">
-                            <tr>
-                              <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
-                              <th className="text-left px-3 py-2 text-xs font-semibold">Produto</th>
-                              <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
-                              <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
-                              <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
-                              <th className="text-right px-3 py-2 text-xs font-semibold">Peso ({pesoUnit})</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {buscarResult.map((r, idx) => (
-                              <tr key={idx} className="border-t border-border">
-                                <td className="px-3 py-2 font-mono">{r.numero || "—"}</td>
-                                <td className="px-3 py-2">{r.produto || "—"}</td>
-                                <td className="px-3 py-2 max-w-[160px] truncate">{r.emitenteNome || "—"}</td>
-                                <td className="px-3 py-2 max-w-[160px] truncate">{r.destinatarioNome || "—"}</td>
-                                <td className="px-3 py-2 text-right font-medium">R$ {(Number(r.valor) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
-                                <td className="px-3 py-2 text-right">{(Number(r.peso) || 0) / (pesoUnit === "t" ? 1000 : 1)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-4 mt-2">
-                        <div className="text-sm text-muted-foreground">
-                          <div>Produtos: <strong>{buscarResult.length}</strong></div>
-                          <div>Predominante: <strong>{resumoBuscar().predominante || "—"}</strong></div>
-                          <div>Valor total: <strong>R$ {resumoBuscar().totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>
-                          <div>Peso total: <strong>{resumoBuscar().pesoDisplay.toLocaleString(undefined, { maximumFractionDigits: 3 })} {pesoUnit}</strong></div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs text-muted-foreground">Unidade</label>
-                          <select value={pesoUnit} onChange={(e) => setPesoUnit(e.target.value as "kg" | "t")} className="bg-muted/50 border border-border rounded px-2 py-1 text-sm">
-                            <option value="kg">kg</option>
-                            <option value="t">t</option>
-                          </select>
-                          <button
-                            onClick={() => {
-                              const primeiro = buscarResult[0] || {};
-                              setForm((p) => ({
-                                ...p,
-                                chaveCTe: buscarChave.replace(/\D/g, ""),
-                                chave: buscarChave.replace(/\D/g, ""),
-                                numero: primeiro.numero || p.numero || "",
-                                numeroNota: primeiro.numero || p.numeroNota || "",
-                                remetenteNome: primeiro.emitenteNome || p.remetenteNome,
-                                destinatarioNome: primeiro.destinatarioNome || p.destinatarioNome,
-                                valorPrestacao: primeiro.valor || p.valorPrestacao || 0,
-                                infCarga: buscarResult,
-                              }));
-                              setShowNfeTipoStep(false);
-                            }}
-                            className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
-                          >
-                            Usar e continuar
-                          </button>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
+              {/* Ao selecionar "Chave de acesso" a navegação ocorre para a página dedicada de busca. */}
             </div>
           )}
 
@@ -1037,17 +887,7 @@ const Ctes = () => {
           {form.fluxoOrigem === "nfe" && (
             <div className="mt-2 mb-4 p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-4">
               <p className="text-sm font-semibold text-foreground">NF-e: {nfeOrigemTipo === "chave" ? "Chave de acesso" : nfeOrigemTipo === "xml" ? "Arquivo XML" : "Busca na SEFAZ"}</p>
-              {nfeOrigemTipo === "chave" && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Chave de acesso da NFe (44 dígitos)</label>
-                  <input
-                    value={form.chaveNFe ?? ""}
-                    onChange={(e) => setField("chaveNFe", e.target.value.replace(/\D/g, "").slice(0, 44))}
-                    placeholder="Ex: 43240264728343000150550010000085618157717122"
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                </div>
-              )}
+              {/* A entrada direta da chave foi removida do modal; use a página dedicada se necessário. */}
               {nfeOrigemTipo === "xml" && (
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Arquivo XML da NF-e</label>
