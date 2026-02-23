@@ -1294,8 +1294,13 @@ export default {
       }
     } catch (err: any) {
       console.error("API Error:", err);
-      // ALWAYS return CORS headers even on crash
-      return errorResponse(err.message || "Internal server error", 500);
+      // ALWAYS return CORS headers even on crash. Include stack/details for debugging.
+      const message = err?.message || String(err) || "Internal server error";
+      const details = err?.stack || err;
+      return new Response(JSON.stringify({ error: message, details }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
   },
 };
