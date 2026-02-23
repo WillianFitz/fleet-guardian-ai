@@ -1079,6 +1079,13 @@ const Ctes = () => {
                             if (match) {
                               payload.veiculoId = match.id;
                               payload.veiculoModelo = match.modelo || null;
+                              toast({ title: "Veículo encontrado", description: `Placa ${match.placa} selecionada automaticamente.` });
+                            } else {
+                              toast({
+                                title: "Veículo não encontrado",
+                                description: `Placa ${payload.veiculoPlaca} não corresponde a nenhum veículo cadastrado (${vehicles.length} veículos).`,
+                                variant: "warning",
+                              });
                             }
                           }
 
