@@ -339,6 +339,56 @@ $app->post('/nfe-busca-sefaz', function (Request $request, Response $response): 
     }
 });
 
+/**
+ * POST /nfe/consultar
+ * Consulta uma NF-e específica pela chave (chNFe) usando Distribuição DFe.
+ * Body: { chave: string, certificado: { pfxBase64, password }, empresa: { cnpj, razaoSocial, siglaUF }, ambiente }
+ */
+$app->post('/nfe/consultar', function (Request $request, Response $response): Response {
+    $body = json_decode($request->getBody()->getContents(), true);
+    if (!$body || empty($body['chave'])) {
+        return jsonResponse($response, ['error' => 'Body JSON inválido ou chave não informada'], 400);
+    }
+    $chave = $body['chave'];
+    $certPfxBase64 = $body['certificado']['pfxBase64'] ?? getenv('CERT_PFX_BASE64');
+    $certPassword = $body['certificado']['password'] ?? getenv('CERT_PASSWORD');
+    if (!$certPfxBase64 || !$certPassword) {
+        return jsonResponse($response, [
+            'error' => 'Certificado digital não configurado. Faça upload nas configurações da empresa.'
+        ], 400);
+    }
+
+    try {
+        $certPfx = base64_decode($certPfxBase64);
+        $tempCertPath = sys_get_temp_dir() . '/cert_nfe_cons_' . uniqid() . '.pfx';
+        file_put_contents($tempCertPath, $certPfx);
+        $empresaDados = [
+            'cnpj' => $body['empresa']['cnpj'] ?? getenv('CTE_CNPJ') ?? '',
+            'razaoSocial' => $body['empresa']['razaoSocial'] ?? getenv('CTE_RAZAO_SOCIAL') ?? '',
+            'siglaUF' => $body['empresa']['siglaUF'] ?? getenv('CTE_UF') ?? 'SP'
+        ];
+        if (empty($empresaDados['cnpj']) || empty($empresaDados['razaoSocial'])) {
+            @unlink($tempCertPath);
+            return jsonResponse($response, [
+                'error' => 'Dados da empresa não informados. Cadastre CNPJ e Nome nas Configurações.'
+            ], 400);
+        }
+        $ambiente = $body['ambiente'] ?? 'homologacao';
+        $buscaService = new NFeBuscaSefazService($tempCertPath, $certPassword, $empresaDados, $ambiente);
+        $item = $buscaService->buscarPorChave($chave, 50);
+        @unlink($tempCertPath);
+        if (!$item) {
+            return jsonResponse($response, ['error' => 'NF-e não encontrada na Distribuição DFe para o CNPJ/empresa informada'], 404);
+        }
+        return jsonResponse($response, ['nfe' => $item]);
+    } catch (\Exception $e) {
+        return jsonResponse($response, [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ], 500);
+    }
+});
+
 // Health check
 $app->get('/health', function (Request $request, Response $response): Response {
     return jsonResponse($response, ['status' => 'ok', 'timestamp' => date('c')]);

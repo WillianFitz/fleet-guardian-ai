@@ -700,6 +700,91 @@ export default {
         }
       }
 
+      // POST /api/ctes/from-nfe - cria um rascunho de CTe baseado em uma NF-e (chave)
+      if (path === "/api/ctes/from-nfe" && request.method === "POST") {
+        if (!env.CTE_API_URL) {
+          return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
+        }
+        try {
+          const body = await request.json();
+          const chave = body?.chave;
+          const ambiente = body?.ambiente || "homologacao";
+          if (!chave) return errorResponse("Parâmetro 'chave' (chave NF-e) é obrigatório", 400);
+
+          const { tenantId } = await getTenantForRequest(request, env);
+          const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, cnpj, nome, uf FROM tenants WHERE id = ?")
+            .bind(tenantId)
+            .first<{ certificado_pfx_base64?: string; certificado_password?: string; cnpj?: string; nome?: string; uf?: string }>();
+
+          if (!tenant?.cnpj || !tenant?.nome) {
+            return errorResponse("Dados da empresa incompletos. Cadastre CNPJ e Nome nas Configurações.", 400);
+          }
+          if (!tenant?.certificado_pfx_base64 || !tenant?.certificado_password) {
+            return errorResponse("Certificado digital não configurado. Faça upload nas Configurações.", 400);
+          }
+
+          const phpBody = {
+            certificado: { pfxBase64: tenant.certificado_pfx_base64, password: tenant.certificado_password },
+            empresa: { cnpj: tenant.cnpj, razaoSocial: tenant.nome, siglaUF: tenant.uf || "SP" },
+            chave,
+            ambiente
+          };
+
+          const phpResponse = await fetch(`${env.CTE_API_URL}/nfe/consultar`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(phpBody),
+          });
+          const phpText = await phpResponse.text();
+          let phpData: any;
+          try {
+            phpData = phpText ? JSON.parse(phpText) : {};
+          } catch {
+            return errorResponse(`Resposta inválida da API CTe (não-JSON). HTTP ${phpResponse.status}`, 502);
+          }
+          if (!phpResponse.ok) {
+            return jsonResponse({ error: phpData.error || "Erro ao consultar NF-e" }, phpResponse.status);
+          }
+
+          const nfe = phpData.nfe;
+          if (!nfe) return errorResponse("NF-e não encontrada ou resposta inválida", 404);
+
+          // Montar payload mínimo para rascunho de CTe baseado na NF-e
+          const ctePayload: Record<string, any> = {
+            // Campos básicos e mapeamento entre NF-e e CTe
+            numero_nota: nfe.nfe || "",
+            chave_origem: nfe.chave || "",
+            remetente_nome: nfe.xNomeEmit || "",
+            destinatario_nome: nfe.xNomeDest || "",
+            valor_total: nfe.vNF || 0,
+            inf_carga: [
+              {
+                numero: nfe.nfe || "",
+                produto: "Mercadoria",
+                valor: nfe.vNF || 0,
+                peso: 0,
+                chave: nfe.chave || ""
+              }
+            ],
+            informacoes_adicionais: [],
+            tomador: "",
+            cfop: "",
+            valor_frete: 0,
+            has_expedidor: 0,
+            has_recebedor: 0,
+            emitir_retroativo: 0,
+            texto_nota: `Referente à NF-e ${nfe.nfe || ''} - CHAVE ${nfe.chave || ''}`,
+            status: "rascunho"
+          };
+
+          // Usar handleCreate para persistir na tabela ctes (aplica conversões e overrides)
+          const config = RESOURCE_MAP["ctes"];
+          return await handleCreate(env.DB, config.table, ctePayload, tenantId, config.fieldOverrides);
+        } catch (e: any) {
+          return errorResponse(`Erro ao criar rascunho CTe a partir da NF-e: ${e.message}`, 500);
+        }
+      }
+
       // POST /api/nfe/busca-sefaz — Busca NF-e na SEFAZ (Distribuição DFe)
       if (path === "/api/nfe/busca-sefaz" && request.method === "POST") {
         if (!env.CTE_API_URL) {

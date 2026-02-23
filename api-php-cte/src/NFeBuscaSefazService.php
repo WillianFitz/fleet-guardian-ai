@@ -97,6 +97,41 @@ class NFeBuscaSefazService
         ];
     }
 
+    /**
+     * Busca uma NF-e específica pela chave (chNFe) na Distribuição DFe.
+     * Retorna o item (mesma estrutura de parseResNFe) ou null se não encontrada.
+     * @param string $chaveNF
+     * @param int $maxIter
+     * @return array|null
+     */
+    public function buscarPorChave(string $chaveNF, int $maxIter = 50): ?array
+    {
+        $ultNSU = 0;
+        $absoluteMax = 200;
+        $maxIter = max(1, min((int)$maxIter, $absoluteMax));
+        $iter = 0;
+
+        do {
+            $response = $this->tools->sefazDistDFe($ultNSU, 0, null, 'AN');
+            $parsed = $this->parseResponse($response);
+            // Checar itens retornados
+            foreach ($parsed['nfe'] ?? [] as $item) {
+                if (!empty($item['chave']) && $item['chave'] === $chaveNF) {
+                    return $item;
+                }
+            }
+            $ultNSU = (int)($parsed['ultNSU'] ?? $ultNSU);
+            if (!empty($parsed['maxNSU'])) {
+                $maxNSU = (int)$parsed['maxNSU'];
+                if ($ultNSU >= $maxNSU) break;
+            }
+            usleep(200000);
+            $iter++;
+        } while ($iter < $maxIter);
+
+        return null;
+    }
+
     private function parseResponse(string $xml): array
     {
         $result = ['nfe' => [], 'ultNSU' => 0, 'maxNSU' => 0, 'cStat' => '', 'xMotivo' => ''];
