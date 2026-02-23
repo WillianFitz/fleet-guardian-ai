@@ -747,6 +747,19 @@ export default {
           }
 
           let nfe = phpData.nfe;
+          // prepare address/aux vars with safe defaults
+          let remetenteCep = "";
+          let remetenteLogradouro = "";
+          let remetenteNumero = "";
+          let remetenteBairro = "";
+          let remetenteMunicipio = "";
+          let remetenteUf = "";
+          let destinatarioCep = "";
+          let destinatarioLogradouro = "";
+          let destinatarioNumero = "";
+          let destinatarioBairro = "";
+          let destinatarioMunicipio = "";
+          let destinatarioUf = "";
           // If PHP returned node-mde structure: phpData.data.docZip or phpData.docZip
           const docZipArr = (phpData.data && phpData.data.docZip) || phpData.docZip || phpData.data?.docZip;
           if (!nfe && Array.isArray(docZipArr) && docZipArr.length > 0) {
@@ -817,19 +830,60 @@ export default {
               const m = xml.match(re);
               return m ? m[1].trim() : "";
             };
+            const extractFromParent = (parent: string, tag: string) => {
+              const re = new RegExp(`<${parent}[^>]*>[\\s\\S]*?<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>[\\s\\S]*?<\\/${parent}>`, "i");
+              const m = String(xml).match(re);
+              return m ? m[1].trim() : "";
+            };
             const ch = extractTag("chNFe") || "";
             const nnum = extractTag("nNF") || (ch ? ch.substr(25, 9) : "");
             const xNomeMatches = Array.from(xml.matchAll(/<(?:[^>]*:)?xNome[^>]*>([\s\S]*?)<\/(?:[^>]*:)?xNome>/gi)).map((m) => (m[1] || "").trim());
             const xNomeEmit = xNomeMatches[0] || extractTag("xNomeEmit") || "";
             const xNomeDest = xNomeMatches[1] || extractTag("xNomeDest") || "";
             const vNFVal = extractTag("vNF") || extractTag("vProd") || "0";
-            const vNF = Number(vNFVal.replace(",", ".").replace(/[^0-9.\-]/g, "")) || 0;
+            const vNF = Number(String(vNFVal).replace(",", ".").replace(/[^0-9.\-]/g, "")) || 0;
+            const dhEmi = extractTag("dhEmi") || extractTag("dEmi") || "";
+            const placa = extractTag("placa") || "";
+            const emitCnpj = extractTag("CNPJ") || extractTag("CPF") || "";
+            const destMatch = xml.match(/<dest[^\>]*>[\s\S]*?<(?:[^>]*:)?CNPJ[^>]*>([\s\S]*?)<\/(?:[^>]*:)?CNPJ>/i);
+            const destCnpj = destMatch ? destMatch[1].trim() : extractTag("CNPJ") || "";
+
+            // addresses
+            remetenteCep = extractFromParent("enderEmit", "CEP") || extractTag("CEP") || "";
+            remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || extractTag("xLgr") || "";
+            remetenteNumero = extractFromParent("enderEmit", "nro") || extractTag("nro") || "";
+            remetenteBairro = extractFromParent("enderEmit", "xBairro") || extractTag("xBairro") || "";
+            remetenteMunicipio = extractFromParent("enderEmit", "xMun") || extractTag("xMun") || "";
+            remetenteUf = extractFromParent("enderEmit", "UF") || extractTag("UF") || "";
+            destinatarioCep = extractFromParent("enderDest", "CEP") || "";
+            destinatarioLogradouro = extractFromParent("enderDest", "xLgr") || "";
+            destinatarioNumero = extractFromParent("enderDest", "nro") || "";
+            destinatarioBairro = extractFromParent("enderDest", "xBairro") || "";
+            destinatarioMunicipio = extractFromParent("enderDest", "xMun") || "";
+            destinatarioUf = extractFromParent("enderDest", "UF") || "";
+
             nfe = {
               chave: ch,
               nfe: nnum,
               xNomeEmit,
               xNomeDest,
               vNF,
+              dhEmi,
+              placa,
+              emitCnpj,
+              destCnpj,
+              remetenteCep,
+              remetenteLogradouro,
+              remetenteNumero,
+              remetenteBairro,
+              remetenteMunicipio,
+              remetenteUf,
+              destinatarioCep,
+              destinatarioLogradouro,
+              destinatarioNumero,
+              destinatarioBairro,
+              destinatarioMunicipio,
+              destinatarioUf
             };
           }
           if (!nfe) return errorResponse("NF-e não encontrada ou resposta inválida", 404);
