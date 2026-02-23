@@ -611,7 +611,7 @@ export default {
         }
       }
 
-      if (path === "/api/cte/consultar" && (request.method === "GET" || request.method === "POST")) {
+      if (path.startsWith("/api/cte/consultar") && (request.method === "GET" || request.method === "POST")) {
         if (!env.CTE_API_URL) {
           return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
         }
