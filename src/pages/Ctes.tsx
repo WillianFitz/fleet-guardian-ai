@@ -121,6 +121,96 @@ const Ctes = () => {
   const [selectedXmlFile, setSelectedXmlFile] = useState<File | null>(null);
   const [importingXml, setImportingXml] = useState(false);
 
+  // importa um XML (usado pelo passo inicial e pelo bloco do form)
+  const importXmlFile = async (file: File | null) => {
+    if (!file) {
+      toast({ title: "Nenhum arquivo", description: "Selecione um arquivo XML antes de importar.", variant: "destructive" });
+      return;
+    }
+    setImportingXml(true);
+    try {
+      const txt = await file.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(txt, "application/xml");
+      const extract = (tag: string) => doc.querySelector(tag)?.textContent?.trim() || "";
+      const extractFromParent = (parent: string, tag: string) => doc.querySelector(`${parent} ${tag}`)?.textContent?.trim() || "";
+      const ch = extract("chNFe") || extractFromParent("infNFe", "Id") || "";
+      const nnum = extract("nNF") || (ch ? ch.substr(25, 9) : "");
+      const xNomeEmit = extractFromParent("emit", "xNome") || extract("xNomeEmit") || "";
+      const xNomeDest = extractFromParent("dest", "xNome") || extract("xNomeDest") || "";
+      const vNFVal = extract("vNF") || extractFromParent("total", "vNF") || "0";
+      const vNF = Number(String(vNFVal).replace(",", ".").replace(/[^0-9.\-]/g, "")) || 0;
+      const dhEmi = extract("dhEmi") || extract("dEmi") || "";
+      const placa = extract("placa") || "";
+      const emitCnpj = extractFromParent("emit", "CNPJ") || extract("CNPJ") || "";
+      const destCnpj = extractFromParent("dest", "CNPJ") || "";
+      const remetenteCep = extractFromParent("enderEmit", "CEP") || "";
+      const remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || "";
+      const remetenteNumero = extractFromParent("enderEmit", "nro") || "";
+      const remetenteBairro = extractFromParent("enderEmit", "xBairro") || "";
+      const remetenteMunicipio = extractFromParent("enderEmit", "xMun") || "";
+      const remetenteUf = extractFromParent("enderEmit", "UF") || "";
+      const destinatarioCep = extractFromParent("enderDest", "CEP") || "";
+      const destinatarioLogradouro = extractFromParent("enderDest", "xLgr") || "";
+      const destinatarioNumero = extractFromParent("enderDest", "nro") || "";
+      const destinatarioBairro = extractFromParent("enderDest", "xBairro") || "";
+      const destinatarioMunicipio = extractFromParent("enderDest", "xMun") || "";
+      const destinatarioUf = extractFromParent("enderDest", "UF") || "";
+
+      const payload: any = {
+        fluxoOrigem: "nfe",
+        numero: nnum || "",
+        serie: "1",
+        chave: ch || "",
+        chaveNFe: ch || "",
+        numeroNota: nnum || "",
+        valorPrestacao: vNF || 0,
+        remetenteNome: xNomeEmit || "",
+        remetenteCnpjCpf: emitCnpj.replace(/\D/g, "") || "",
+        remetenteCep: remetenteCep.replace(/\D/g, "") || "",
+        remetenteLogradouro: remetenteLogradouro || "",
+        remetenteNumero: remetenteNumero || "",
+        remetenteBairro: remetenteBairro || "",
+        remetenteMunicipio: remetenteMunicipio || "",
+        remetenteUf: remetenteUf || "",
+        destinatarioNome: xNomeDest || "",
+        destinatarioCnpjCpf: destCnpj.replace(/\D/g, "") || "",
+        destinatarioCep: destinatarioCep.replace(/\D/g, "") || "",
+        destinatarioLogradouro: destinatarioLogradouro || "",
+        destinatarioNumero: destinatarioNumero || "",
+        destinatarioBairro: destinatarioBairro || "",
+        destinatarioMunicipio: destinatarioMunicipio || "",
+        destinatarioUf: destinatarioUf || "",
+        veiculoPlaca: placa ? String(placa).toUpperCase().replace(/[^A-Z0-9]/g, "") : "",
+        dataEmissao: dhEmi ? String(dhEmi).split("T")[0] : new Date().toISOString().split("T")[0],
+        infCarga: [
+          { numero: nnum || "", produto: "Mercadoria", valor: vNF || 0, peso: 0, chave: ch || "" }
+        ],
+        informacoesAdicionais: [],
+        tomador: "",
+        cfop: "5353",
+        valorFrete: 0,
+        hasExpedidor: 0,
+        hasRecebedor: 0,
+        emitirRetroativo: 0,
+        textoNota: `Referente à NF-e ${nnum || ""} - CHAVE ${ch || ""}`,
+      };
+
+      const created = await api.create("ctes", payload);
+      toast({ title: "Rascunho criado", description: "Abrindo formulário..." });
+      if (created?.id) {
+        navigate(`/ctes?openDraftId=${created.id}`);
+      } else {
+        navigate("/ctes");
+      }
+    } catch (err: any) {
+      toast({ title: "Erro ao importar XML", description: err?.message || "Arquivo inválido", variant: "destructive" });
+    } finally {
+      setImportingXml(false);
+      setSelectedXmlFile(null);
+    }
+  };
+
   const buscarCep = async (cep: string, tipo: "remetente" | "destinatario") => {
     const digits = cep.replace(/\D/g, "");
     if (digits.length !== 8) {
@@ -1011,25 +1101,38 @@ const Ctes = () => {
               {nfeOrigemTipo === "xml" && (
                 <div>
                   <label className="text-xs font-medium text-muted-foreground mb-1 block">Arquivo XML da NF-e</label>
-                  <input
-                    type="file"
-                    accept=".xml,application/xml"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) {
-                        const r = new FileReader();
-                        r.onload = () => {
-                          const txt = r.result as string;
-                          const m = txt.match(/<chNFe>(\d{44})<\/chNFe>/);
-                          if (m) setField("chaveNFe", m[1]);
-                          else toast({ title: "Chave não encontrada no XML", variant: "destructive" });
-                        };
-                        r.readAsText(f);
-                      }
-                    }}
-                    className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground file:text-xs"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">A chave será extraída automaticamente do XML.</p>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="file"
+                      accept=".xml,application/xml"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        setSelectedXmlFile(f);
+                        // also try to fill chaveNFe preview if possible
+                        if (f) {
+                          const r = new FileReader();
+                          r.onload = () => {
+                            const txt = r.result as string;
+                            const m = txt.match(/<chNFe>(\d{44})<\/chNFe>/);
+                            if (m) setField("chaveNFe", m[1]);
+                          };
+                          r.readAsText(f);
+                        }
+                      }}
+                      className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground file:text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await importXmlFile(selectedXmlFile);
+                      }}
+                      disabled={importingXml}
+                      className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {importingXml ? "Importando..." : "Importar"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">A chave será extraída automaticamente do XML. Use "Importar" para gerar o rascunho.</p>
                 </div>
               )}
               {nfeOrigemTipo === "sefaz" && (
