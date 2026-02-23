@@ -785,6 +785,8 @@ export default {
             // preencher valor_prestacao/valor_total para consistência com frontend e schema
             valor_prestacao: nfe.vNF || 0,
             valor_total: nfe.vNF || 0,
+            // data_emissao é NOT NULL no schema D1 — usar dhEmi da NF-e se disponível, senão hoje
+            data_emissao: (nfe.dhEmi ? (String(nfe.dhEmi).split('T')[0]) : (new Date().toISOString().split('T')[0])),
             inf_carga: [
               {
                 numero: nfe.nfe || "",
