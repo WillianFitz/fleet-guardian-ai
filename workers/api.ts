@@ -296,6 +296,26 @@ async function handleList(
   return jsonResponse({ data: items });
 }
 
+// Ensure nfe_search_state has expected columns (for backwards compatibility)
+async function ensureNfeSearchStateColumns(db: D1Database) {
+  try {
+    const info = await db.prepare("PRAGMA table_info(nfe_search_state)").all();
+    const cols = (info.results || []).map((r: any) => String(r.name || r.name).trim());
+    const needed: Array<{ sql: string; name: string }> = [];
+    if (!cols.includes("retry_count")) needed.push({ name: "retry_count", sql: "ALTER TABLE nfe_search_state ADD COLUMN retry_count INTEGER DEFAULT 0" });
+    if (!cols.includes("next_retry_at")) needed.push({ name: "next_retry_at", sql: "ALTER TABLE nfe_search_state ADD COLUMN next_retry_at TEXT" });
+    for (const c of needed) {
+      try {
+        await db.prepare(c.sql).run();
+      } catch {
+        // Ignore errors (column may have been added concurrently)
+      }
+    }
+  } catch {
+    // If PRAGMA not supported or other error, ignore and allow upstream to fail gracefully
+  }
+}
+
 async function handleGet(
   db: D1Database,
   table: string,
@@ -1026,6 +1046,8 @@ export default {
  
           // Verificar estado de buscas NFe para este tenant (evita re-tentativas que causem bloqueio)
           const now = new Date().toISOString();
+          // Ensure migration-added columns exist (backwards compatibility)
+          await ensureNfeSearchStateColumns(env.DB);
           const state = await env.DB.prepare("SELECT tenant_id, last_ult_nsu, last_search_at, in_progress, blocked_until, retry_count, next_retry_at FROM nfe_search_state WHERE tenant_id = ?")
             .bind(tenantId)
             .first();
