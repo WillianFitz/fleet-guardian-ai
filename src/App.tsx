@@ -24,7 +24,6 @@ import Ctes from "./pages/Ctes";
 import Receitas from "./pages/Receitas";
 import Configuracoes from "./pages/Configuracoes";
 import Clientes from "./pages/Clientes";
-import BuscarChaveCTe from "./pages/BuscarChaveCTe";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 
@@ -71,7 +70,6 @@ const AppRoutes = () => {
         <Route path="/kpis" element={<Kpis />} />
         <Route path="/relatorios" element={<Relatorios />} />
         <Route path="/ctes" element={<Ctes />} />
-        <Route path="/ctes/buscar-chave" element={<BuscarChaveCTe />} />
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/receitas" element={<Receitas />} />
         <Route path="/configuracoes" element={<Configuracoes />} />

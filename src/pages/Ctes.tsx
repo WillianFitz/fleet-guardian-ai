@@ -418,11 +418,11 @@ const Ctes = () => {
     // Para XML: avança direto para o cadastro do CT-e.
     if (tipo === "sefaz") return;
     if (tipo === "chave") {
-      setDialogOpen(false);
-      setShowNfeTipoStep(false);
-      navigate("/ctes/buscar-chave");
+      // Mostrar o input de chave inline (não navegar para outra página).
+      setShowNfeTipoStep(true);
       return;
     }
+    // Para XML: avançar para o formulário de cadastro
     setShowNfeTipoStep(false);
   };
 
@@ -944,8 +944,8 @@ const Ctes = () => {
                     <input
                       value={buscarChave}
                       onChange={(e) => setBuscarChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
-                      placeholder="Informe a chave do CT-e (44 dígitos)"
-                      className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      placeholder="Informe a chave da NF-e (44 dígitos)"
+                      className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 transition"
                     />
                     <button
                       type="button"
@@ -953,7 +953,7 @@ const Ctes = () => {
                       disabled={buscando}
                       className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {buscando ? "Buscando..." : "Buscar CT-e"}
+                      {buscando ? "Buscando..." : "Buscar"}
                     </button>
                   </div>
 
