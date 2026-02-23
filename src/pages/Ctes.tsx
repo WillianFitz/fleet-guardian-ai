@@ -292,13 +292,38 @@ const Ctes = () => {
     try {
       const res = await cteApi.consultar(digits, ambienteAtual);
       if (res.error) throw new Error(res.error);
-      const xml = res.xml || "";
-      const parsed = parseCteXml(xml, digits);
-      setBuscarResult(parsed.items || []);
+      // If backend returned parsed doc (nfe), fill preview from parsed data first
+      const backendNfe = res.nfe || res.parsed || res.data?.nfe || null;
+      if (backendNfe) {
+        // try to build items from backend parsed structure
+        const items = [];
+        if (backendNfe.items && backendNfe.items.length) {
+          backendNfe.items.forEach((it: any) => items.push(it));
+        } else {
+          items.push({
+            numero: backendNfe.nfe || "",
+            produto: backendNfe.produto || "",
+            valor: backendNfe.vNF || backendNfe.valor || 0,
+            peso: backendNfe.peso || 0,
+            emitenteNome: backendNfe.xNomeEmit || backendNfe.emitenteNome || "",
+            destinatarioNome: backendNfe.xNomeDest || backendNfe.destinatarioNome || "",
+            chave: backendNfe.chave || digits
+          });
+        }
+        setBuscarResult(items);
+      } else {
+        const xml = res.xml || res.raw || "";
+        const parsed = parseCteXml(xml, digits);
+        setBuscarResult(parsed.items || []);
+      }
       if ((parsed.items || []).length === 0) {
         toast({ title: "Nenhuma carga encontrada no XML", description: "O CT-e foi consultado mas não foram encontrados detalhes de carga no XML.", variant: "warning" });
       } else {
         toast({ title: "CT-e encontrado", description: `Encontradas ${parsed.items.length} entradas.` });
+      }
+      // show toast when rascunho is created/used
+      if (backendNfe) {
+        toast({ title: "Dados obtidos", description: "Importados dados da NF-e via SEFAZ.", variant: "success" });
       }
     } catch (e: any) {
       toast({ title: "Erro ao consultar CT-e", description: e?.message || "Erro desconhecido", variant: "destructive" });

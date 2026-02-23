@@ -769,6 +769,36 @@ export default {
               return schema.includes("procnfe") || (d.xml && String(d.xml).toLowerCase().includes("<nfeprom"));
             }) || docZipArr[0];
             const xml = pick.xml || pick.xml || "";
+            // If node-mde provided parsed JSON, prefer that for structured fields
+            const pickJson = pick.json || pick.jsonProc || (pick.json && pick.json.nfeProc) || null;
+            if (pickJson && typeof pickJson === "object") {
+              try {
+                const nfeProc = pickJson.nfeProc || pickJson;
+                const infNFe = nfeProc.NFe?.infNFe || nfeProc.infNFe || null;
+                if (infNFe) {
+                  // extract enderEmit/enderDest structured values
+                  const emit = infNFe.emit || {};
+                  const dest = infNFe.dest || {};
+                  const enderEmit = emit.enderEmit || emit.endereco || {};
+                  const enderDest = dest.enderDest || dest.endereco || {};
+                  // override variables
+                  remetenteMunicipio = enderEmit.xMun || enderEmit.xNome || remetenteMunicipio;
+                  remetenteUf = enderEmit.UF || remetenteUf;
+                  remetenteCep = enderEmit.CEP || remetenteCep;
+                  remetenteLogradouro = enderEmit.xLgr || remetenteLogradouro;
+                  remetenteNumero = enderEmit.nro || remetenteNumero;
+                  remetenteBairro = enderEmit.xBairro || remetenteBairro;
+                  destinatarioMunicipio = enderDest.xMun || destinatarioMunicipio;
+                  destinatarioUf = enderDest.UF || destinatarioUf;
+                  destinatarioCep = enderDest.CEP || destinatarioCep;
+                  destinatarioLogradouro = enderDest.xLgr || destinatarioLogradouro;
+                  destinatarioNumero = enderDest.nro || destinatarioNumero;
+                  destinatarioBairro = enderDest.xBairro || destinatarioBairro;
+                }
+              } catch {
+                // ignore parsing errors and fallback to xml regex extraction
+              }
+            }
             // try to extract useful fields from xml quickly
             const extract = (tag: string) => {
               const re = new RegExp(`<(?:[^>]*:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:[^>]*:)?${tag}>`, "i");
