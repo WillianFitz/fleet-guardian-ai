@@ -1069,7 +1069,20 @@ const Ctes = () => {
 
       // Tentar criar rascunho no servidor (mesmo comportamento que busca por chave)
       try {
-        const created = await api.create("ctes", payload);
+      // sanitize payload before sending to DB
+      const allowed = new Set([
+        "chave","numero","serie","veiculoPlaca","veiculoModelo","dataEmissao","dataInicioViagem",
+        "valorPrestacao","valorFrete","remetenteNome","remetenteCnpjCpf","remetenteCep","remetenteLogradouro",
+        "remetenteNumero","remetenteBairro","remetenteMunicipio","remetenteUf","destinatarioNome","destinatarioCnpjCpf",
+        "destinatarioCep","destinatarioLogradouro","destinatarioNumero","destinatarioBairro","destinatarioMunicipio",
+        "destinatarioUf","municipioOrigem","ufOrigem","municipioDestino","ufDestino","infCarga","informacoesAdicionais",
+        "tomador","numeroNota","hasExpedidor","hasRecebedor","cfop","emitirRetroativo","textoNota","status"
+      ]);
+      const filteredPayload: Record<string, any> = {};
+      for (const [k, v] of Object.entries(payload)) {
+        if (allowed.has(k)) filteredPayload[k] = v;
+      }
+      const created = await api.create("ctes", filteredPayload);
         toast({ title: "Rascunho criado", description: "Abrindo formulário..." });
         if (created?.id) {
           navigate(`/ctes?openDraftId=${created.id}`);

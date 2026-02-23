@@ -254,8 +254,21 @@ export default function BuscarChaveCTe() {
                         emitirRetroativo: false,
                         textoNota: `Referente à NF-e ${nnum || ""} - CHAVE ${ch || ""}`,
                       };
+                      // sanitize payload: keep only columns supported by D1 schema (camelCase keys)
+                      const allowed = new Set([
+                        "chave","numero","serie","veiculoPlaca","veiculoModelo","dataEmissao","dataInicioViagem",
+                        "valorPrestacao","valorFrete","remetenteNome","remetenteCnpjCpf","remetenteCep","remetenteLogradouro",
+                        "remetenteNumero","remetenteBairro","remetenteMunicipio","remetenteUf","destinatarioNome","destinatarioCnpjCpf",
+                        "destinatarioCep","destinatarioLogradouro","destinatarioNumero","destinatarioBairro","destinatarioMunicipio",
+                        "destinatarioUf","municipioOrigem","ufOrigem","municipioDestino","ufDestino","infCarga","informacoesAdicionais",
+                        "tomador","numeroNota","hasExpedidor","hasRecebedor","cfop","emitirRetroativo","textoNota","status"
+                      ]);
+                      const filteredPayload: Record<string, any> = {};
+                      for (const [k, v] of Object.entries(payload)) {
+                        if (allowed.has(k)) filteredPayload[k] = v;
+                      }
 
-                      const created = await api.create("ctes", payload);
+                      const created = await api.create("ctes", filteredPayload);
                       toast({ title: "Rascunho criado", description: "Abrindo formulário..." });
                       if (created?.id) {
                         navigate(`/ctes?openDraftId=${created.id}`);
