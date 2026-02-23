@@ -828,18 +828,18 @@ export default {
               const destMatch = xml.match(/<dest[^\>]*>[\s\S]*?<(?:[^>]*:)?CNPJ[^>]*>([\s\S]*?)<\/(?:[^>]*:)?CNPJ>/i);
               return destMatch ? destMatch[1].trim() : "";
             })();
-            const remetenteCep = extractFromParent("enderEmit", "CEP") || extract("CEP") || "";
-            const remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || extract("xLgr") || "";
-            const remetenteNumero = extractFromParent("enderEmit", "nro") || extract("nro") || "";
-            const remetenteBairro = extractFromParent("enderEmit", "xBairro") || extract("xBairro") || "";
-            const remetenteMunicipio = extractFromParent("enderEmit", "xMun") || extract("xMun") || "";
-            const remetenteUf = extractFromParent("enderEmit", "UF") || extract("UF") || "";
-            const destinatarioCep = extractFromParent("enderDest", "CEP") || "";
-            const destinatarioLogradouro = extractFromParent("enderDest", "xLgr") || "";
-            const destinatarioNumero = extractFromParent("enderDest", "nro") || "";
-            const destinatarioBairro = extractFromParent("enderDest", "xBairro") || "";
-            const destinatarioMunicipio = extractFromParent("enderDest", "xMun") || "";
-            const destinatarioUf = extractFromParent("enderDest", "UF") || "";
+            remetenteCep = extractFromParent("enderEmit", "CEP") || extract("CEP") || "";
+            remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || extract("xLgr") || "";
+            remetenteNumero = extractFromParent("enderEmit", "nro") || extract("nro") || "";
+            remetenteBairro = extractFromParent("enderEmit", "xBairro") || extract("xBairro") || "";
+            remetenteMunicipio = extractFromParent("enderEmit", "xMun") || extract("xMun") || "";
+            remetenteUf = extractFromParent("enderEmit", "UF") || extract("UF") || "";
+            destinatarioCep = extractFromParent("enderDest", "CEP") || "";
+            destinatarioLogradouro = extractFromParent("enderDest", "xLgr") || "";
+            destinatarioNumero = extractFromParent("enderDest", "nro") || "";
+            destinatarioBairro = extractFromParent("enderDest", "xBairro") || "";
+            destinatarioMunicipio = extractFromParent("enderDest", "xMun") || "";
+            destinatarioUf = extractFromParent("enderDest", "UF") || "";
             nfe = {
               chave: ch,
               nfe: nnum,
