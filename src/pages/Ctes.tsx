@@ -629,7 +629,10 @@ const Ctes = () => {
 
   const handleVehicleSelect = (vehicleId: string) => {
     const v = vehicles.find((x) => x.id === vehicleId);
-    if (v) setForm((prev) => ({ ...prev, veiculoPlaca: v.placa, veiculoModelo: v.modelo }));
+    if (v) {
+      const normalizePlaca = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+      setForm((prev) => ({ ...prev, veiculoPlaca: normalizePlaca(v.placa), veiculoModelo: v.modelo, veiculoId: v.id }));
+    }
   };
 
   return (

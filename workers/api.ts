@@ -853,12 +853,20 @@ export default {
             };
             // attempt to find vehicle by placa in DB and add veiculoId to nfe object
             try {
-              const placaNorm = String(placa || "").trim();
+              const placaNormRaw = String(placa || "").trim();
+              const normalizePlaca = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+              const placaNorm = normalizePlaca(placaNormRaw);
               if (placaNorm) {
-                const row = await env.DB.prepare("SELECT id, placa, modelo FROM vehicles WHERE lower(placa) = lower(?)").bind(placaNorm).first();
-                if (row) {
-                  (nfe as any).veiculoId = row.id;
-                  (nfe as any).veiculoModelo = row.modelo || null;
+                // fetch candidate vehicles for tenant and match by normalized plate
+                const rowsRes = await env.DB.prepare("SELECT id, placa, modelo FROM vehicles WHERE tenant_id = ?").bind(tenantId).all();
+                const rows = rowsRes.results || [];
+                for (const r of rows) {
+                  const dbPlacaNorm = normalizePlaca(String(r.placa || ""));
+                  if (dbPlacaNorm === placaNorm) {
+                    (nfe as any).veiculoId = r.id;
+                    (nfe as any).veiculoModelo = r.modelo || null;
+                    break;
+                  }
                 }
               }
             } catch {
@@ -956,7 +964,7 @@ export default {
             destinatarioBairro: nfe.destinatarioBairro || destinatarioBairro || null,
             destinatarioMunicipio: nfe.destinatarioMunicipio || destinatarioMunicipio || null,
             destinatarioUf: nfe.destinatarioUf || destinatarioUf || null,
-            veiculoPlaca: nfe.placa || nfe.veiculoPlaca || null,
+            veiculoPlaca: (nfe.placa || nfe.veiculoPlaca || null) ? String(nfe.placa || nfe.veiculoPlaca).toUpperCase().replace(/[^A-Z0-9]/g, "") : null,
             veiculoId: (nfe as any).veiculoId || null,
             // origem/destino (município/UF) - prefer explicit extracted values
             municipioOrigem: nfe.remetenteMunicipio || remetenteMunicipio || null,
