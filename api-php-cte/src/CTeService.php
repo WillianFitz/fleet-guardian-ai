@@ -394,19 +394,14 @@ class CTeService
             // Consultar na SEFAZ (compat wrapper entre versões da biblioteca)
             $response = null;
             if (method_exists($this->tools, 'sefazConsulta')) {
-                // método usado em algumas versões
                 $response = $this->tools->sefazConsulta($chave, $tpAmb);
             } elseif (method_exists($this->tools, 'sefazConsultaCTe')) {
-                // variação de nome possível
                 $response = $this->tools->sefazConsultaCTe($chave, $tpAmb);
             } elseif (method_exists($this->tools, 'sefazConsCTe')) {
-                // outra variação possível
                 $response = $this->tools->sefazConsCTe($chave, $tpAmb);
             } elseif (method_exists($this->tools, 'sefazConsultaChave')) {
-                // método presente em versões recentes: consulta por chave
                 $response = $this->tools->sefazConsultaChave($chave, $tpAmb);
             } else {
-                // Logar métodos disponíveis para diagnóstico
                 error_log("CTeService::consultar - método de consulta SEFAZ não encontrado em Tools. Métodos disponíveis: " . implode(', ', get_class_methods($this->tools)));
                 throw new Exception("Método de consulta SEFAZ não disponível na biblioteca (verifique versão do nfephp-org/sped-cte).");
             }
@@ -419,10 +414,76 @@ class CTeService
             $cStat = $stdArr['protCTe']['infProt']['cStat'] ?? '';
             $protocolo = $stdArr['protCTe']['infProt']['nProt'] ?? '';
 
+            // Tentar parsear XML para extrair cargas/itens de forma estruturada
+            $parsed = [
+                'items' => [],
+                'emitenteNome' => '',
+                'destinatarioNome' => '',
+                'totalValor' => 0.0,
+                'totalPeso' => 0.0
+            ];
+
+            try {
+                $xml = $response;
+                if ($xml && is_string($xml)) {
+                    $dom = new \DOMDocument();
+                    // suprimir warnings de namespace/malformed
+                    libxml_use_internal_errors(true);
+                    $dom->loadXML($xml);
+                    libxml_clear_errors();
+                    $xpath = new \DOMXPath($dom);
+
+                    // funções xpath usando local-name para evitar problemas de namespace
+                    $getText = function($node, $paths) use ($xpath) {
+                        foreach ($paths as $p) {
+                            $res = $xpath->query($p, $node);
+                            if ($res && $res->length > 0) {
+                                $v = trim($res->item(0)->textContent);
+                                if ($v !== '') return $v;
+                            }
+                        }
+                        return '';
+                    };
+
+                    // emitente / destinatario
+                    $emitNode = $xpath->query("//*[local-name()='rem'] | //*[local-name()='emit'] | //*[local-name()='emitente']");
+                    if ($emitNode->length) {
+                        $parsed['emitenteNome'] = $getText($emitNode->item(0), ["./*[local-name()='xNome']","./*[local-name()='xNomeEmit']"]);
+                    }
+                    $destNode = $xpath->query("//*[local-name()='dest'] | //*[local-name()='destinatario']");
+                    if ($destNode->length) {
+                        $parsed['destinatarioNome'] = $getText($destNode->item(0), ["./*[local-name()='xNome']","./*[local-name()='xNomeDest']"]);
+                    }
+
+                    // procurar por nós que representam produtos/cargas
+                    $candidates = $xpath->query("//*[local-name()='infCarga'] | //*[local-name()='carga'] | //*[local-name()='infNFe'] | //*[local-name()='infDoc'] | //*[local-name()='infOutros'] | //*[local-name()='infNFeSupl']");
+                    foreach ($candidates as $nd) {
+                        $numero = $getText($nd, [".//*[local-name()='nDoc']", ".//*[local-name()='nNF']", ".//*[local-name()='nFat']"]);
+                        $produto = $getText($nd, [".//*[local-name()='xNome']", ".//*[local-name()='xProd']", ".//*[local-name()='descricao']", ".//*[local-name()='desc']"]);
+                        $valorText = $getText($nd, [".//*[local-name()='vDocFisc']", ".//*[local-name()='vNF']", ".//*[local-name()='vMerc']", ".//*[local-name()='vProd']", ".//*[local-name()='vCarga']"]);
+                        $pesoText = $getText($nd, [".//*[local-name()='qCarga']", ".//*[local-name()='peso']", ".//*[local-name()='pesoBruto']", ".//*[local-name()='pesoLiquido']"]);
+                        $valor = $valorText !== '' ? floatval(str_replace(',', '.', preg_replace('/[^0-9,.-]/','',$valorText))) : 0.0;
+                        $peso = $pesoText !== '' ? floatval(str_replace(',', '.', preg_replace('/[^0-9,.-]/','',$pesoText))) : 0.0;
+                        $parsed['items'][] = [
+                            'numero' => $numero,
+                            'produto' => $produto,
+                            'valor' => $valor,
+                            'peso' => $peso,
+                            'chave' => $chave
+                        ];
+                        $parsed['totalValor'] += $valor;
+                        $parsed['totalPeso'] += $peso;
+                    }
+                }
+            } catch (\Throwable $e) {
+                error_log("CTeService::consultar - falha ao parsear XML: " . $e->getMessage());
+            }
+
             return [
                 'status' => $cStat,
                 'protocolo' => $protocolo,
                 'xml' => $response,
+                'parsed' => $parsed,
                 'ambiente' => $this->ambiente
             ];
 
