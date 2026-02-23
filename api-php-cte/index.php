@@ -374,6 +374,46 @@ $app->post('/nfe/consultar', function (Request $request, Response $response): Re
             ], 400);
         }
         $ambiente = $body['ambiente'] ?? 'homologacao';
+        // Se configurado NODE_MDE_URL, tentar primeiro consultar o microserviço Node (node-mde)
+        $nodeUrl = getenv('NODE_MDE_URL') ?: null;
+        if ($nodeUrl) {
+            try {
+                $nodeUrl = rtrim($nodeUrl, '/') . '/nfe/consultar';
+                $nodeReq = [
+                    'chave' => $chave,
+                    'ambiente' => $ambiente,
+                    'empresa' => $empresaDados,
+                    'certificado' => [
+                        'pfxBase64' => $certPfxBase64,
+                        'password' => $certPassword
+                    ]
+                ];
+                $ch = curl_init($nodeUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($nodeReq));
+                curl_setopt($ch, CURLOPT_TIMEOUT, 25); // 25s timeout to avoid long waits
+                $nodeResText = curl_exec($ch);
+                $nodeHttp = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                if ($nodeResText !== false && $nodeHttp >= 200 && $nodeHttp < 300) {
+                    $nodeJson = json_decode($nodeResText, true);
+                    if ($nodeJson !== null) {
+                        // Retornar diretamente o JSON do node (Worker tratará docZip/raw)
+                        @unlink($tempCertPath);
+                        return jsonResponse($response, $nodeJson);
+                    } else {
+                        // se não for JSON, retornar raw
+                        @unlink($tempCertPath);
+                        return jsonResponse($response, ['raw' => (string)$nodeResText]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                // falha no node fallback, prosseguir com o fluxo PHP
+            }
+        }
+
         $buscaService = new NFeBuscaSefazService($tempCertPath, $certPassword, $empresaDados, $ambiente);
         // 1) tentar buscar via Distribuição DFe (varredura)
         $item = $buscaService->buscarPorChave($chave, 50);
