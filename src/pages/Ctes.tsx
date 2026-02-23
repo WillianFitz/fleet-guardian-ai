@@ -1097,6 +1097,10 @@ const Ctes = () => {
       for (const [k, v] of Object.entries(payload)) {
         if (allowed.has(k)) filteredPayload[k] = v;
       }
+      // save a local pending copy so the CT-e form opens pre-filled even if server list hasn't refreshed yet
+      try {
+        localStorage.setItem("fleet_pending_cte", JSON.stringify(filteredPayload));
+      } catch {}
       const created = await api.create("ctes", filteredPayload);
         toast({ title: "Rascunho criado", description: "Abrindo formulário..." });
         if (created?.id) {

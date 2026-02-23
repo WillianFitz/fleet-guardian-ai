@@ -288,6 +288,9 @@ export default function BuscarChaveCTe() {
                         if (allowed.has(k)) filteredPayload[k] = v;
                       }
 
+                      try {
+                        localStorage.setItem("fleet_pending_cte", JSON.stringify(filteredPayload));
+                      } catch {}
                       const created = await api.create("ctes", filteredPayload);
                       toast({ title: "Rascunho criado", description: "Abrindo formulário..." });
                       if (created?.id) {
