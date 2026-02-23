@@ -611,7 +611,7 @@ export default {
         }
       }
 
-      if (path === "/api/cte/consultar" && request.method === "GET") {
+      if (path === "/api/cte/consultar" && (request.method === "GET" || request.method === "POST")) {
         if (!env.CTE_API_URL) {
           return errorResponse("CTE_API_URL não configurada no Worker. Configure a variável de ambiente.", 503);
         }
@@ -624,7 +624,7 @@ export default {
           const phpUrl = new URL(`${env.CTE_API_URL}/consultar`);
           phpUrl.searchParams.set("chave", chave);
           phpUrl.searchParams.set("ambiente", ambiente);
-          
+
           // Buscar certificado e dados da empresa do tenant para consulta
           const { tenantId } = await getTenantForRequest(request, env);
           const tenant = await env.DB.prepare("SELECT certificado_pfx_base64, certificado_password, cnpj, nome, uf FROM tenants WHERE id = ?")
@@ -635,15 +635,26 @@ export default {
             ...(request.headers.get("Authorization") ? { Authorization: request.headers.get("Authorization")! } : {}),
           };
 
-          // Preparar body com certificado e dados da empresa
+          // Preparar body com certificado e dados da empresa (e fundir body do cliente se for POST)
           let bodyData: any = {};
+          if (request.method === "POST") {
+            try {
+              const clientBody = await request.json();
+              if (clientBody && typeof clientBody === "object") {
+                bodyData = { ...bodyData, ...clientBody };
+              }
+            } catch {
+              // ignore parse
+            }
+          }
+
           if (tenant?.certificado_pfx_base64 && tenant?.certificado_password) {
-            bodyData.certificado = {
+            bodyData.certificado = bodyData.certificado || {
               pfxBase64: tenant.certificado_pfx_base64,
               password: tenant.certificado_password
             };
           }
-          
+
           // Adicionar dados da empresa (obrigatório)
           if (!tenant?.cnpj || !tenant?.nome) {
             return errorResponse(
@@ -651,13 +662,13 @@ export default {
               400
             );
           }
-          
-          bodyData.empresa = {
+
+          bodyData.empresa = bodyData.empresa || {
             cnpj: tenant.cnpj,
             razaoSocial: tenant.nome,
             siglaUF: tenant.uf || 'SP'
           };
-          
+
           let body: string | undefined;
           if (Object.keys(bodyData).length > 0) {
             body = JSON.stringify(bodyData);
