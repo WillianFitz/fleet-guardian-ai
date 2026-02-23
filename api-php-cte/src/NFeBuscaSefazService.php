@@ -16,13 +16,19 @@ class NFeBuscaSefazService
 
     public function __construct(string $certPfxPath, string $certPassword, array $empresaDados, string $ambiente = 'homologacao')
     {
+        // Normalizar tipos para evitar problemas de validação na biblioteca nfephp
         $tpAmb = $ambiente === 'producao' ? 1 : 2;
+        $razaoSocial = isset($empresaDados['razaoSocial']) ? (string)$empresaDados['razaoSocial'] : '';
+        $siglaUF = isset($empresaDados['siglaUF']) ? strtoupper((string)$empresaDados['siglaUF']) : 'SP';
+        if ($siglaUF === '' || strlen($siglaUF) > 2) $siglaUF = 'SP';
+        $cnpj = isset($empresaDados['cnpj']) ? preg_replace('/\D/', '', (string)$empresaDados['cnpj']) : '';
+
         $config = [
             'atualizacao' => date('Y-m-d H:i:s'),
-            'tpAmb' => $tpAmb,
-            'razaosocial' => $empresaDados['razaoSocial'] ?? '',
-            'siglaUF' => $empresaDados['siglaUF'] ?? 'SP',
-            'cnpj' => preg_replace('/\D/', '', $empresaDados['cnpj'] ?? ''),
+            'tpAmb' => (int)$tpAmb,
+            'razaosocial' => $razaoSocial,
+            'siglaUF' => $siglaUF,
+            'cnpj' => $cnpj,
             'schemes' => 'PL_009_V4',
             'versao' => '4.00',
         ];
