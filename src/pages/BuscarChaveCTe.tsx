@@ -51,22 +51,22 @@ export default function BuscarChaveCTe() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-lg bg-card border border-border rounded-lg p-6">
+    <div className="min-h-screen flex items-start justify-center bg-background p-4 pt-8">
+      <div className="w-full max-w-lg sm:max-w-xl bg-card border border-border rounded-lg p-4 sm:p-6">
         <h2 className="text-lg font-semibold mb-2">Buscar por chave</h2>
         <p className="text-sm text-muted-foreground mb-4">Informe a chave da NF-e (44 dígitos) para criar um rascunho de CT-e ou consultar o documento.</p>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             autoFocus
             value={chave}
             onChange={(e) => setChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
             placeholder="Informe a chave da NF-e (44 dígitos)"
-            className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 transition"
+            className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60 transition w-full"
           />
           <button
             onClick={handleBuscar}
             disabled={loading}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
           >
             {loading ? "Buscando..." : "Buscar"}
           </button>

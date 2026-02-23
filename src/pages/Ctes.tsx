@@ -868,7 +868,7 @@ const Ctes = () => {
       </div>
 
       <Dialog open={showFluxoPicker} onOpenChange={setShowFluxoPicker}>
-        <DialogContent className="bg-card border-border max-w-lg mx-4">
+        <DialogContent className="bg-card border-border w-full max-w-2xl mx-4 sm:mx-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-sm sm:text-base text-foreground">Como deseja criar o CT-e?</DialogTitle>
           </DialogHeader>
@@ -906,7 +906,7 @@ const Ctes = () => {
       
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setShowNfeTipoStep(false); }}>
-        <DialogContent className="bg-card border-border max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="bg-card border-border w-full max-w-4xl mx-4 sm:mx-auto max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-sm sm:text-base text-foreground">
               {editing ? "Editar CTe" : showNfeTipoStep ? "Novo CTe — Como informar a NF-e?" : `Novo CTe — ${fluxoOptions.find((f) => f.id === form.fluxoOrigem)?.label ?? (form.fluxoOrigem === "manual" ? "Preenchimento manual" : "Documento")}`}
@@ -1549,7 +1549,7 @@ const Ctes = () => {
 
       {/* Dialog: Editar cliente (Remetente / Destinatário) */}
       <Dialog open={editClientOpen} onOpenChange={setEditClientOpen}>
-        <DialogContent className="bg-card border-border max-w-md">
+        <DialogContent className="bg-card border-border w-full max-w-md mx-4 sm:mx-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-foreground">Editar {editClientType === "remetente" ? "Remetente" : "Destinatário"}</DialogTitle>
           </DialogHeader>
@@ -1591,7 +1591,7 @@ const Ctes = () => {
       </Dialog>
 
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <DialogContent className="bg-card border-border max-w-sm">
+        <DialogContent className="bg-card border-border w-full max-w-sm mx-4 sm:mx-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="text-foreground">Excluir CTe?</DialogTitle>
           </DialogHeader>
