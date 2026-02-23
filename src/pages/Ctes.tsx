@@ -1075,15 +1075,27 @@ const Ctes = () => {
                           if (payload.veiculoPlaca) {
                             const normalizePlaca = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
                             const placaNorm = normalizePlaca(payload.veiculoPlaca);
-                            const match = vehicles.find((v) => normalizePlaca(v.placa) === placaNorm);
+                            toast({ title: "Procurando veículo", description: `Placa extraída: ${payload.veiculoPlaca} → normalizada: ${placaNorm}. Veículos carregados: ${vehicles.length}.` });
+                            // exact match first
+                            let match = vehicles.find((v) => normalizePlaca(v.placa) === placaNorm);
+                            // fallback: match by last 4 chars (common tolerant strategy)
+                            if (!match) {
+                              const last4 = placaNorm.slice(-4);
+                              match = vehicles.find((v) => normalizePlaca(v.placa).slice(-4) === last4);
+                              if (match) {
+                                toast({ title: "Match parcial por sufixo", description: `Placa ${match.placa} encontrada por últimos 4 caracteres (${last4}).`, variant: "info" });
+                              }
+                            }
                             if (match) {
                               payload.veiculoId = match.id;
                               payload.veiculoModelo = match.modelo || null;
-                              toast({ title: "Veículo encontrado", description: `Placa ${match.placa} selecionada automaticamente.` });
+                              toast({ title: "Veículo selecionado", description: `Placa ${match.placa} aplicada automaticamente.` });
                             } else {
+                              // show sample plates to help debugging
+                              const sample = vehicles.slice(0, 5).map((v) => v.placa).join(", ") || "nenhum";
                               toast({
                                 title: "Veículo não encontrado",
-                                description: `Placa ${payload.veiculoPlaca} não corresponde a nenhum veículo cadastrado (${vehicles.length} veículos).`,
+                                description: `Placa ${payload.veiculoPlaca} não encontrada. Exemplos de placas cadastradas: ${sample}`,
                                 variant: "warning",
                               });
                             }

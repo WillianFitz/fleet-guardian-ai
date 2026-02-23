@@ -265,15 +265,24 @@ export default function BuscarChaveCTe() {
                         const normalize = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
                         if (payload.veiculoPlaca) {
                           const placaNorm = normalize(payload.veiculoPlaca);
-                          const match = (vehicles || []).find((v: any) => normalize(v.placa) === placaNorm);
+                          toast({ title: "Procurando veículo", description: `Placa extraída: ${payload.veiculoPlaca} → ${placaNorm}. Veículos no servidor: ${(vehicles || []).length}.` });
+                          let match = (vehicles || []).find((v: any) => normalize(v.placa) === placaNorm);
+                          if (!match) {
+                            const last4 = placaNorm.slice(-4);
+                            match = (vehicles || []).find((v: any) => normalize(v.placa).slice(-4) === last4);
+                            if (match) {
+                              toast({ title: "Match parcial por sufixo", description: `Placa ${match.placa} encontrada por últimos 4 caracteres (${last4}).`, variant: "info" });
+                            }
+                          }
                           if (match) {
                             payload.veiculoId = match.id;
                             payload.veiculoModelo = match.modelo || null;
-                            toast({ title: "Veículo encontrado", description: `Placa ${match.placa} selecionada automaticamente.` });
+                            toast({ title: "Veículo selecionado", description: `Placa ${match.placa} aplicada automaticamente.` });
                           } else {
+                            const sample = (vehicles || []).slice(0, 5).map((v: any) => v.placa).join(", ") || "nenhum";
                             toast({
                               title: "Veículo não encontrado",
-                              description: `Placa ${payload.veiculoPlaca} não corresponde a nenhum veículo cadastrado (${(vehicles || []).length} veículos).`,
+                              description: `Placa ${payload.veiculoPlaca} não encontrada. Exemplos de placas cadastradas: ${sample}`,
                               variant: "warning",
                             });
                           }
