@@ -402,6 +402,9 @@ class CTeService
             } elseif (method_exists($this->tools, 'sefazConsCTe')) {
                 // outra variação possível
                 $response = $this->tools->sefazConsCTe($chave, $tpAmb);
+            } elseif (method_exists($this->tools, 'sefazConsultaChave')) {
+                // método presente em versões recentes: consulta por chave
+                $response = $this->tools->sefazConsultaChave($chave, $tpAmb);
             } else {
                 // Logar métodos disponíveis para diagnóstico
                 error_log("CTeService::consultar - método de consulta SEFAZ não encontrado em Tools. Métodos disponíveis: " . implode(', ', get_class_methods($this->tools)));
