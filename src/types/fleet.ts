@@ -232,6 +232,43 @@ export interface CTe {
   tpServ?: "1" | "2" | "3";
   /** Dados para fluxo "outros documentos" */
   infOutros?: InfOutrosDoc;
+  /** Itens/cargas extraídas do XML ou adicionadas manualmente */
+  infCarga?: Array<{ numero?: string; produto?: string; valor?: number; peso?: number; chave?: string }>;
+  /** Informações adicionais livres */
+  informacoesAdicionais?: string[];
+  /** Quem paga o frete (tomador) */
+  tomador?: string;
+  /** Número da nota origem (quando aplicável) */
+  numeroNota?: string;
+  /** Indicadores de presença de expedidor / recebedor */
+  hasExpedidor?: boolean;
+  hasRecebedor?: boolean;
+  /** CFOP */
+  cfop?: string;
+  /** Valor do frete */
+  valorFrete?: number;
+  /** Se deve emitir retroativo */
+  emitirRetroativo?: boolean;
+  /** Texto automático para nota / observações */
+  textoNota?: string;
+}
+
+// ===== CLIENTS =====
+export interface Client {
+  id: string;
+  nome: string;
+  cnpjCpf?: string;
+  indicadorIE?: string;
+  ie?: string;
+  contato?: string;
+  telefone?: string;
+  cep?: string;
+  logradouro?: string;
+  numero?: string;
+  bairro?: string;
+  municipio?: string;
+  uf?: string;
+  createdAt?: string;
 }
 
 // ===== GARAGE =====

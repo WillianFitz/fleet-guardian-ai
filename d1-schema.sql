@@ -389,6 +389,16 @@ CREATE TABLE ctes (
   uf_origem TEXT,
   municipio_destino TEXT,
   uf_destino TEXT,
+  -- Novos campos para suporte a fluxo de importação/edição de CT-e
+  inf_carga TEXT, -- JSON array com cargas/itens
+  informacoes_adicionais TEXT, -- JSON array de strings
+  tomador TEXT,
+  numero_nota TEXT,
+  has_expedidor INTEGER DEFAULT 0,
+  has_recebedor INTEGER DEFAULT 0,
+  cfop TEXT,
+  emitir_retroativo INTEGER DEFAULT 0,
+  texto_nota TEXT,
   status TEXT CHECK(status IN ('rascunho','autorizado','rejeitado','cancelado','erro')) DEFAULT 'rascunho',
   protocolo TEXT,
   motivo_rejeicao TEXT,

@@ -30,6 +30,24 @@ const objectKeysToCamel = (obj: Record<string, any>): Record<string, any> => {
   return result;
 };
 
+// Tentativa de parsear strings JSON em objetos/arrays antes de enviar ao frontend
+function tryParseJsonStrings(obj: Record<string, any>): Record<string, any> {
+  const res: Record<string, any> = { ...obj };
+  for (const [k, v] of Object.entries(res)) {
+    if (typeof v === "string") {
+      const t = v.trim();
+      if (t.startsWith("{") || t.startsWith("[")) {
+        try {
+          res[k] = JSON.parse(v);
+        } catch {
+          // mantendo string caso falhe
+        }
+      }
+    }
+  }
+  return res;
+}
+
 // ===== AUTH UTILS (password + token) =====
 
 interface AuthTokenPayload {
@@ -121,6 +139,7 @@ const RESOURCE_MAP: Record<string, { table: string; fieldOverrides?: Record<stri
   drivers: { table: "drivers" },
   maintenance: { table: "maintenance_orders" },
   tenants: { table: "tenants" },
+  clients: { table: "clients" },
   fuel: { table: "fuel_entries" },
   tires: { table: "tires" },
   parts: { table: "parts" },
@@ -269,6 +288,7 @@ async function handleList(
 
   const items = (results || []).map((row) => {
     let camel = objectKeysToCamel(row as Record<string, any>);
+    camel = tryParseJsonStrings(camel);
     camel = applyFieldOverrides(camel, overrides, true);
     return camel;
   });
@@ -296,6 +316,7 @@ async function handleGet(
   if (!row) return errorResponse("Not found", 404);
 
   let camel = objectKeysToCamel(row as Record<string, any>);
+  camel = tryParseJsonStrings(camel);
   camel = applyFieldOverrides(camel, overrides, true);
   return jsonResponse({ data: camel });
 }
@@ -325,6 +346,13 @@ async function handleCreate(
   // Para tenants, não adiciona tenant_id (já é o próprio tenant)
   if (table !== "tenants") {
     snakeData.tenant_id = tenantId;
+  }
+
+  // Serializar objetos/arrays em JSON para armazenamento em colunas TEXT
+  for (const [k, v] of Object.entries(snakeData)) {
+    if (v !== null && typeof v === "object") {
+      snakeData[k] = JSON.stringify(v);
+    }
   }
 
   const columns = Object.keys(snakeData);
@@ -362,6 +390,13 @@ async function handleUpdate(
   snakeData = sanitizeValues(snakeData);
   // Add updated_at
   snakeData.updated_at = new Date().toISOString();
+
+  // Serializar objetos/arrays em JSON para armazenamento em colunas TEXT
+  for (const [k, v] of Object.entries(snakeData)) {
+    if (v !== null && typeof v === "object") {
+      snakeData[k] = JSON.stringify(v);
+    }
+  }
 
   const sets = Object.keys(snakeData)
     .map((k) => `${k} = ?`)

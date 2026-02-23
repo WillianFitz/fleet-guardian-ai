@@ -69,13 +69,39 @@ const emptyForm: Omit<CTe, "id"> = {
   motivoRejeicao: "",
   xmlUrl: "",
   pdfUrl: "",
+  // novos campos
+  infCarga: [],
+  informacoesAdicionais: [],
+  tomador: "",
+  numeroNota: "",
+  hasExpedidor: false,
+  hasRecebedor: false,
+  cfop: "5353",
+  emitirRetroativo: false,
+  textoNota: "",
 };
 
 const Ctes = () => {
   const { items, add, update, remove } = useStore<CTe>("ctes", demoCtes);
   const { items: vehicles } = useStore<Vehicle>("vehicles", demoVehicles);
+  const { items: clients, add: addClient, update: updateClient } = useStore<any>("clients", []);
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
+  const [showBuscarChave, setShowBuscarChave] = useState(false);
+  const [buscarChave, setBuscarChave] = useState("");
+  const [buscando, setBuscando] = useState(false);
+  const [buscarResult, setBuscarResult] = useState<Array<any>>([]);
+  const [pesoUnit, setPesoUnit] = useState<"kg" | "t">("kg");
+  const [editClientOpen, setEditClientOpen] = useState(false);
+  const [editClientType, setEditClientType] = useState<"remetente" | "destinatario" | null>(null);
+  const [editClientForm, setEditClientForm] = useState({
+    nome: "",
+    cnpjCpf: "",
+    indicadorIE: "",
+    ie: "",
+    contato: "",
+    telefone: "",
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<CTe | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -172,11 +198,14 @@ const Ctes = () => {
       toast({ title: "Informe o número do CTe", variant: "destructive" });
       return;
     }
+    const auto = `PLACA DO VEICULO ${form.veiculoPlaca || ""} REFERENTE A CONTROLE DE CTE Nº ${form.numero || ""}, REFERENTE A NOTA Nº ${form.numeroNota || ""}`;
+    const newForm = { ...form, textoNota: form.textoNota && form.textoNota.trim() ? form.textoNota : auto };
+
     if (editing) {
-      update(editing.id, form);
+      update(editing.id, newForm);
       toast({ title: "CTe atualizado!" });
     } else {
-      add(form);
+      add(newForm);
       toast({ title: "CTe cadastrado!" });
     }
     setDialogOpen(false);
@@ -195,6 +224,148 @@ const Ctes = () => {
     setEditing(null);
     setForm(emptyForm);
     setShowFluxoPicker(true);
+  };
+
+  // Parseador simples de XML de CT-e para extrair cargas / documentos
+  function parseCteXml(xmlText: string, chave?: string) {
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(xmlText, "application/xml");
+      // Extrair emitente/destinatário
+      const rem = doc.querySelector("rem, emit, emitente");
+      const dest = doc.querySelector("dest, destinatario");
+      const emitenteNome = rem?.querySelector("xNome")?.textContent || rem?.querySelector("xNomeEmit")?.textContent || "";
+      const destinatarioNome = dest?.querySelector("xNome")?.textContent || dest?.querySelector("xNomeDest")?.textContent || "";
+
+      const items: Array<any> = [];
+
+      // Procurar por nós de documento/carga comuns
+      const infDocs = Array.from(doc.querySelectorAll("infDoc, infDocRef, infNFe, infNFeSupl, infOutros, infCarga, carga, infQ, infQUnid"));
+      if (infDocs.length) {
+        infDocs.forEach((nd) => {
+          const numero = nd.querySelector("nDoc, nNF, nNFref, nNf, nNFref")?.textContent || nd.querySelector("nFat")?.textContent || "";
+          const nomeProd = nd.querySelector("xNome, xProd, xDesc, descricao, desc")?.textContent || "";
+          const valorText = nd.querySelector("vDocFisc, vNF, vMerc, vProd, vCarga")?.textContent || "";
+          const pesoText = nd.querySelector("qCarga, pesoB, peso, pesoBruto, pesoLiquido")?.textContent || "";
+          const valor = valorText ? Number(valorText) : 0;
+          const peso = pesoText ? Number(pesoText) : 0;
+          items.push({
+            numero: numero || chave || "",
+            produto: nomeProd || "",
+            valor,
+            peso,
+            chave: chave || "",
+          });
+        });
+      }
+
+      // Fallback: se não encontrou cargas, criar um item único usando valores do XML (vPrest / vTPrest)
+      if (items.length === 0) {
+        const vPrest = doc.querySelector("vPrest, vTPrest, vRec, vRecTot")?.textContent;
+        const valor = vPrest ? Number(vPrest) : 0;
+        items.push({
+          numero: "",
+          produto: "",
+          valor,
+          peso: 0,
+          chave: chave || "",
+          emitenteNome,
+          destinatarioNome,
+        });
+      }
+
+      return { items, emitenteNome, destinatarioNome };
+    } catch (e) {
+      return { items: [], emitenteNome: "", destinatarioNome: "" };
+    }
+  }
+
+  const handleBuscarChaveCTe = async () => {
+    const digits = buscarChave.replace(/\D/g, "");
+    if (digits.length !== 44) {
+      toast({ title: "Chave inválida", description: "Informe 44 dígitos da chave do CT-e.", variant: "destructive" });
+      return;
+    }
+    setBuscando(true);
+    setBuscarResult([]);
+    try {
+      const res = await cteApi.consultar(digits, ambienteAtual);
+      if (res.error) throw new Error(res.error);
+      const xml = res.xml || "";
+      const parsed = parseCteXml(xml, digits);
+      setBuscarResult(parsed.items || []);
+      if ((parsed.items || []).length === 0) {
+        toast({ title: "Nenhuma carga encontrada no XML", description: "O CT-e foi consultado mas não foram encontrados detalhes de carga no XML.", variant: "warning" });
+      } else {
+        toast({ title: "CT-e encontrado", description: `Encontradas ${parsed.items.length} entradas.` });
+      }
+    } catch (e: any) {
+      toast({ title: "Erro ao consultar CT-e", description: e?.message || "Erro desconhecido", variant: "destructive" });
+    } finally {
+      setBuscando(false);
+    }
+  };
+
+  const resumoBuscar = () => {
+    const totalValor = buscarResult.reduce((s, it) => s + (Number(it.valor) || 0), 0);
+    const totalPesoKg = buscarResult.reduce((s, it) => s + (Number(it.peso) || 0), 0);
+    let pesoDisplay = totalPesoKg;
+    if (pesoUnit === "t") pesoDisplay = totalPesoKg / 1000;
+    const produtoPredominante = buscarResult
+      .map((r) => r.produto || "")
+      .filter(Boolean)
+      .reduce((acc: Record<string, number>, p: string) => { acc[p] = (acc[p] || 0) + 1; return acc; }, {});
+    const predominante = Object.keys(produtoPredominante).sort((a, b) => (produtoPredominante[b] - produtoPredominante[a]))[0] || "";
+    return { totalValor, totalPesoKg, pesoDisplay, predominante };
+  };
+
+  const openClientEditor = (type: "remetente" | "destinatario") => {
+    setEditClientType(type);
+    setEditClientForm({
+      nome: type === "remetente" ? (form.remetenteNome || "") : (form.destinatarioNome || ""),
+      cnpjCpf: type === "remetente" ? (form.remetenteCnpjCpf || "") : (form.destinatarioCnpjCpf || ""),
+      indicadorIE: "",
+      ie: "",
+      contato: "",
+      telefone: "",
+    });
+    setEditClientOpen(true);
+  };
+
+  const saveClientEditor = () => {
+    const payload = {
+      nome: editClientForm.nome,
+      cnpjCpf: editClientForm.cnpjCpf,
+      indicadorIE: editClientForm.indicadorIE,
+      ie: editClientForm.ie,
+      contato: editClientForm.contato,
+      telefone: editClientForm.telefone,
+    };
+
+    // salvar no store de clients: se existir por cnpjCpf atualiza, senão adiciona
+    const existing = clients.find((c: any) => (c.cnpjCpf || "").replace(/\D/g, "") === (payload.cnpjCpf || "").replace(/\D/g, ""));
+    if (existing) {
+      updateClient(existing.id, payload);
+    } else {
+      addClient(payload);
+    }
+
+    if (editClientType === "remetente") {
+      setForm((p) => ({
+        ...p,
+        remetenteNome: editClientForm.nome,
+        remetenteCnpjCpf: editClientForm.cnpjCpf,
+      }));
+    } else if (editClientType === "destinatario") {
+      setForm((p) => ({
+        ...p,
+        destinatarioNome: editClientForm.nome,
+        destinatarioCnpjCpf: editClientForm.cnpjCpf,
+      }));
+    }
+
+    setEditClientOpen(false);
+    setEditClientType(null);
   };
 
   const handleFluxoSelect = (fluxo: FluxoOrigemCTe) => {
@@ -317,6 +488,16 @@ const Ctes = () => {
       if (cte.chaveCTe) payload.chaveCTe = cte.chaveCTe;
       if (cte.tpServ) payload.tpServ = cte.tpServ;
       if (cte.infOutros) payload.infOutros = cte.infOutros;
+      if (cte.infCarga) payload.infCarga = cte.infCarga;
+      if (cte.informacoesAdicionais) payload.informacoesAdicionais = cte.informacoesAdicionais;
+      if (cte.tomador) payload.tomador = cte.tomador;
+      if (cte.numeroNota) payload.numeroNota = cte.numeroNota;
+      if (cte.cfop) payload.cfop = cte.cfop;
+      if (typeof cte.valorFrete !== "undefined") payload.valorFrete = cte.valorFrete;
+      if (cte.emitirRetroativo) payload.emitirRetroativo = cte.emitirRetroativo;
+      if (cte.textoNota) payload.textoNota = cte.textoNota;
+      if (typeof cte.hasExpedidor !== "undefined") payload.hasExpedidor = cte.hasExpedidor;
+      if (typeof cte.hasRecebedor !== "undefined") payload.hasRecebedor = cte.hasRecebedor;
       const result = await cteApi.emitir(payload, ambienteAtual);
       if (result.error) {
         throw new Error(result.error);
@@ -377,13 +558,23 @@ const Ctes = () => {
             Conhecimento de Transporte Eletrônico — emissão e entradas de frete
           </p>
         </div>
-        <button
-          onClick={handleNew}
-          className="flex items-center gap-2 bg-primary text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"
-        >
-          <Plus className="w-4 h-4" />
-          Novo CTe
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={handleNew}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium hover:bg-primary/90 transition-colors w-full sm:w-auto justify-center"
+          >
+            <Plus className="w-4 h-4" />
+            Novo CTe
+          </button>
+          <button
+            onClick={() => setShowBuscarChave(true)}
+            className="flex items-center gap-2 border border-border bg-muted/50 text-foreground px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm hover:bg-muted transition-colors"
+            title="Buscar CT-e por chave de acesso"
+          >
+            <Search className="w-4 h-4" />
+            Buscar por Chave CT-e
+          </button>
+        </div>
       </div>
 
       {tenant?.certificadoStatus === "nao_configurado" && (
@@ -632,6 +823,104 @@ const Ctes = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Dialog: Buscar CT-e por Chave */}
+      <Dialog open={showBuscarChave} onOpenChange={setShowBuscarChave}>
+        <DialogContent className="bg-card border-border max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm sm:text-base text-foreground">Buscar CT-e por chave de acesso (44 dígitos)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            <div className="flex gap-2">
+              <input
+                value={buscarChave}
+                onChange={(e) => setBuscarChave(e.target.value.replace(/\D/g, "").slice(0, 44))}
+                placeholder="Informe a chave do CT-e (44 dígitos)"
+                className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+              <button
+                onClick={handleBuscarChaveCTe}
+                disabled={buscando}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {buscando ? "Buscando..." : "Buscar"}
+              </button>
+            </div>
+
+            {/* Resultados */}
+            {buscarResult.length > 0 && (
+              <>
+                <div className="overflow-x-auto border border-border rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="text-left px-3 py-2 text-xs font-semibold">Nº</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold">Produto</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold">Emitente</th>
+                        <th className="text-left px-3 py-2 text-xs font-semibold">Destinatário</th>
+                        <th className="text-right px-3 py-2 text-xs font-semibold">Valor</th>
+                        <th className="text-right px-3 py-2 text-xs font-semibold">Peso ({pesoUnit})</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {buscarResult.map((r, idx) => (
+                        <tr key={idx} className="border-t border-border">
+                          <td className="px-3 py-2 font-mono">{r.numero || "—"}</td>
+                          <td className="px-3 py-2">{r.produto || "—"}</td>
+                          <td className="px-3 py-2 max-w-[160px] truncate">{r.emitenteNome || "—"}</td>
+                          <td className="px-3 py-2 max-w-[160px] truncate">{r.destinatarioNome || "—"}</td>
+                          <td className="px-3 py-2 text-right font-medium">R$ {(Number(r.valor) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</td>
+                          <td className="px-3 py-2 text-right">{(Number(r.peso) || 0) / (pesoUnit === "t" ? 1000 : 1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Resumo */}
+                <div className="flex items-center justify-between gap-4 mt-2">
+                  <div className="text-sm text-muted-foreground">
+                    <div>Produtos: <strong>{buscarResult.length}</strong></div>
+                    <div>Predominante: <strong>{resumoBuscar().predominante || "—"}</strong></div>
+                    <div>Valor total: <strong>R$ {resumoBuscar().totalValor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong></div>
+                    <div>Peso total: <strong>{resumoBuscar().pesoDisplay.toLocaleString(undefined, { maximumFractionDigits: 3 })} {pesoUnit}</strong></div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-muted-foreground">Unidade</label>
+                    <select value={pesoUnit} onChange={(e) => setPesoUnit(e.target.value as "kg" | "t")} className="bg-muted/50 border border-border rounded px-2 py-1 text-sm">
+                      <option value="kg">kg</option>
+                      <option value="t">t</option>
+                    </select>
+                    <button
+                      onClick={() => {
+                        // Preenche o formulário do CTe com o primeiro item (ou dados gerais) e abre o diálogo de edição
+                        const primeiro = buscarResult[0] || {};
+                        setForm((p) => ({
+                          ...p,
+                          chaveCTe: buscarChave.replace(/\D/g, ""),
+                          chave: buscarChave.replace(/\D/g, ""),
+                          numero: primeiro.numero || p.numero || "",
+                          numeroNota: primeiro.numero || p.numeroNota || "",
+                          remetenteNome: primeiro.emitenteNome || p.remetenteNome,
+                          destinatarioNome: primeiro.destinatarioNome || p.destinatarioNome,
+                          valorPrestacao: primeiro.valor || p.valorPrestacao || 0,
+                          infCarga: buscarResult,
+                        }));
+                        setShowBuscarChave(false);
+                        setDialogOpen(true);
+                        setShowNfeTipoStep(false);
+                      }}
+                      className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90"
+                    >
+                      Próximo
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setShowNfeTipoStep(false); }}>
         <DialogContent className="bg-card border-border max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -829,16 +1118,85 @@ const Ctes = () => {
               />
             </div>
           ))}
+          {/* Campos adicionais solicitados: CFOP, Valor Frete, Tomador, Número da nota origem, toggles */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">CFOP</label>
+            <input value={form.cfop ?? "5353"} onChange={(e) => setField("cfop", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor do Frete (R$)</label>
+            <input type="number" step="0.01" value={form.valorFrete ?? 0} onChange={(e) => setField("valorFrete", Number(e.target.value) || 0)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Tomador</label>
+            <select value={form.tomador ?? ""} onChange={(e) => setField("tomador", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm">
+              <option value="">Selecione...</option>
+              <option value="remetente">Remetente</option>
+              <option value="destinatario">Destinatário</option>
+              <option value="terceiro">Terceiro</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Número da nota origem</label>
+            <input value={form.numeroNota ?? ""} onChange={(e) => setField("numeroNota", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <input id="hasExpedidor" type="checkbox" checked={!!form.hasExpedidor} onChange={(e) => setField("hasExpedidor", e.target.checked)} />
+              <label htmlFor="hasExpedidor" className="text-xs text-muted-foreground">Tem Expedidor</label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input id="hasRecebedor" type="checkbox" checked={!!form.hasRecebedor} onChange={(e) => setField("hasRecebedor", e.target.checked)} />
+              <label htmlFor="hasRecebedor" className="text-xs text-muted-foreground">Tem Recebedor</label>
+            </div>
+            <div className="flex items-center gap-2 ml-4">
+              <input id="emitirRetro" type="checkbox" checked={!!form.emitirRetroativo} onChange={(e) => setField("emitirRetroativo", e.target.checked)} />
+              <label htmlFor="emitirRetro" className="text-xs text-muted-foreground">Emitir retroativo</label>
+            </div>
+          </div>
+          {/* Informações Adicionais */}
+          <div className="col-span-1 sm:col-span-2 mt-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Informações Adicionais</label>
+            <div className="space-y-2">
+              {(form.informacoesAdicionais || []).map((info: string, idx: number) => (
+                <div key={idx} className="flex gap-2">
+                  <input value={info} onChange={(e) => setForm((p) => ({ ...p, informacoesAdicionais: (p.informacoesAdicionais || []).map((x, i) => i === idx ? e.target.value : x) }))} className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+                  <button type="button" onClick={() => setForm((p) => ({ ...p, informacoesAdicionais: (p.informacoesAdicionais || []).filter((_, i) => i !== idx) }))} className="px-2 rounded-lg border">Remover</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setForm((p) => ({ ...p, informacoesAdicionais: [...(p.informacoesAdicionais || []), ""] }))} className="px-3 py-2 rounded-lg bg-muted/20 border border-border text-sm">Adicionar mais informações</button>
+            </div>
+          </div>
+          {/* Texto automático para nota */}
+          <div className="col-span-1 sm:col-span-2 mt-2">
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Texto da nota (automático)</label>
+            <div className="flex gap-2">
+              <input value={form.textoNota ?? ""} onChange={(e) => setField("textoNota", e.target.value)} className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+              <button type="button" onClick={() => {
+                const txt = `PLACA DO VEICULO ${form.veiculoPlaca || ""} REFERENTE A CONTROLE DE CTE Nº ${form.numero || ""}, REFERENTE A NOTA Nº ${form.numeroNota || ""}`;
+                setField("textoNota", txt);
+              }} className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm">Gerar</button>
+            </div>
+          </div>
           <div className="col-span-1 sm:col-span-2 mt-2">
             <p className="text-xs font-semibold text-muted-foreground">Remetente</p>
           </div>
           <div className="col-span-1 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
-            <input
-              value={form.remetenteNome}
-              onChange={(e) => setField("remetenteNome", e.target.value)}
-              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-            />
+            <div className="flex gap-2">
+              <input
+                value={form.remetenteNome}
+                onChange={(e) => setField("remetenteNome", e.target.value)}
+                className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+              <button
+                type="button"
+                onClick={() => openClientEditor("remetente")}
+                className="px-3 py-2 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              >
+                Editar
+              </button>
+            </div>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">CNPJ/CPF</label>
@@ -908,11 +1266,20 @@ const Ctes = () => {
           </div>
           <div className="col-span-1 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Nome *</label>
-            <input
-              value={form.destinatarioNome}
-              onChange={(e) => setField("destinatarioNome", e.target.value)}
-              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-            />
+            <div className="flex gap-2">
+              <input
+                value={form.destinatarioNome}
+                onChange={(e) => setField("destinatarioNome", e.target.value)}
+                className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+              <button
+                type="button"
+                onClick={() => openClientEditor("destinatario")}
+                className="px-3 py-2 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              >
+                Editar
+              </button>
+            </div>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">CNPJ/CPF</label>
@@ -1147,6 +1514,49 @@ const Ctes = () => {
           </div>
           </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Editar cliente (Remetente / Destinatário) */}
+      <Dialog open={editClientOpen} onOpenChange={setEditClientOpen}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">Editar {editClientType === "remetente" ? "Remetente" : "Destinatário"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 mt-2">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Nome</label>
+              <input value={editClientForm.nome} onChange={(e) => setEditClientForm((p) => ({ ...p, nome: e.target.value }))} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">CPF / CNPJ</label>
+              <input value={editClientForm.cnpjCpf} onChange={(e) => setEditClientForm((p) => ({ ...p, cnpjCpf: e.target.value }))} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Indicador IE</label>
+                <input value={editClientForm.indicadorIE} onChange={(e) => setEditClientForm((p) => ({ ...p, indicadorIE: e.target.value }))} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">IE</label>
+                <input value={editClientForm.ie} onChange={(e) => setEditClientForm((p) => ({ ...p, ie: e.target.value }))} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Contato</label>
+                <input value={editClientForm.contato} onChange={(e) => setEditClientForm((p) => ({ ...p, contato: e.target.value }))} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
+                <input value={editClientForm.telefone} onChange={(e) => setEditClientForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={() => setEditClientOpen(false)} className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Cancelar</button>
+            <button onClick={saveClientEditor} className="px-4 py-2 rounded-lg text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90">Salvar</button>
+          </div>
         </DialogContent>
       </Dialog>
 
