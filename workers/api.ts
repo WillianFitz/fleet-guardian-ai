@@ -775,10 +775,15 @@ export default {
           // Montar payload mínimo para rascunho de CTe baseado na NF-e
           const ctePayload: Record<string, any> = {
             // Campos básicos e mapeamento entre NF-e e CTe
+            // `numero` é obrigatório no banco (NOT NULL) — preencher com número da NF-e
+            numero: nfe.nfe || "",
             numero_nota: nfe.nfe || "",
+            chave: nfe.chave || "",
             chave_origem: nfe.chave || "",
             remetente_nome: nfe.xNomeEmit || "",
             destinatario_nome: nfe.xNomeDest || "",
+            // preencher valor_prestacao/valor_total para consistência com frontend e schema
+            valor_prestacao: nfe.vNF || 0,
             valor_total: nfe.vNF || 0,
             inf_carga: [
               {
