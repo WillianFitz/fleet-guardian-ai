@@ -418,8 +418,10 @@ const Ctes = () => {
     // Para XML: avança direto para o cadastro do CT-e.
     if (tipo === "sefaz") return;
     if (tipo === "chave") {
-      // Mostrar o input de chave inline (não navegar para outra página).
-      setShowNfeTipoStep(true);
+      // Fechar diálogo e navegar para a página dedicada de busca por chave
+      setDialogOpen(false);
+      setShowNfeTipoStep(false);
+      navigate("/ctes/buscar-chave");
       return;
     }
     // Para XML: avançar para o formulário de cadastro
