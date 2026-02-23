@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTenant } from "@/hooks/useTenant";
 import { useNavigate } from "react-router-dom";
 import { cteApi } from "@/lib/api";
 import { useLocation } from "react-router-dom";
@@ -36,6 +37,8 @@ export default function BuscarChaveCTe() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const navigate = useNavigate();
+  const { tenant } = useTenant();
+  const ambienteAtual = tenant?.ambienteCte || "homologacao";
 
   const handleBuscar = async () => {
     const digits = (chave || "").replace(/\D/g, "");
@@ -49,8 +52,8 @@ export default function BuscarChaveCTe() {
       // Detecta o modelo (posições 21-22 na chave): '55' = NF-e, '57' = CT-e
       const modelo = digits.slice(20, 22);
       if (modelo === "55") {
-        // NF-e → criar rascunho de CTe a partir da NF-e
-        const created = await cteApi.fromNfe(digits);
+        // NF-e → criar rascunho de CTe a partir da NF-e (passa ambiente do tenant)
+        const created = await cteApi.fromNfe(digits, ambienteAtual);
         const cteData = created?.data ?? created;
         if (cteData && cteData.id) {
           toast({ title: "Rascunho criado", description: "CTe rascunho criado a partir da NF-e. Abrindo formulário..." });
@@ -63,7 +66,7 @@ export default function BuscarChaveCTe() {
         }
       } else {
         // CT-e ou outro → consulta direta de CT-e
-        const res = await cteApi.consultar(digits);
+        const res = await cteApi.consultar(digits, ambienteAtual);
         const xml = res.xml || res.raw || "";
         const parsed = parseCteXml(xml, digits);
         setResults(parsed.items || []);
