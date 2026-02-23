@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature, Loader2, FileCode } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { api, cteApi } from "@/lib/api";
 import { useTenant } from "@/hooks/useTenant";
 import KpiCard from "@/components/dashboard/KpiCard";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const statusLabels: Record<string, string> = {
   rascunho: "Rascunho",
@@ -87,6 +87,7 @@ const Ctes = () => {
   const { items: clients, add: addClient, update: updateClient } = useStore<any>("clients", []);
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
+  const navigate = useNavigate();
   const [buscarChave, setBuscarChave] = useState("");
   const [buscando, setBuscando] = useState(false);
   const [buscarResult, setBuscarResult] = useState<Array<any>>([]);
@@ -387,15 +388,32 @@ const Ctes = () => {
   const handleNfeTipoSelect = (tipo: "xml" | "chave" | "sefaz") => {
     setNfeOrigemTipo(tipo);
     // Para SEFAZ: permanece neste passo para buscar/listar as NF-e do CNPJ.
-    // Para Chave: permanece no passo para permitir buscar a chave do CT-e dentro do fluxo.
+    // Para Chave: abrir página dedicada para digitar a chave.
     // Para XML: avança direto para o cadastro do CT-e.
     if (tipo === "sefaz") return;
     if (tipo === "chave") {
-      setShowNfeTipoStep(true);
+      setDialogOpen(false);
+      setShowNfeTipoStep(false);
+      navigate("/ctes/buscar-chave");
       return;
     }
     setShowNfeTipoStep(false);
   };
+
+  // Checa se há CTe pendente vindo da página de busca por chave
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("fleet_pending_cte");
+      if (raw) {
+        const pending = JSON.parse(raw);
+        setForm((p) => ({ ...p, ...(pending || {}) }));
+        setDialogOpen(true);
+        localStorage.removeItem("fleet_pending_cte");
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const handleBuscaNFeSefaz = async () => {
     // Se já consumimos até o maxNSU, não chamar de novo para evitar rejeição 656 (consumo indevido)

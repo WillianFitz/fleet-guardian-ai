@@ -149,9 +149,20 @@ export const cteApi = {
     const res = await fetch(url.toString(), {
       headers: await getHeaders(),
     });
-    const json = await res.json();
+    const text = await res.text();
+    let json: any = {};
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      json = { raw: text };
+    }
     if (!res.ok) {
-      throw new Error(json.error || json.message || `Falha ao consultar CTe: ${res.status}`);
+      const message = json.error || json.message || json.raw || `Falha ao consultar CTe: ${res.status}`;
+      const err = new Error(message);
+      // attach debug info
+      (err as any).status = res.status;
+      (err as any).body = json;
+      throw err;
     }
     return json;
   },
