@@ -155,6 +155,19 @@ class NFeBuscaSefazService
             // ignora parse errors
         }
 
+        // Se não encontramos nada ainda, tentar uma varredura mais completa na Distribuição DFe (maior alcance)
+        if ($parsed === null) {
+            try {
+                // tentar buscar usando buscarPorChave com maior número de iterações/páginas
+                $found = $this->buscarPorChave($chave, 200);
+                if ($found) {
+                    $parsed = $found;
+                }
+            } catch (\Throwable $e) {
+                // ignora erros de segunda tentativa
+            }
+        }
+
         return ['raw' => (string)$response, 'parsed' => $parsed];
     }
 
