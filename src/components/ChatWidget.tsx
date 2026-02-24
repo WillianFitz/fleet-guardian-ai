@@ -1,5 +1,6 @@
 import { Truck, Zap } from "lucide-react";
 import { useCallback, useState, useRef, useEffect } from "react";
+import { API_URL } from "@/lib/api";
 
 const ChatWidget = () => {
   const [open, setOpen] = useState(false);
@@ -48,13 +49,13 @@ const ChatWidget = () => {
 
         // If user asked "quantos veiculos" or similar, call metrics
         if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?/i.test(text)) {
-          let res = await fetch("/api/insights", {
+          let res = await fetch(`${API_URL}/api/insights`, {
             method: "POST",
             headers,
             body: JSON.stringify({ action: "metrics", period_days: 90 }),
           });
           if (!res || !res.ok) {
-            res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
+            res = await fetch(`${API_URL}/api/insights`, {
               method: "POST",
               headers,
               body: JSON.stringify({ action: "metrics", period_days: 90 }),
@@ -104,9 +105,9 @@ const ChatWidget = () => {
           if (to) bodyPayload.to = to;
           if (detectedDays) bodyPayload.days = detectedDays;
 
-          let res = await fetch("/api/insights", { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+          let res = await fetch(`${API_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
           if (!res || !res.ok) {
-            res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+            res = await fetch(`${API_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
           }
           const j = await (res?.json ? res.json() : null);
           const recs = j?.data?.records || [];
@@ -147,13 +148,13 @@ ${JSON.stringify({ params, totals, sample })}`;
 
           try {
             // send to Worker/OpenAI for natural-language analysis
-            let r2 = await fetch("/api/insights", {
+            let r2 = await fetch(`${API_URL}/api/insights`, {
               method: "POST",
               headers,
               body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 600 }),
             });
             if (!r2 || !r2.ok) {
-              r2 = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
+              r2 = await fetch(`${API_URL}/api/insights`, {
                 method: "POST",
                 headers,
                 body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 600 }),

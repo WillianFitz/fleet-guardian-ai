@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { API_URL } from "@/lib/api";
 import KpiCard from "@/components/dashboard/KpiCard";
 
 interface Metrics {
@@ -25,7 +26,7 @@ const FleetMetricsCard = () => {
         if (token) headers["Authorization"] = `Bearer ${token}`;
         if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
 
-        const res = await fetch("/api/insights", {
+        const res = await fetch(`${API_URL}/api/insights`, {
           method: "POST",
           headers,
           body: JSON.stringify({ action: "metrics", period_days: 30 }),
