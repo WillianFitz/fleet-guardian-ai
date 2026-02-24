@@ -65,12 +65,12 @@ const ChatWidget = () => {
   return (
     <>
       {/* Floating button */}
-      <div className="fixed z-50 right-4 bottom-4">
+      <div className="fixed z-50 right-4 bottom-4 sm:right-6 sm:bottom-6">
         <div className="flex items-end">
           {open && (
-            <div className="mr-2">
+            <div className="mr-2 hidden sm:block">
               <button
-                className="px-3 py-1 text-xs rounded-md bg-card/80 border border-border shadow-sm"
+                className="px-3 py-1 text-xs rounded-md bg-card/80 border border-border shadow-sm text-foreground"
                 onClick={() => setMinimized(!minimized)}
               >
                 {minimized ? "Abrir" : "Minimizar"}
@@ -84,28 +84,33 @@ const ChatWidget = () => {
               setOpen((o) => !o);
               if (open) setMinimized(false);
             }}
-            className="w-14 h-14 rounded-full bg-primary/90 hover:bg-primary/100 text-white flex items-center justify-center shadow-xl border border-primary/30"
+            className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center shadow-lg border border-primary/30 hover:scale-105 transition-transform"
           >
-              <div className="relative">
-                <Truck className="w-6 h-6 opacity-90" />
-                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                  <Zap className="w-3 h-3 text-primary" />
-                </span>
-              </div>
+            <div className="relative">
+              <Truck className="w-6 h-6 opacity-90" />
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center">
+                <Zap className="w-3 h-3 text-primary" />
+              </span>
+            </div>
           </button>
         </div>
 
-        {/* Chat box */}
+        {/* Chat box: responsive - full screen on small, floating on md+ */}
         {open && !minimized && (
-          <div className="mt-3 w-96 max-w-md">
-            <div className="bg-card/90 border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="mt-3">
+            <div
+              className={`bg-card/95 border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col
+                w-[92vw] max-w-lg md:w-96 md:max-w-md
+                ${/* full-screen style on small devices */ ""}`}
+              style={{ backdropFilter: "blur(6px)" }}
+            >
               <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                     <Zap className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <div className="text-sm sm:text-base font-semibold">IA & Insights</div>
+                    <div className="text-sm sm:text-base font-semibold text-foreground">IA & Insights</div>
                     <div className="text-xs sm:text-sm text-muted-foreground">Peça relatórios, métricas e recomendações para reduzir custos</div>
                   </div>
                 </div>
@@ -115,7 +120,7 @@ const ChatWidget = () => {
                 </div>
               </div>
 
-              <div ref={boxRef} className="p-4 max-h-80 overflow-auto space-y-3 bg-gradient-to-b from-background/50 to-background/40">
+              <div ref={boxRef} className="p-4 max-h-[60vh] overflow-auto space-y-3 bg-background/40">
                 {messages.length === 0 ? (
                   <div className="text-sm text-muted-foreground p-2">Sugestões: <span className="font-medium">"Me mostre custos por veículo nos últimos 3 meses"</span> • <span className="font-medium">"Onde posso reduzir gastos?"</span></div>
                 ) : (
@@ -136,10 +141,12 @@ const ChatWidget = () => {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
                     rows={2}
-                    className="flex-1 textarea resize-none h-12 px-3 py-2 rounded-md border border-border focus:outline-none"
+                    className="flex-1 resize-none h-14 px-3 py-2 rounded-md border border-border focus:outline-none bg-background text-foreground placeholder:text-muted-foreground"
                     placeholder="Digite sua pergunta (Shift+Enter para nova linha)..."
                   />
-                  <button className="btn" onClick={() => send()} disabled={loading}>{loading ? "..." : "Enviar"}</button>
+                  <button className="bg-primary text-white px-4 py-2 rounded-md shadow hover:brightness-95" onClick={() => send()} disabled={loading}>
+                    {loading ? "..." : "Enviar"}
+                  </button>
                 </div>
                 <div className="text-xs text-muted-foreground mt-2">Respostas geradas por IA — sua privacidade é importante.</div>
               </div>
