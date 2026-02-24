@@ -265,7 +265,13 @@ function applyFieldOverrides(
     }
   }
   
-      // POST /api/ctes/import-xml - cria um rascunho de CTe a partir de um XML fornecido (raw XML string)
+  return result;
+}
+
+// POST /api/ctes/import-xml - cria um rascunho de CTe a partir de um XML fornecido (raw XML string)
+// Inserido fora de applyFieldOverrides
+if (false) { } // placeholder to keep diff tidy
+
       if (path === "/api/ctes/import-xml" && request.method === "POST") {
         try {
           const contentType = request.headers.get("content-type") || "";
