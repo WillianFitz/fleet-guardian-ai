@@ -774,41 +774,7 @@ const Ctes = () => {
         </div>
       )}
 
-      <div className="flex items-start gap-3 p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-        <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-700 dark:text-blue-400" />
-        <div className="flex-1 text-sm text-blue-700 dark:text-blue-400">
-          <p className="mb-1">
-            Para emitir e consultar CTe na SEFAZ, configure a variável <code className="text-xs bg-muted px-1 rounded">CTE_API_URL</code> no Worker apontando para o backend PHP{" "}
-            <a
-              href="https://github.com/nfephp-org/sped-cte"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-medium"
-            >
-              nfephp-org/sped-cte
-            </a>.
-          </p>
-          <div className="flex items-center gap-2 mt-2">
-            <Shield className="w-3 h-3" />
-            <span className="text-xs font-medium">
-              Ambiente atual:{" "}
-              <span className={`px-2 py-0.5 rounded ${
-                ambienteAtual === "producao"
-                  ? "bg-green-500/20 text-green-700 dark:text-green-400"
-                  : "bg-amber-500/20 text-amber-700 dark:text-amber-400"
-              }`}>
-                {ambienteAtual === "producao" ? "Produção" : "Homologação"}
-              </span>
-            </span>
-            <Link
-              to="/configuracoes"
-              className="text-xs underline hover:no-underline"
-            >
-              (alterar)
-            </Link>
-          </div>
-        </div>
-      </div>
+      {/* Informações de deploy/CTE removidas por solicitação */}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <KpiCard icon={FileText} title="Total de CT-es" value={String(items.length)} variant="default" />

@@ -184,16 +184,16 @@ const Clientes = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-9">
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
+        <div className="flex justify-center">
+          <div className="w-full max-w-5xl">
+            <div className="bg-card border border-border rounded-lg overflow-hidden mx-auto">
               <div className="p-6 border-b border-border flex items-center justify-between">
                 <div className="text-lg font-semibold">Lista de clientes</div>
                 <div className="text-sm text-muted-foreground">{items.length} cadastrados</div>
               </div>
-              <div className="overflow-x-auto flex justify-center">
-                <div className="w-full flex justify-center">
-                  <table className="w-full max-w-4xl min-w-[680px] divide-y divide-border text-base table-auto">
+              <div className="overflow-x-auto">
+                <div className="mx-auto">
+                  <table className="w-full min-w-[680px] divide-y divide-border text-base table-auto mx-auto">
                     <thead className="bg-muted/10">
                       <tr className="text-xs text-muted-foreground uppercase">
                         <th className="text-left px-6 py-4">Nome</th>
@@ -240,11 +240,6 @@ const Clientes = () => {
                 </div>
               </div>
             </div>
-          </div>
-
-          <div className="lg:col-span-3">
-            {/* right column left intentionally for balance (modal used for create/edit) */}
-            <div className="h-full" />
           </div>
         </div>
       </div>
