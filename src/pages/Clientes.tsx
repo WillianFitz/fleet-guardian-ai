@@ -77,7 +77,8 @@ const Clientes = () => {
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="mx-auto max-w-6xl">
+        <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-sm text-muted-foreground">Gerencie clientes gerados pelas importações e buscas.</p>
@@ -94,21 +95,21 @@ const Clientes = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-9">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-9">
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="p-6 border-b border-border flex items-center justify-between">
               <div className="text-lg font-semibold">Lista de clientes</div>
               <div className="text-sm text-muted-foreground">{items.length} cadastrados</div>
             </div>
-            <div className="overflow-x-auto flex justify-center">
-              <table className="w-full max-w-5xl min-w-min divide-y divide-border text-base">
+            <div className="overflow-x-auto">
+              <table className="w-full max-w-full min-w-min divide-y divide-border text-base table-auto mx-auto">
                 <thead className="bg-muted/10">
                   <tr className="text-xs text-muted-foreground uppercase">
                     <th className="text-left px-6 py-4">Nome</th>
                     <th className="text-left px-6 py-4">CNPJ/CPF</th>
                     <th className="text-left px-6 py-4">Município / UF</th>
-                    <th className="px-6 py-4 text-right">Ações</th>
+                    <th className="px-6 py-4 text-right w-40">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="bg-card">
@@ -122,18 +123,20 @@ const Clientes = () => {
                       <td className="px-6 py-4 align-top font-mono">{c.cnpjCpf}</td>
                       <td className="px-6 py-4 align-top">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
                       <td className="px-6 py-4 text-right align-top">
-                        <button onClick={() => handleEdit(c)} className="px-3 py-1 rounded border mr-2">Editar</button>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Excluir cliente ${c.nome}?`)) {
-                              remove(c.id);
-                              toast({ title: "Cliente excluído" });
-                            }
-                          }}
-                          className="px-3 py-1 rounded border text-destructive"
-                        >
-                          Excluir
-                        </button>
+                        <div className="inline-flex items-center gap-2">
+                          <button onClick={() => handleEdit(c)} className="inline-flex items-center px-3 py-1.5 rounded border">Editar</button>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Excluir cliente ${c.nome}?`)) {
+                                remove(c.id);
+                                toast({ title: "Cliente excluído" });
+                              }
+                            }}
+                            className="inline-flex items-center px-3 py-1.5 rounded border text-destructive"
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
