@@ -666,6 +666,7 @@ export default {
  - Abastecimento (fuel_entries): R$ ${totalFuel.toFixed(2)}
  - Manutenção (maintenance_orders): R$ ${totalMaint.toFixed(2)}
  - Veículos cadastrados: ${activeVehicles.length}
+ - Motoristas cadastrados: ${driversList.length}
  - Veículos com dados detectados (abastecimento/despesas/manutenção): ${byVehicle.length}
  `;
             } catch (e) {
