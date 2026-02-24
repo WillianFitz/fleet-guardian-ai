@@ -520,7 +520,8 @@ export default {
           // Build optional data summary and metrics from DB when requested (best-effort; ignore failures)
           let dataSummary = "";
           let metrics: Record<string, any> = {};
-          if (body?.includeData) {
+          // Build metrics when explicitly requested (includeData) or when actions that need them are called
+          if (body?.includeData || body?.action === "metrics" || body?.action === "metrics_only" || body?.audit === true) {
             try {
               // Aggregate totals
               const expRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM expenses WHERE tenant_id = ?").bind(tenantId).first();
