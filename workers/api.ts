@@ -956,6 +956,44 @@ export default {
               destinatarioMunicipio,
               destinatarioUf
             };
+            // Lookup vehicle by placa for both parsed JSON and raw XML branches
+            try {
+              const placaNormRaw = String((nfe as any).placa || (nfe as any).veiculoPlaca || "").trim();
+              const normalizePlaca = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+              const placaNorm = normalizePlaca(placaNormRaw);
+              if (placaNorm) {
+                const rowsRes = await env.DB.prepare("SELECT id, placa, modelo FROM vehicles WHERE tenant_id = ?").bind(tenantId).all();
+                const rows = rowsRes.results || [];
+                let found: any = null;
+                for (const r of rows) {
+                  const dbPlacaNorm = normalizePlaca(String(r.placa || ""));
+                  if (dbPlacaNorm === placaNorm) {
+                    found = r;
+                    break;
+                  }
+                }
+                if (!found && placaNorm.length >= 4) {
+                  const tail = placaNorm.slice(-4);
+                  for (const r of rows) {
+                    const dbPlacaNorm = normalizePlaca(String(r.placa || ""));
+                    if (dbPlacaNorm.endsWith(tail)) {
+                      found = r;
+                      break;
+                    }
+                  }
+                }
+                if (found) {
+                  (nfe as any).veiculoId = found.id;
+                  (nfe as any).veiculoModelo = found.modelo || null;
+                } else {
+                  console.log("No vehicle match for placa:", placaNorm);
+                }
+              } else {
+                console.log("No placa found in NFe payload");
+              }
+            } catch (err) {
+              console.error("Vehicle lookup error:", err);
+            }
           }
           if (!nfe) return errorResponse("NF-e não encontrada ou resposta inválida", 404);
 
