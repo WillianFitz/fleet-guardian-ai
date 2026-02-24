@@ -109,15 +109,75 @@ const ChatWidget = () => {
           const lines: string[] = [];
           lines.push(`Resultados para placa ${params.plate || "todas"} (${params.from} → ${params.to}) — categoria: ${params.category}`);
           lines.push(`Registros: ${totals.count || recs.length} • Total valor: R$ ${Number(totals.totalValue || 0).toLocaleString("pt-BR")}`);
-          // show up to 5 sample lines
-          for (let i=0;i<Math.min(5, recs.length); i++) {
-            const r = recs[i];
-            if (r.litros) lines.push(`• ${r.data} · Fuel · ${r.veiculo_placa} · ${r.litros} L · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
-            else if (r.numero || r.tipo) lines.push(`• ${r.data} · Manutenção (${r.tipo||r.numero}) · ${r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
-            else lines.push(`• ${r.data} · Despesa · ${r.descricao || r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+
+          // Prepare a compact dataset for analysis (limit to 50 records)
+          const sample = recs.slice(0, 50).map((r:any) => {
+            return {
+              date: r.data,
+              plate: r.veiculo_placa,
+              type: r.litros ? "fuel" : (r.tipo || r.numero ? "maintenance" : "expense"),
+              description: r.descricao || r.numero || r.posto || null,
+              liters: r.litros || null,
+              value: Number(r.valor || 0),
+              km_from: r.km_anterior || null,
+              km_to: r.km_atual || null
+            };
+          });
+
+          // Ask the Worker to analyze these records via the AI
+          const systemPrompt = "Você é um assistente analítico especializado em gestão de frotas. Responda em Português de forma clara e concisa, com um resumo numérico e recomendações acionáveis.";
+          const userPrompt = `Analise os seguintes registros de despesas/combustível/manutenção e gere:
+1) Um resumo numérico (total valor, total litros, km total quando aplicável).
+2) Uma análise por tipo (combustível / manutenção / despesas) e por veículo.
+3) Principais anomalias (ex.: consumo fora do normal, custos muito altos).
+4) Recomendações práticas.
+
+Dados (JSON):
+${JSON.stringify({ params, totals, sample })}`;
+
+          try {
+            // send to Worker/OpenAI for natural-language analysis
+            let r2 = await fetch("/api/insights", {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 600 }),
+            });
+            if (!r2 || !r2.ok) {
+              r2 = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 600 }),
+              });
+            }
+            const j2 = await (r2?.json ? r2.json() : Promise.resolve(null));
+            const analysis = j2?.data?.assistant || j2?.assistant || (j2?.raw?.choices?.[0]?.message?.content ?? null);
+            // show brief header + analysis
+            const header = lines.join("\n");
+            if (analysis) {
+              setMessages((s) => [...s, { role: "assistant", text: header }, { role: "assistant", text: String(analysis) }]);
+            } else {
+              // fallback to structured lines if analysis failed
+              // show up to 5 sample lines for user reference
+              for (let i=0;i<Math.min(5, recs.length); i++) {
+                const r = recs[i];
+                if (r.litros) lines.push(`• ${r.data} · Fuel · ${r.veiculo_placa} · ${r.litros} L · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+                else if (r.numero || r.tipo) lines.push(`• ${r.data} · Manutenção (${r.tipo||r.numero}) · ${r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+                else lines.push(`• ${r.data} · Despesa · ${r.descricao || r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+              }
+              if (recs.length > 5) lines.push(`... e mais ${recs.length-5} registro(s). Use 'limit' para ver mais.`);
+              setMessages((s) => [...s, { role: "assistant", text: lines.join("\n") }]);
+            }
+          } catch (err) {
+            // if analysis fails, fallback to structured lines
+            for (let i=0;i<Math.min(5, recs.length); i++) {
+              const r = recs[i];
+              if (r.litros) lines.push(`• ${r.data} · Fuel · ${r.veiculo_placa} · ${r.litros} L · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+              else if (r.numero || r.tipo) lines.push(`• ${r.data} · Manutenção (${r.tipo||r.numero}) · ${r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+              else lines.push(`• ${r.data} · Despesa · ${r.descricao || r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+            }
+            if (recs.length > 5) lines.push(`... e mais ${recs.length-5} registro(s). Use 'limit' para ver mais.`);
+            setMessages((s) => [...s, { role: "assistant", text: lines.join("\n") }]);
           }
-          if (recs.length > 5) lines.push(`... e mais ${recs.length-5} registro(s). Use 'limit' para ver mais.`);
-          setMessages((s) => [...s, { role: "assistant", text: lines.join("\n") }]);
           setLoading(false);
           return;
         }
