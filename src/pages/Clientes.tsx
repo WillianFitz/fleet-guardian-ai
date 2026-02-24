@@ -57,17 +57,33 @@ const Clientes = () => {
     setLoadingFetch(true);
     try {
       const data = await fetchCnpjData(cnpj);
+      // Debug: if needed inspect returned JSON in logs
+      try { console.log("[CLIENTES] fetchCnpjData result:", JSON.stringify(data)); } catch {}
+
+      // Extract phone from several possible locations in BrasilAPI response
+      const phone =
+        data.telefone ||
+        data.telefone_contato ||
+        (data.estabelecimento && (data.estabelecimento.telefone || data.estabelecimento?.ddd_telefone)) ||
+        (Array.isArray(data.estabelecimentos) && (data.estabelecimentos[0]?.telefone || data.estabelecimentos[0]?.ddd_telefone)) ||
+        null;
+
+      // Extract address/municipio/uf from multiple possible locations
+      const cep = data.estabelecimento?.cep || data.cep || data.estabelecimentos?.[0]?.cep || null;
+      const logradouro = data.estabelecimento?.logradouro || data.logradouro || data.estabelecimentos?.[0]?.logradouro || null;
+      const municipio = data.estabelecimento?.municipio || data.municipio || data.estabelecimentos?.[0]?.municipio || null;
+      const uf = data.estabelecimento?.uf || data.uf || data.estabelecimentos?.[0]?.uf || null;
+
       // Mapear campos comuns
       setForm((p) => ({
         ...p,
         nome: data.razao_social || data.nome || p.nome,
-        // preencher tanto contato quanto telefone (compatibilidade)
-        contato: (data.telefone || p.contato) ?? "",
-        telefone: (data.telefone || p.telefone) ?? (data.telefone || p.contato) ?? "",
-        cep: data.estabelecimento?.cep || p.cep || "",
-        logradouro: data.estabelecimento?.logradouro || p.logradouro || "",
-        municipio: data.estabelecimento?.municipio || p.municipio || "",
-        uf: data.estabelecimento?.uf || p.uf || "",
+        contato: phone || p.contato || "",
+        telefone: phone || p.telefone || "",
+        cep: cep || p.cep || "",
+        logradouro: logradouro || p.logradouro || "",
+        municipio: municipio || p.municipio || "",
+        uf: uf || p.uf || "",
       }));
       toast({ title: "Dados do CNPJ preenchidos" });
     } catch (e: any) {
