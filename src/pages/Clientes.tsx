@@ -131,6 +131,33 @@ const Clientes = () => {
         uf: uf || p.uf || "",
       }));
       toast({ title: "Dados do CNPJ preenchidos" });
+
+      // If we have a CEP but missing street/bairro, try ViaCEP to enrich address
+      try {
+        const cepDigits = cep ? cep.replace(/\D/g, "") : null;
+        const needViaCep = cepDigits && (!logradouro || !bairroField);
+        if (needViaCep) {
+          try {
+            const viaRes = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
+            if (viaRes.ok) {
+              const viaJson = await viaRes.json();
+              if (!viaJson.erro) {
+                setForm((p) => ({
+                  ...p,
+                  logradouro: p.logradouro || viaJson.logradouro || logradouro || "",
+                  bairro: p.bairro || viaJson.bairro || bairroField || "",
+                  complemento: p.complemento || viaJson.complemento || complementoField || p.complemento || "",
+                }));
+                toast({ title: "Endereço completado via CEP" });
+              }
+            }
+          } catch {
+            // ignore ViaCEP errors
+          }
+        }
+      } catch {
+        // ignore
+      }
     } catch (e: any) {
       toast({ title: "Falha ao buscar CNPJ", description: e?.message || "Erro", variant: "destructive" });
     } finally {
