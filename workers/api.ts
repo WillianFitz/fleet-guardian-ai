@@ -487,6 +487,11 @@ async function handleDelete(
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     // CORS preflight
+    // Build-bump log (harmless) to trigger redeploy visibility
+    try {
+      // eslint-disable-next-line no-console
+      console.log("[BUILD-BUMP] redeploy trigger -", new Date().toISOString());
+    } catch {}
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
     }

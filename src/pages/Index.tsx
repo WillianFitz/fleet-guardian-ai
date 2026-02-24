@@ -1,4 +1,5 @@
 import { Truck, Fuel, Wrench, DollarSign, Users, TrendingUp, Activity, Clock } from "lucide-react";
+import { useEffect } from "react";
 import KpiCard from "@/components/dashboard/KpiCard";
 import FleetStatusChart from "@/components/dashboard/FleetStatusChart";
 import CostChart from "@/components/dashboard/CostChart";
@@ -9,6 +10,13 @@ import { Vehicle, FuelEntry, MaintenanceOrder, Driver } from "@/types/fleet";
 import FleetMetricsCard from "@/components/dashboard/FleetMetricsCard";
 
 const Index = () => {
+  useEffect(() => {
+    // Frontend build-bump log to trigger redeploy visibility
+    try {
+      // eslint-disable-next-line no-console
+      console.log("[BUILD-BUMP-FRONT] redeploy trigger -", new Date().toISOString());
+    } catch {}
+  }, []);
   const { items: vehicles } = useStore<Vehicle>("vehicles", []);
   const { items: fuel } = useStore<FuelEntry>("fuel", []);
   const { items: maintenance } = useStore<MaintenanceOrder>("maintenance", []);
