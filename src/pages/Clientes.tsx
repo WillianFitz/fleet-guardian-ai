@@ -80,9 +80,22 @@ const Clientes = () => {
       let phone = null;
       for (const p of phoneCandidates) {
         if (p && String(p).trim()) {
-          // normalize: remove spaces, keep digits and common symbols
           phone = String(p).trim();
           break;
+        }
+      }
+      // Normalize/format phone if found (BR format)
+      if (phone) {
+        const digits = onlyDigits(phone);
+        if (digits.length === 10) {
+          // (AA) NNNN-NNNN
+          phone = `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+        } else if (digits.length === 11) {
+          // (AA) NNNNN-NNNN
+          phone = `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+        } else {
+          // keep digits grouping for unknown lengths
+          phone = digits;
         }
       }
 
