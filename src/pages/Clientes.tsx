@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import useStore from "@/hooks/useStore";
 import { Client } from "@/types/fleet";
 import { validateCPF, validateCNPJ, fetchCnpjData, onlyDigits } from "@/lib/cpfCnpj";
@@ -9,15 +9,20 @@ const Clientes = () => {
   const [editing, setEditing] = useState<Client | null>(null);
   const [form, setForm] = useState<Partial<Client>>({});
   const [loadingFetch, setLoadingFetch] = useState(false);
+  const [search, setSearch] = useState("");
+  const nameRef = useRef<HTMLInputElement | null>(null);
 
   const openNew = () => {
     setEditing(null);
     setForm({});
+    // focus name input when opening
+    setTimeout(() => nameRef.current?.focus(), 20);
   };
 
   const handleEdit = (c: Client) => {
     setEditing(c);
     setForm(c);
+    setTimeout(() => nameRef.current?.focus(), 20);
   };
 
   const handleSave = () => {
@@ -65,40 +70,70 @@ const Clientes = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">Clientes</h1>
-        <button onClick={openNew} className="px-3 py-2 rounded-lg bg-primary text-primary-foreground">Novo</button>
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-2xl font-bold">Clientes</h1>
+          <p className="text-sm text-muted-foreground">Gerencie clientes gerados pelas importações e buscas.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nome ou CNPJ"
+            className="hidden sm:block bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm w-64 focus:outline-none"
+          />
+          <button onClick={openNew} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground">Novo cliente</button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="col-span-2">
-          <div className="glass-card overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div className="text-sm text-muted-foreground">Lista de clientes</div>
+              <div className="text-xs text-muted-foreground">{items.length} cadastrados</div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Nome</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">CNPJ/CPF</th>
-                    <th className="text-left px-3 py-2 text-xs font-semibold">Município</th>
-                    <th className="px-3 py-2"></th>
+                <thead className="bg-muted/10">
+                  <tr className="text-xs text-muted-foreground uppercase">
+                    <th className="text-left px-4 py-3">Nome</th>
+                    <th className="text-left px-4 py-3">CNPJ/CPF</th>
+                    <th className="text-left px-4 py-3">Município / UF</th>
+                    <th className="px-4 py-3">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((c) => (
-                    <tr key={c.id} className="border-t border-border">
-                      <td className="px-3 py-2">{c.nome}</td>
-                      <td className="px-3 py-2 font-mono">{c.cnpjCpf}</td>
-                      <td className="px-3 py-2">{c.municipio} {c.uf ? `/${c.uf}` : ""}</td>
-                      <td className="px-3 py-2 text-right">
-                        <button onClick={() => handleEdit(c)} className="px-2 py-1 rounded border">Editar</button>
-                        <button onClick={() => remove(c.id)} className="px-2 py-1 rounded border ml-2 text-destructive">Excluir</button>
+                  {items.filter(c => {
+                    const q = search.trim().toLowerCase();
+                    if (!q) return true;
+                    return (c.nome || "").toLowerCase().includes(q) || (c.cnpjCpf || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
+                  }).map((c) => (
+                    <tr key={c.id} className="border-t hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3">{c.nome}</td>
+                      <td className="px-4 py-3 font-mono">{c.cnpjCpf}</td>
+                      <td className="px-4 py-3">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => handleEdit(c)} className="px-2 py-1 rounded border mr-2">Editar</button>
+                        <button
+                          onClick={() => {
+                            if (confirm(`Excluir cliente ${c.nome}?`)) {
+                              remove(c.id);
+                              toast({ title: "Cliente excluído" });
+                            }
+                          }}
+                          className="px-2 py-1 rounded border text-destructive"
+                        >
+                          Excluir
+                        </button>
                       </td>
                     </tr>
                   ))}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">Nenhum cliente</td>
+                      <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Nenhum cliente cadastrado</td>
                     </tr>
                   )}
                 </tbody>
@@ -106,28 +141,38 @@ const Clientes = () => {
             </div>
           </div>
         </div>
-        <div>
-          <div className="p-4 bg-card border-border rounded-lg space-y-2">
-            <label className="text-xs">Nome</label>
-            <input value={form.nome || ""} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} className="w-full px-2 py-2 border rounded" />
-            <label className="text-xs">CNPJ / CPF</label>
-            <div className="flex gap-2">
-              <input value={form.cnpjCpf || ""} onChange={(e) => setForm((p) => ({ ...p, cnpjCpf: e.target.value }))} className="flex-1 px-2 py-2 border rounded" />
-              <button onClick={handleFetchByCnpj} disabled={loadingFetch} className="px-3 py-2 rounded-lg bg-primary text-primary-foreground">{loadingFetch ? "Buscando..." : "Buscar CNPJ"}</button>
+
+        <aside className="bg-card border border-border rounded-lg p-4">
+          <h2 className="text-sm font-semibold mb-3">{editing ? "Editar cliente" : "Novo cliente"}</h2>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Nome</label>
+              <input ref={nameRef} value={form.nome || ""} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
             </div>
-            <label className="text-xs">Telefone</label>
-            <input value={form.telefone || ""} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full px-2 py-2 border rounded" />
-            <label className="text-xs">Município / UF</label>
-            <div className="flex gap-2">
-              <input value={form.municipio || ""} onChange={(e) => setForm((p) => ({ ...p, municipio: e.target.value }))} className="flex-1 px-2 py-2 border rounded" />
-              <input value={form.uf || ""} onChange={(e) => setForm((p) => ({ ...p, uf: e.target.value.toUpperCase() }))} className="w-16 px-2 py-2 border rounded" maxLength={2} />
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">CNPJ / CPF</label>
+              <div className="flex gap-2">
+                <input value={form.cnpjCpf || ""} onChange={(e) => setForm((p) => ({ ...p, cnpjCpf: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
+                <button onClick={handleFetchByCnpj} disabled={loadingFetch} className="px-3 py-2 rounded bg-primary text-primary-foreground">{loadingFetch ? "Buscando..." : "Buscar CNPJ"}</button>
+              </div>
             </div>
-            <div className="flex justify-end gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
+              <input value={form.telefone || ""} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-1">Município / UF</label>
+              <div className="flex gap-2">
+                <input value={form.municipio || ""} onChange={(e) => setForm((p) => ({ ...p, municipio: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
+                <input value={form.uf || ""} onChange={(e) => setForm((p) => ({ ...p, uf: e.target.value.toUpperCase() }))} className="w-20 px-3 py-2 border rounded bg-muted/50" maxLength={2} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
               <button onClick={() => { setForm({}); setEditing(null); }} className="px-3 py-2 rounded border">Cancelar</button>
               <button onClick={handleSave} className="px-3 py-2 rounded bg-primary text-primary-foreground">Salvar</button>
             </div>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
