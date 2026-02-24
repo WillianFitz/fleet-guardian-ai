@@ -757,19 +757,19 @@ export default {
               const dateTo = to;
               if (category === "fuel" || category === "all") {
                 await fetchAndFilter(
-                  "SELECT id, veiculo_placa, motorista, litros, valor, km_atual, km_anterior, posto, data FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY date DESC LIMIT 1000",
+                  "SELECT id, veiculo_placa, motorista, litros, valor, km_atual, km_anterior, posto, data FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000",
                   [tenantId, dateFrom, dateTo]
                 );
               }
               if ((category === "expenses" || category === "all") && results.length < limit) {
                 await fetchAndFilter(
-                  "SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY date DESC LIMIT 1000",
+                  "SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000",
                   [tenantId, dateFrom, dateTo]
                 );
               }
               if ((category === "maintenance" || category === "all") && results.length < limit) {
                 await fetchAndFilter(
-                  "SELECT id, numero, veiculo_placa, custo AS valor, data, tipo, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY date DESC LIMIT 1000",
+                  "SELECT id, numero, veiculo_placa, custo AS valor, data, tipo, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000",
                   [tenantId, dateFrom, dateTo]
                 );
               }
