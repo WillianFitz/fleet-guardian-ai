@@ -69,8 +69,13 @@ const Clientes = () => {
         data.contato?.telefone,
         data.contatos && Array.isArray(data.contatos) ? data.contatos[0]?.telefone : null,
         data.estabelecimento?.telefone,
-        data.estabelecimento?.ddd && data.estabelecimento?.telefone ? `${data.estabelecimento.ddd}${data.estabelecimento.telefone}` : null,
-        data.estabelecimentos && Array.isArray(data.estabelecimentos) ? (data.estabelecimentos[0]?.telefone || data.estabelecimentos[0]?.ddd && data.estabelecimentos[0]?.telefone ? `${data.estabelecimentos[0].ddd || ""}${data.estabelecimentos[0].telefone || ""}` : null) : null,
+        // BrasilAPI common fields
+        data.ddd_telefone_1 || data.ddd_telefone_2 || null,
+        data.telefone_1 || data.telefone_2 || null,
+        // combine ddd + telefone when present
+        (data.estabelecimento?.ddd && data.estabelecimento?.telefone) ? `${data.estabelecimento.ddd}${data.estabelecimento.telefone}` : null,
+        (Array.isArray(data.estabelecimentos) && (data.estabelecimentos[0]?.ddd && data.estabelecimentos[0]?.telefone)) ? `${data.estabelecimentos[0].ddd}${data.estabelecimentos[0].telefone}` : null,
+        (Array.isArray(data.estabelecimentos) && data.estabelecimentos[0]?.telefone) ? data.estabelecimentos[0]?.telefone : null,
       ];
       let phone = null;
       for (const p of phoneCandidates) {
