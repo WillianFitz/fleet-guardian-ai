@@ -100,10 +100,21 @@ const Clientes = () => {
       }
 
       // Extract address/municipio/uf from multiple possible locations
-      const cep = data.estabelecimento?.cep || data.cep || data.estabelecimentos?.[0]?.cep || null;
+      const rawCep = data.estabelecimento?.cep || data.cep || data.estabelecimentos?.[0]?.cep || null;
       const logradouro = data.estabelecimento?.logradouro || data.logradouro || data.estabelecimentos?.[0]?.logradouro || null;
+      const numeroField = data.numero || data.estabelecimento?.numero || data.estabelecimentos?.[0]?.numero || null;
+      const bairroField = data.bairro || data.estabelecimento?.bairro || data.estabelecimentos?.[0]?.bairro || null;
+      const complementoField = data.complemento || data.estabelecimento?.complemento || data.estabelecimentos?.[0]?.complemento || null;
       const municipio = data.estabelecimento?.municipio || data.municipio || data.estabelecimentos?.[0]?.municipio || null;
       const uf = data.estabelecimento?.uf || data.uf || data.estabelecimentos?.[0]?.uf || null;
+
+      // normalize cep (format 12345-678)
+      let cep = rawCep || null;
+      if (cep) {
+        const d = onlyDigits(String(cep));
+        if (d.length === 8) cep = `${d.slice(0,5)}-${d.slice(5)}`;
+        else cep = d;
+      }
 
       // Mapear campos comuns
       setForm((p) => ({
@@ -113,6 +124,9 @@ const Clientes = () => {
         telefone: phone || p.telefone || "",
         cep: cep || p.cep || "",
         logradouro: logradouro || p.logradouro || "",
+        numero: numeroField || p.numero || "",
+        bairro: bairroField || p.bairro || "",
+        complemento: complementoField || p.complemento || "",
         municipio: municipio || p.municipio || "",
         uf: uf || p.uf || "",
       }));

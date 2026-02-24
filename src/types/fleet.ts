@@ -264,6 +264,7 @@ export interface Client {
   telefone?: string;
   cep?: string;
   logradouro?: string;
+  complemento?: string;
   numero?: string;
   bairro?: string;
   municipio?: string;
