@@ -5,6 +5,8 @@ interface Env {
   DB: D1Database;
   AUTH_SECRET?: string;
   CTE_API_URL?: string; // URL do backend PHP SPED-CTe (ex: https://sua-api-cte.com)
+  OPENAI_API_KEY?: string;
+  OPENAI_MODEL?: string;
 }
 
 // ===== UTILS =====
@@ -497,6 +499,83 @@ export default {
       // Health check
       if (path === "/api/health") {
         return jsonResponse({ status: "ok", timestamp: new Date().toISOString() });
+      }
+
+      // ===== AI & INSIGHTS - proxy to OpenAI (ChatGPT) =====
+      if (path === "/api/insights" && request.method === "POST") {
+        try {
+          const body = (await (async () => {
+            const ct = request.headers.get("content-type") || "";
+            if (ct.includes("application/json")) return await request.json();
+            const txt = await request.text();
+            try { return JSON.parse(txt || "{}"); } catch { return { prompt: txt }; }
+          })()) as any;
+
+          const { tenantId } = await getTenantForRequest(request, env);
+
+          // Build optional data summary from DB when requested (best-effort; ignore failures)
+          let dataSummary = "";
+          if (body?.includeData) {
+            try {
+              // Total expenses
+              const expRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM expenses WHERE tenant_id = ?").bind(tenantId).first();
+              const fuelRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM fuel_entries WHERE tenant_id = ?").bind(tenantId).first();
+              const manRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM maintenance_orders WHERE tenant_id = ?").bind(tenantId).first();
+              const totalExpenses = (expRow?.total || 0);
+              const totalFuel = (fuelRow?.total || 0);
+              const totalMaint = (manRow?.total || 0);
+              dataSummary = `Resumo (valores agregados do tenant):
+- Despesas totais: R$ ${Number(totalExpenses).toFixed(2)}
+- Abastecimento (fuel_entries): R$ ${Number(totalFuel).toFixed(2)}
+- Manutenção (maintenance_orders): R$ ${Number(totalMaint).toFixed(2)}
+`;
+            } catch (e) {
+              // ignore DB errors and continue without dataSummary
+              console.warn("Insights: failed to build data summary:", e);
+            }
+          }
+
+          // Assemble messages for OpenAI
+          let messages: Array<{ role: string; content: string }> = [];
+          if (body?.messages && Array.isArray(body.messages)) {
+            messages = body.messages;
+          } else {
+            const systemPrompt =
+              "Você é um assistente especializado em gestão de frotas. Responda em Português e seja conciso.";
+            const userPrompt = body?.prompt || "Analise os custos e despesas da frota e gere insights acionáveis.";
+            messages.push({ role: "system", content: systemPrompt + (dataSummary ? `\n\nContexto do sistema:\n${dataSummary}` : "") });
+            messages.push({ role: "user", content: userPrompt });
+          }
+
+          const openaiKey = env.OPENAI_API_KEY;
+          if (!openaiKey) return errorResponse("OPENAI_API_KEY não configurada no Worker.", 503);
+
+          const model = env.OPENAI_MODEL || "gpt-4o-mini";
+          const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${openaiKey}`,
+            },
+            body: JSON.stringify({
+              model,
+              messages,
+              max_tokens: body?.max_tokens || 800,
+              temperature: typeof body?.temperature === "number" ? body.temperature : 0.2,
+            }),
+          });
+
+          const oaJson = await oaResp.json();
+          if (!oaResp.ok) {
+            return jsonResponse({ error: "OpenAI error", details: oaJson }, oaResp.status);
+          }
+
+          const choice = oaJson.choices && oaJson.choices[0];
+          const assistantMessage = choice?.message?.content || oaJson?.result || "";
+          return jsonResponse({ data: { assistant: assistantMessage, raw: oaJson, dataSummary } });
+        } catch (e: any) {
+          return errorResponse(`Erro ao processar insights: ${e?.message || String(e)}`, 500);
+        }
       }
 
       // Setup default tenant (modo legado - pode ser removido depois)

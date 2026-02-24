@@ -6,6 +6,7 @@ import { MaintenanceOrder } from "@/types/fleet";
 import { demoVehicles } from "@/data/demoData";
 import { demoFuelEntries } from "@/data/demoData";
 import { demoMaintenanceOrders } from "@/data/demoData";
+import { useCallback, useState } from "react";
 
 const AiInsights = () => {
   const { items: vehicles } = useStore<Vehicle>("vehicles", demoVehicles);
@@ -24,6 +25,38 @@ const AiInsights = () => {
     { icon: BarChart3, title: "Análise de custos", desc: `Custo total em manutenção: R$ ${totalCustoManut.toLocaleString("pt-BR")}. Manutenções corretivas representam a maior fatia. Investir em preventivas reduz custos a longo prazo.`, impact: "Redução de 20-30% em corretivas", color: "text-primary" },
     { icon: AlertTriangle, title: "Alertas operacionais", desc: `Monitoramento contínuo de ${vehicles.length} veículos. Sistema detecta automaticamente anomalias de consumo, atrasos de manutenção e vencimentos.`, impact: "Prevenção de falhas", color: "text-primary" },
   ];
+
+  // Chat / Agent state
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const send = useCallback(
+    async (prompt?: string) => {
+      const text = (prompt ?? input).trim();
+      if (!text) return;
+      const userMsg = { role: "user" as const, text };
+      setChatMessages((s) => [...s, userMsg]);
+      setInput("");
+      setLoading(true);
+      try {
+        const res = await fetch("/api/insights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: text, includeData: true }),
+        });
+        const j = await res.json();
+        const assistant = j?.data?.assistant || j?.assistant || (j?.raw?.choices?.[0]?.message?.content ?? "Desculpe, sem resposta.");
+        const assistantMsg = { role: "assistant" as const, text: String(assistant) };
+        setChatMessages((s) => [...s, assistantMsg]);
+      } catch (e) {
+        setChatMessages((s) => [...s, { role: "assistant", text: "Erro ao consultar o serviço de Insights." }]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [input]
+  );
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
@@ -58,6 +91,34 @@ const AiInsights = () => {
           </div>
         ))}
       </div>
+
+    <div className="glass-card p-4 sm:p-5 mt-4">
+      <h2 className="text-sm font-semibold mb-2">Converse com o agente</h2>
+      <div className="border rounded-md p-3 max-h-60 overflow-auto bg-background/50 mb-3">
+        {chatMessages.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Peça algo como "Me mostre custos por veículo nos últimos 3 meses" ou "Onde posso reduzir gastos?"</p>
+        ) : (
+          chatMessages.map((m, idx) => (
+            <div key={idx} className={`mb-2 ${m.role === "user" ? "text-right" : "text-left"}`}>
+              <div className={`inline-block px-3 py-2 rounded-md ${m.role === "user" ? "bg-primary/10 text-foreground" : "bg-muted-foreground/5 text-foreground"}`}>
+                <div className="whitespace-pre-wrap text-sm">{m.text}</div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+          className="flex-1 input w-full"
+          placeholder="Pergunte algo sobre custos, manutenção ou economia..."
+        />
+        <button className="btn" onClick={() => send()} disabled={loading}>{loading ? "..." : "Enviar"}</button>
+      </div>
+    </div>
+
     </div>
   );
 };
