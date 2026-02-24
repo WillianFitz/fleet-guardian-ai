@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTenant } from "@/hooks/useTenant";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useNavigate } from "react-router-dom";
+import useStore from "@/hooks/useStore";
 import {
   Popover,
   PopoverContent,
@@ -22,6 +23,7 @@ const AppHeader = () => {
   const { notifications, unreadCount } = useNotifications();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const navigate = useNavigate();
+  const { items: clients } = useStore("clients", []);
 
   const handleLogout = () => {
     logout();
@@ -137,6 +139,13 @@ const AppHeader = () => {
                 <p className="text-xs text-muted-foreground">{user?.email}</p>
                 <p className="text-xs text-muted-foreground">{tenant?.nome || "Carregando..."}</p>
               </div>
+              <DropdownMenuItem
+                onClick={() => navigate("/clientes")}
+                className="cursor-pointer"
+              >
+                <User className="w-4 h-4 mr-2" />
+                Clientes ({clients.length || 0})
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleLogout}
                 className="text-destructive focus:text-destructive cursor-pointer"
