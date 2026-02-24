@@ -13,6 +13,18 @@ const Clientes = () => {
   const [loadingFetch, setLoadingFetch] = useState(false);
   const [search, setSearch] = useState("");
   const nameRef = useRef<HTMLInputElement | null>(null);
+  const normalize = (s?: string) => {
+    if (!s) return "";
+    try {
+      return s
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .toLowerCase()
+        .trim();
+    } catch {
+      return s.toLowerCase().trim();
+    }
+  };
 
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -180,7 +192,7 @@ const Clientes = () => {
 
         <div className="flex justify-center">
           <div className="w-full max-w-5xl">
-            <div className="flex items-center justify-between mb-4 px-2 sm:px-0">
+            <div className="flex justify-end mb-4">
               <input
                 type="search"
                 value={search}
@@ -188,8 +200,6 @@ const Clientes = () => {
                 placeholder="Buscar por nome ou CNPJ"
                 className="bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none"
               />
-              {/* space for badge/count */}
-              <div className="hidden sm:block text-xs text-muted-foreground ml-4">{items.length} cadastrados</div>
             </div>
             <div className="bg-card border border-border rounded-lg overflow-hidden mx-auto">
               <div className="p-6 border-b border-border flex items-center justify-between">
@@ -208,11 +218,14 @@ const Clientes = () => {
                       </tr>
                     </thead>
                     <tbody className="bg-card">
-                      {items.filter(c => {
-                        const q = search.trim().toLowerCase();
-                        if (!q) return true;
-                        return (c.nome || "").toLowerCase().includes(q) || (c.cnpjCpf || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
-                      }).map((c) => (
+                  {items.filter(c => {
+                    const q = normalize(search);
+                    if (!q) return true;
+                    const name = normalize(c.nome || "");
+                    const cnpjDigits = (c.cnpjCpf || "").replace(/\D/g, "");
+                    const qDigits = search.replace(/\D/g, "");
+                    return name.includes(q) || (qDigits && cnpjDigits.includes(qDigits));
+                  }).map((c) => (
                         <tr key={c.id} className="hover:bg-muted/20 transition-colors">
                           <td className="px-6 py-4 align-top max-w-md">{c.nome}</td>
                           <td className="px-6 py-4 align-top font-mono">{c.cnpjCpf}</td>
