@@ -8,7 +8,8 @@ export default function BuscarChaveCTe() {
   const navigate = useNavigate();
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
-  const [mode, setMode] = useState<"chave" | "sefaz">("chave");
+  const [mode, setMode] = useState<"chave" | "sefaz" | "xml">("chave");
+  const [onlyChaveMode, setOnlyChaveMode] = useState(false);
   const [chave, setChave] = useState("");
   const [loading, setLoading] = useState(false);
   const [sefazLoading, setSefazLoading] = useState(false);
@@ -17,7 +18,9 @@ export default function BuscarChaveCTe() {
   try {
     const qp = new URLSearchParams(window.location.search);
     const qm = qp.get("mode");
-    if ((qm === "sefaz") && mode !== (qm as any)) setMode(qm as any);
+    const only = qp.get("onlyChave");
+    if (only === "true") setOnlyChaveMode(true);
+    if ((qm === "sefaz" || qm === "xml") && mode !== (qm as any)) setMode(qm as any);
   } catch {
     // ignore (SSR safety)
   }
@@ -106,9 +109,7 @@ export default function BuscarChaveCTe() {
             <p className="text-sm text-muted-foreground">Busque NF-e disponíveis para o CNPJ configurado no tenant.</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => setMode("chave")} className={`px-3 py-1 rounded ${mode === "chave" ? "bg-primary text-primary-foreground" : "bg-muted/20 text-muted-foreground"}`}>Por chave</button>
-            <button onClick={() => navigate("/ctes/buscar-xml")} className={`px-3 py-1 rounded bg-muted/20 text-muted-foreground`}>Arquivo XML</button>
-            <button onClick={() => setMode("sefaz")} className={`px-3 py-1 rounded ${mode === "sefaz" ? "bg-primary text-primary-foreground" : "bg-muted/20 text-muted-foreground"}`}>Buscar na SEFAZ</button>
+            <button className="px-3 py-1 rounded bg-primary text-primary-foreground">Por chave</button>
           </div>
         </div>
 
@@ -175,158 +176,7 @@ export default function BuscarChaveCTe() {
           </div>
         )}
 
-        {mode === "xml" && (
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Arquivo XML da NF-e</label>
-              <input
-                type="file"
-                accept=".xml,application/xml"
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  const reader = new FileReader();
-                  reader.onload = async () => {
-                    const txt = String(reader.result || "");
-                    try {
-                      const parser = new DOMParser();
-                      const doc = parser.parseFromString(txt, "application/xml");
-                      const extract = (tag: string) => doc.querySelector(tag)?.textContent?.trim() || "";
-                      const extractFromParent = (parent: string, tag: string) => doc.querySelector(`${parent} ${tag}`)?.textContent?.trim() || "";
-                      const ch = extract("chNFe") || extractFromParent("infNFe", "Id") || "";
-                      const nnum = extract("nNF") || (ch ? ch.substr(25, 9) : "");
-                      const xNomeEmit = extractFromParent("emit", "xNome") || extract("xNomeEmit") || "";
-                      const xNomeDest = extractFromParent("dest", "xNome") || extract("xNomeDest") || "";
-                      const vNFVal = extract("vNF") || extractFromParent("total", "vNF") || "0";
-                      const vNF = Number(String(vNFVal).replace(",", ".").replace(/[^0-9.\-]/g, "")) || 0;
-                      const dhEmi = extract("dhEmi") || extract("dEmi") || "";
-                      const placa = extract("placa") || "";
-                      const emitCnpj = extractFromParent("emit", "CNPJ") || extract("CNPJ") || "";
-                      const destCnpj = extractFromParent("dest", "CNPJ") || "";
-                      const remetenteCep = extractFromParent("enderEmit", "CEP") || "";
-                      const remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || "";
-                      const remetenteNumero = extractFromParent("enderEmit", "nro") || "";
-                      const remetenteBairro = extractFromParent("enderEmit", "xBairro") || "";
-                      const remetenteMunicipio = extractFromParent("enderEmit", "xMun") || "";
-                      const remetenteUf = extractFromParent("enderEmit", "UF") || "";
-                      const destinatarioCep = extractFromParent("enderDest", "CEP") || "";
-                      const destinatarioLogradouro = extractFromParent("enderDest", "xLgr") || "";
-                      const destinatarioNumero = extractFromParent("enderDest", "nro") || "";
-                      const destinatarioBairro = extractFromParent("enderDest", "xBairro") || "";
-                      const destinatarioMunicipio = extractFromParent("enderDest", "xMun") || "";
-                      const destinatarioUf = extractFromParent("enderDest", "UF") || "";
-
-                      const payload: any = {
-                        fluxoOrigem: "nfe",
-                        numero: nnum || "",
-                        serie: "1",
-                        chave: ch || "",
-                        chaveNFe: ch || "",
-                        numeroNota: nnum || "",
-                        valorPrestacao: vNF || 0,
-                        remetenteNome: xNomeEmit || "",
-                        remetenteCnpjCpf: emitCnpj.replace(/\D/g, "") || "",
-                        remetenteCep: remetenteCep.replace(/\D/g, "") || "",
-                        remetenteLogradouro: remetenteLogradouro || "",
-                        remetenteNumero: remetenteNumero || "",
-                        remetenteBairro: remetenteBairro || "",
-                        remetenteMunicipio: remetenteMunicipio || "",
-                        remetenteUf: remetenteUf || "",
-                        destinatarioNome: xNomeDest || "",
-                        destinatarioCnpjCpf: destCnpj.replace(/\D/g, "") || "",
-                        destinatarioCep: destinatarioCep.replace(/\D/g, "") || "",
-                        destinatarioLogradouro: destinatarioLogradouro || "",
-                        destinatarioNumero: destinatarioNumero || "",
-                        destinatarioBairro: destinatarioBairro || "",
-                        destinatarioMunicipio: destinatarioMunicipio || "",
-                        destinatarioUf: destinatarioUf || "",
-                        veiculoPlaca: placa ? String(placa).toUpperCase().replace(/[^A-Z0-9]/g, "") : "",
-                        dataEmissao: dhEmi ? String(dhEmi).split("T")[0] : new Date().toISOString().split("T")[0],
-                        infCarga: [
-                          { numero: nnum || "", produto: "Mercadoria", valor: vNF || 0, peso: 0, chave: ch || "" }
-                        ],
-                        informacoesAdicionais: [],
-                        tomador: "",
-                        cfop: "5353",
-                        valorFrete: 0,
-                        hasExpedidor: false,
-                        hasRecebedor: false,
-                        emitirRetroativo: false,
-                        textoNota: `Referente à NF-e ${nnum || ""} - CHAVE ${ch || ""}`,
-                      };
-                      // map origem/destino fields
-                      payload.municipioOrigem = remetenteMunicipio || null;
-                      payload.ufOrigem = remetenteUf || null;
-                      payload.municipioDestino = destinatarioMunicipio || null;
-                      payload.ufDestino = destinatarioUf || null;
-                      // try to match vehicle from server-side vehicles list
-                      try {
-                        const vehicles = await api.list("vehicles");
-                        const normalize = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-                        if (payload.veiculoPlaca) {
-                          const placaNorm = normalize(payload.veiculoPlaca);
-                          toast({ title: "Procurando veículo", description: `Placa extraída: ${payload.veiculoPlaca} → ${placaNorm}. Veículos no servidor: ${(vehicles || []).length}.` });
-                          let match = (vehicles || []).find((v: any) => normalize(v.placa) === placaNorm);
-                          if (!match) {
-                            const last4 = placaNorm.slice(-4);
-                            match = (vehicles || []).find((v: any) => normalize(v.placa).slice(-4) === last4);
-                            if (match) {
-                              toast({ title: "Match parcial por sufixo", description: `Placa ${match.placa} encontrada por últimos 4 caracteres (${last4}).`, variant: "info" });
-                            }
-                          }
-                          if (match) {
-                            payload.veiculoId = match.id;
-                            payload.veiculoModelo = match.modelo || null;
-                            toast({ title: "Veículo selecionado", description: `Placa ${match.placa} aplicada automaticamente.` });
-                          } else {
-                            const sample = (vehicles || []).slice(0, 5).map((v: any) => v.placa).join(", ") || "nenhum";
-                            toast({
-                              title: "Veículo não encontrado",
-                              description: `Placa ${payload.veiculoPlaca} não encontrada. Exemplos de placas cadastradas: ${sample}`,
-                              variant: "warning",
-                            });
-                          }
-                        }
-                      } catch {
-                        // ignore vehicle matching failures
-                      }
-                      // sanitize payload: keep only columns supported by D1 schema (camelCase keys)
-                      const allowed = new Set([
-                        "chave","numero","serie","veiculoPlaca","veiculoModelo","veiculoId","dataEmissao","dataInicioViagem",
-                        "valorPrestacao","valorFrete","remetenteNome","remetenteCnpjCpf","remetenteCep","remetenteLogradouro",
-                        "remetenteNumero","remetenteBairro","remetenteMunicipio","remetenteUf","destinatarioNome","destinatarioCnpjCpf",
-                        "destinatarioCep","destinatarioLogradouro","destinatarioNumero","destinatarioBairro","destinatarioMunicipio",
-                        "destinatarioUf","municipioOrigem","ufOrigem","municipioDestino","ufDestino","infCarga","informacoesAdicionais",
-                        "tomador","numeroNota","hasExpedidor","hasRecebedor","cfop","emitirRetroativo","textoNota","status"
-                      ]);
-                      const filteredPayload: Record<string, any> = {};
-                      for (const [k, v] of Object.entries(payload)) {
-                        if (allowed.has(k)) filteredPayload[k] = v;
-                      }
-
-                      try {
-                        localStorage.setItem("fleet_pending_cte", JSON.stringify(filteredPayload));
-                      } catch {}
-                      const created = await api.create("ctes", filteredPayload);
-                      toast({ title: "Rascunho criado", description: "Abrindo formulário..." });
-                      if (created?.id) {
-                        navigate(`/ctes?openDraftId=${created.id}`);
-                      } else {
-                        navigate("/ctes");
-                      }
-                    } catch (err: any) {
-                      toast({ title: "Erro ao importar XML", description: err?.message || "Arquivo inválido", variant: "destructive" });
-                    }
-                  };
-                  reader.readAsText(f);
-                  (e.target as HTMLInputElement).value = "";
-                }}
-                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground file:text-xs"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Ao anexar o XML da NF-e, o sistema cria um rascunho de CT-e automaticamente.</p>
-            </div>
-          </div>
-        )}
+        {/* XML upload removed — use /ctes/buscar-xml page for XML imports */}
 
       </div>
     </div>
