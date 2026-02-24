@@ -101,8 +101,8 @@ const Clientes = () => {
               <div className="text-lg font-semibold">Lista de clientes</div>
               <div className="text-sm text-muted-foreground">{items.length} cadastrados</div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-base">
+            <div className="overflow-x-auto flex justify-center">
+              <table className="w-full max-w-5xl min-w-min divide-y divide-border text-base">
                 <thead className="bg-muted/10">
                   <tr className="text-xs text-muted-foreground uppercase">
                     <th className="text-left px-6 py-4">Nome</th>
