@@ -251,11 +251,11 @@ const Clientes = () => {
 
       {/* Modal for new/edit client */}
       <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) { setForm({}); setEditing(null); } }}>
-        <DialogContent className="bg-card border-border w-full max-w-xl mx-4 sm:mx-auto p-4 sm:p-6">
+        <DialogContent className="bg-card border-border w-full max-w-2xl mx-4 sm:mx-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle>{editing ? "Editar cliente" : "Novo cliente"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 mt-2">
+          <div className="space-y-3 mt-2 max-h-[65vh] overflow-y-auto">
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Nome</label>
               <input ref={nameRef} value={form.nome || ""} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
