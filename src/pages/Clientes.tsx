@@ -172,10 +172,21 @@ const Clientes = () => {
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">CNPJ / CPF</label>
-              <div className="flex gap-2">
-                <input value={form.cnpjCpf || ""} onChange={(e) => setForm((p) => ({ ...p, cnpjCpf: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
-                <button onClick={handleFetchByCnpj} disabled={loadingFetch} className="px-3 py-2 rounded bg-primary text-primary-foreground">{loadingFetch ? "Buscando..." : "Buscar CNPJ"}</button>
-              </div>
+                <div className="flex gap-2">
+                  <input value={form.cnpjCpf || ""} onChange={(e) => setForm((p) => ({ ...p, cnpjCpf: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
+                  {(() => {
+                    try {
+                      const digits = onlyDigits(form.cnpjCpf || "");
+                      return digits.length >= 14 ? (
+                        <button onClick={handleFetchByCnpj} disabled={loadingFetch} className="px-3 py-2 rounded bg-primary text-primary-foreground">
+                          {loadingFetch ? "Buscando..." : "Buscar CNPJ"}
+                        </button>
+                      ) : null;
+                    } catch {
+                      return null;
+                    }
+                  })()}
+                </div>
             </div>
             <div>
               <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
