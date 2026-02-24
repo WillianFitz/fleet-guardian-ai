@@ -29,6 +29,7 @@ const menuGroups = [
   {
     label: "Administrativo",
     items: [
+      { icon: Users, label: "Clientes", path: "/clientes" },
       { icon: Users, label: "Motoristas", path: "/motoristas" },
       { icon: FileText, label: "CT-e", path: "/ctes" },
       { icon: TrendingUp, label: "Receitas/Fretes", path: "/receitas" },
