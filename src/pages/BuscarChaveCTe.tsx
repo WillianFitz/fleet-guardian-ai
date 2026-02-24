@@ -34,7 +34,40 @@ export default function BuscarChaveCTe() {
       if (modelo === "55") {
         // NF-e → criar rascunho de CTe a partir da NF-e
         const res = await cteApi.fromNfe(digits, ambienteAtual as "producao" | "homologacao");
-        const id = res?.data?.id || res?.id || res?.data?.cteId;
+        const created = res?.data || res || {};
+        // criar clientes (remetente/destinatario) se não existirem
+        try {
+          const apiModule = await import("@/lib/api");
+          const ensureClient = async (cnpjCpf?: string, nome?: string, municipio?: string, uf?: string) => {
+            if (!cnpjCpf) return;
+            const cleaned = String(cnpjCpf).replace(/\D/g, "");
+            if (!cleaned) return;
+            try {
+              const existing = await apiModule.api.list("clients");
+              const found = (existing || []).find((c: any) => (String(c.cnpjCpf || "").replace(/\D/g, "") === cleaned));
+              if (!found) {
+                const payload = {
+                  nome: nome || "",
+                  cnpjCpf: cleaned,
+                  municipio: municipio || "",
+                  uf: uf || "",
+                };
+                try {
+                  await apiModule.api.create("clients", payload);
+                } catch {
+                  // ignore
+                }
+              }
+            } catch {
+              // ignore
+            }
+          };
+          await ensureClient(created.remetenteCnpjCpf || created.remetenteCnpj || created.remetenteCnpjCpf, created.remetenteNome || created.remetente_nome, created.remetenteMunicipio || created.remetente_municipio, created.remetenteUf || created.remetente_uf);
+          await ensureClient(created.destinatarioCnpjCpf || created.destinatarioCnpj || created.destinatarioCnpjCpf, created.destinatarioNome || created.destinatario_nome, created.destinatarioMunicipio || created.destinatario_municipio, created.destinatarioUf || created.destinatario_uf);
+        } catch {
+          // ignore client creation errors
+        }
+        const id = created?.id || res?.id || created?.cteId;
         toast({ title: "Rascunho criado", description: "Abrindo formulário de CTe..." });
         if (id) {
           navigate(`/ctes?openDraftId=${id}`);

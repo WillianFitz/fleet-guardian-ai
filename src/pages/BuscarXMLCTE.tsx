@@ -30,19 +30,51 @@ export default function BuscarXMLCTE() {
               const reader = new FileReader();
               reader.onload = async () => {
                 const txt = String(reader.result || "");
-                try {
-                  const res = await (await import("@/lib/api")).cteApi.importXml(txt);
-                  // res mirrors fromNfe response: may include data with id
-                  const id = res?.data?.id || res?.id || res?.data?.cteId;
-                  toast({ title: "Rascunho criado", description: "Abrindo formulário de CTe..." });
-                  if (id) {
-                    navigate(`/ctes?openDraftId=${id}`);
-                  } else {
-                    navigate("/ctes");
-                  }
-                } catch (err: any) {
-                  toast({ title: "Erro ao importar XML", description: err?.message || "Arquivo inválido", variant: "destructive" });
-                }
+                    try {
+                      const apiModule = await import("@/lib/api");
+                      const res = await apiModule.cteApi.importXml(txt);
+                      // Tentar extrair dados do rascunho criado (res.data)
+                      const created = res?.data || res || {};
+                      // Função helper: cria cliente se não existir
+                      const ensureClient = async (cnpjCpf?: string, nome?: string, municipio?: string, uf?: string) => {
+                        if (!cnpjCpf) return;
+                        const cleaned = String(cnpjCpf).replace(/\D/g, "");
+                        if (!cleaned) return;
+                        try {
+                          const existing = await apiModule.api.list("clients");
+                          const found = (existing || []).find((c: any) => (String(c.cnpjCpf || "").replace(/\D/g, "") === cleaned));
+                          if (!found) {
+                            const payload = {
+                              nome: nome || "",
+                              cnpjCpf: cleaned,
+                              municipio: municipio || "",
+                              uf: uf || "",
+                            };
+                            try {
+                              await apiModule.api.create("clients", payload);
+                            } catch {
+                              // ignore create errors
+                            }
+                          }
+                        } catch {
+                          // ignore list errors
+                        }
+                      };
+
+                      // Remetente / destinatário do rascunho
+                      await ensureClient(created.remetenteCnpjCpf || created.remetenteCnpj || created.remetenteCnpjCpf, created.remetenteNome || created.remetente_nome, created.remetenteMunicipio || created.remetente_municipio, created.remetenteUf || created.remetente_uf);
+                      await ensureClient(created.destinatarioCnpjCpf || created.destinatarioCnpj || created.destinatarioCnpjCpf, created.destinatarioNome || created.destinatario_nome, created.destinatarioMunicipio || created.destinatario_municipio, created.destinatarioUf || created.destinatario_uf);
+
+                      const id = created?.id || res?.id || created?.cteId;
+                      toast({ title: "Rascunho criado", description: "Abrindo formulário de CTe..." });
+                      if (id) {
+                        navigate(`/ctes?openDraftId=${id}`);
+                      } else {
+                        navigate("/ctes");
+                      }
+                    } catch (err: any) {
+                      toast({ title: "Erro ao importar XML", description: err?.message || "Arquivo inválido", variant: "destructive" });
+                    }
               };
               reader.readAsText(f);
               (e.target as HTMLInputElement).value = "";
