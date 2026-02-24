@@ -133,11 +133,14 @@ const ChatWidget = () => {
 
           // Ask the Worker to analyze these records via the AI
           const systemPrompt = "Você é um assistente analítico especializado em gestão de frotas. Responda em Português de forma clara e concisa, com um resumo numérico e recomendações acionáveis.";
-          const userPrompt = `Analise os seguintes registros de despesas/combustível/manutenção e gere:
-1) Um resumo numérico (total valor, total litros, km total quando aplicável).
-2) Uma análise por tipo (combustível / manutenção / despesas) e por veículo.
-3) Principais anomalias (ex.: consumo fora do normal, custos muito altos).
-4) Recomendações práticas.
+          const userPrompt = `Analise os seguintes registros de despesas/combustível/manutenção e gere um resultado estruturado.
+Requisitos de saída:
+ - Retorne APENAS um JSON válido.
+ - O JSON deve ter as chaves: "summary", "breakdown", "anomalies", "recommendations".
+ - "summary" deve conter: total_value, total_liters, total_km (quando aplicável), price_avg.
+ - "breakdown" deve ser um array por tipo/veículo com campos: type, plate, total_value, total_liters, km.
+ - "anomalies" deve listar itens com explicação curta.
+ - "recommendations" deve listar ações práticas curtas.
 
 Dados (JSON):
 ${JSON.stringify({ params, totals, sample })}`;
@@ -158,10 +161,39 @@ ${JSON.stringify({ params, totals, sample })}`;
             }
             const j2 = await (r2?.json ? r2.json() : Promise.resolve(null));
             const analysis = j2?.data?.assistant || j2?.assistant || (j2?.raw?.choices?.[0]?.message?.content ?? null);
-            // show brief header + analysis
+            // show brief header + analysis (try parse JSON)
             const header = lines.join("\n");
             if (analysis) {
-              setMessages((s) => [...s, { role: "assistant", text: header }, { role: "assistant", text: String(analysis) }]);
+              // try parse as JSON
+              try {
+                const parsed = JSON.parse(String(analysis));
+                // format parsed JSON into readable text
+                const outLines: string[] = [];
+                if (parsed.summary) {
+                  outLines.push("### Resumo Numérico");
+                  outLines.push(`• Total Valor: R$ ${Number(parsed.summary.total_value || 0).toLocaleString("pt-BR")}`);
+                  outLines.push(`• Total Litros: ${parsed.summary.total_liters ?? "Não aplicável"}`);
+                  outLines.push(`• KM Total: ${parsed.summary.total_km ?? "Não aplicável"}`);
+                }
+                if (parsed.breakdown && Array.isArray(parsed.breakdown)) {
+                  outLines.push("\n### Análise por Tipo e Veículo");
+                  for (const b of parsed.breakdown) {
+                    outLines.push(`• ${b.type} — ${b.plate || "—"}: R$ ${Number(b.total_value || 0).toLocaleString("pt-BR")}${b.total_liters ? ` • ${b.total_liters} L` : ""}${b.km ? ` • ${b.km} km` : ""}`);
+                  }
+                }
+                if (parsed.anomalies && parsed.anomalies.length) {
+                  outLines.push("\n### Principais Anomalias");
+                  for (const a of parsed.anomalies) outLines.push(`• ${a}`);
+                }
+                if (parsed.recommendations && parsed.recommendations.length) {
+                  outLines.push("\n### Recomendações Práticas");
+                  for (const r of parsed.recommendations) outLines.push(`• ${r}`);
+                }
+                setMessages((s) => [...s, { role: "assistant", text: header }, { role: "assistant", text: outLines.join("\n") }]);
+              } catch {
+                // not JSON, show raw analysis
+                setMessages((s) => [...s, { role: "assistant", text: header }, { role: "assistant", text: String(analysis) }]);
+              }
             } else {
               // fallback to structured lines if analysis failed
               // show up to 5 sample lines for user reference
