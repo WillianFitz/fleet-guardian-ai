@@ -31,6 +31,8 @@ const AiInsights = () => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<any | null>(null);
+  const [auditReport, setAuditReport] = useState<any | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const send = useCallback(
     async (prompt?: string) => {
@@ -66,6 +68,36 @@ const AiInsights = () => {
     [input]
   );
 
+  const runAudit = useCallback(async () => {
+    setAuditLoading(true);
+    setAuditReport(null);
+    try {
+      const headers: Record<string,string> = { "Content-Type": "application/json" };
+      const token = localStorage.getItem("fleet_auth_token");
+      const tenantId = localStorage.getItem("fleet_tenant_id");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
+
+      const res = await fetch("/api/insights", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ audit: true }),
+      });
+      const j = await res.json();
+      if (j?.data?.auditReport) {
+        setAuditReport(j.data.auditReport);
+        // also set metrics if present
+        if (j.data.metrics) setMetrics(j.data.metrics);
+      } else {
+        setAuditReport({ error: "Relatório de auditoria não disponível" });
+      }
+    } catch (e) {
+      setAuditReport({ error: String(e) });
+    } finally {
+      setAuditLoading(false);
+    }
+  }, []);
+
   return (
     <div className="space-y-4 sm:space-y-6 animate-fade-in">
       <div>
@@ -77,6 +109,13 @@ const AiInsights = () => {
         <div className="flex items-center gap-2 mb-2">
           <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
           <h2 className="text-base sm:text-lg font-semibold text-foreground">Resumo Inteligente</h2>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <button className="btn btn-sm" onClick={runAudit} disabled={auditLoading}>
+            {auditLoading ? "Executando..." : "Revisar tudo"}
+          </button>
+          <button className="btn btn-ghost btn-sm" onClick={() => send("Me mostre custos por veículo nos últimos 90 dias")}>Custos 90 dias</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => send("Onde posso reduzir gastos?")}>Onde reduzir gastos</button>
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground">
           Sua frota possui <span className="text-foreground font-medium">{vehicles.length} veículos</span>, dos quais <span className="text-success font-medium">{vehicles.filter(v => v.status === "operando").length} em operação</span>, <span className="text-warning font-medium">{vehicles.filter(v => v.status === "manutencao").length} em manutenção</span> e <span className="text-destructive font-medium">{parados} parado(s)</span>. O consumo médio é de <span className="text-foreground font-medium">{avgConsumo} km/l</span> com custo total em manutenção de <span className="text-foreground font-medium">R$ {totalCustoManut.toLocaleString("pt-BR")}</span>.
@@ -108,6 +147,8 @@ const AiInsights = () => {
             <div>Total despesas: R$ {Number(metrics.totalExpenses || 0).toLocaleString("pt-BR")}</div>
             <div>Total combustível: R$ {Number(metrics.totalFuel || 0).toLocaleString("pt-BR")}</div>
             <div>Total manutenção: R$ {Number(metrics.totalMaint || 0).toLocaleString("pt-BR")}</div>
+            <div>Veículos cadastrados: <span className="font-medium">{metrics.totalVehicles ?? 0}</span></div>
+            <div>Motoristas cadastrados: <span className="font-medium">{metrics.totalDrivers ?? 0}</span></div>
           </div>
           <h3 className="text-xs font-medium mb-2">Top veículos por custo</h3>
           <div className="space-y-2">
@@ -120,6 +161,48 @@ const AiInsights = () => {
           </div>
         </div>
       )}
+
+    {auditReport && (
+      <div className="glass-card p-4 sm:p-5 mt-4">
+        <h3 className="text-sm font-semibold mb-2">Relatório de Auditoria</h3>
+        {auditReport.error ? (
+          <div className="text-sm text-destructive">{auditReport.error}</div>
+        ) : (
+          <>
+            <div className="text-sm mb-2">
+              <div>Registros: fuel_entries={auditReport.counts?.fuel_entries ?? 0} • expenses={auditReport.counts?.expenses ?? 0} • maintenance={auditReport.counts?.maintenance_orders ?? 0} • receitas={auditReport.counts?.receitas ?? 0}</div>
+              <div>Veículos cadastrados: {auditReport.totalVehicles ?? 0} • Motoristas cadastrados: {auditReport.totalDrivers ?? 0}</div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <h4 className="text-xs font-medium mb-1">Amostra de Veículos</h4>
+                <div className="text-xs">
+                  {(auditReport.samples?.vehicles || []).map((v: any) => (
+                    <div key={v.id} className="py-1 border-b border-border">
+                      <div className="font-medium">{v.placa} — {v.modelo}</div>
+                      <div className="text-muted-foreground">{v.status}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-medium mb-1">Amostra de Motoristas</h4>
+                <div className="text-xs">
+                  {(auditReport.samples?.drivers || []).map((d: any) => (
+                    <div key={d.id} className="py-1 border-b border-border">
+                      <div className="font-medium">{d.nome}</div>
+                      <div className="text-muted-foreground">{d.cpf} • {d.telefone || "—"}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    )}
 
     <div className="glass-card p-4 sm:p-5 mt-4">
       <h2 className="text-sm font-semibold mb-2">Converse com o agente</h2>

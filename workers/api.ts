@@ -613,14 +613,46 @@ export default {
                 activeVehicles = [];
               }
 
+              // Fetch drivers info (registered drivers)
+              let driversList: any[] = [];
+              try {
+                const driversRes = await env.DB
+                  .prepare("SELECT id, nome, cpf, telefone, status FROM drivers WHERE tenant_id = ?")
+                  .bind(tenantId)
+                  .all();
+                driversList = driversRes.results || [];
+              } catch (e) {
+                driversList = [];
+              }
+
+              // Counts for activity tables to help debugging "detected vs registered"
+              let counts: Record<string, number> = {};
+              try {
+                const cntFuel = await env.DB.prepare("SELECT COUNT(1) as c FROM fuel_entries WHERE tenant_id = ?").bind(tenantId).first();
+                const cntExp = await env.DB.prepare("SELECT COUNT(1) as c FROM expenses WHERE tenant_id = ?").bind(tenantId).first();
+                const cntMan = await env.DB.prepare("SELECT COUNT(1) as c FROM maintenance_orders WHERE tenant_id = ?").bind(tenantId).first();
+                const cntRec = await env.DB.prepare("SELECT COUNT(1) as c FROM receitas WHERE tenant_id = ?").bind(tenantId).first();
+                counts = {
+                  fuel_entries: Number(cntFuel?.c || 0),
+                  expenses: Number(cntExp?.c || 0),
+                  maintenance_orders: Number(cntMan?.c || 0),
+                  receitas: Number(cntRec?.c || 0),
+                };
+              } catch (e) {
+                counts = { fuel_entries: 0, expenses: 0, maintenance_orders: 0, receitas: 0 };
+              }
+
               metrics = {
                 totalExpenses,
                 totalFuel,
                 totalMaint,
                 totalVehicles: activeVehicles.length,
                 activeVehicles: activeVehicles.map((v: any) => ({ id: v.id, plate: v.placa, model: v.modelo, status: v.status })),
+                totalDrivers: driversList.length,
+                drivers: driversList.map((d: any) => ({ id: d.id, nome: d.nome, cpf: d.cpf, telefone: d.telefone, status: d.status })),
                 detectedVehicles: byVehicle,
                 byVehicle,
+                counts,
                 monthly: {
                   expenses: monthlyExpenses,
                   fuel: monthlyFuel,
@@ -656,6 +688,37 @@ export default {
           if (!openaiKey) return errorResponse("OPENAI_API_KEY não configurada no Worker.", 503);
 
           const model = env.OPENAI_MODEL || "gpt-4o-mini";
+          
+          // If caller requested a full audit, return auditReport + metrics/dataSummary without calling OpenAI
+          if (body?.audit === true) {
+            try {
+              // build audit samples
+              const sampleVehicles = await env.DB.prepare("SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? LIMIT 10").bind(tenantId).all();
+              const sampleDrivers = await env.DB.prepare("SELECT id, nome, cpf, telefone, status FROM drivers WHERE tenant_id = ? LIMIT 10").bind(tenantId).all();
+              const sampleFuel = await env.DB.prepare("SELECT id, veiculo_placa, litros, valor, data FROM fuel_entries WHERE tenant_id = ? ORDER BY data DESC LIMIT 10").bind(tenantId).all();
+              const sampleExpenses = await env.DB.prepare("SELECT id, descricao, valor, data, veiculo_placa FROM expenses WHERE tenant_id = ? ORDER BY data DESC LIMIT 10").bind(tenantId).all();
+              const sampleMaint = await env.DB.prepare("SELECT id, numero, veiculo_placa, custo, data FROM maintenance_orders WHERE tenant_id = ? ORDER BY data DESC LIMIT 10").bind(tenantId).all();
+
+              const auditReport = {
+                counts,
+                totalVehicles: metrics.totalVehicles,
+                totalDrivers: metrics.totalDrivers,
+                samples: {
+                  vehicles: sampleVehicles.results || [],
+                  drivers: sampleDrivers.results || [],
+                  fuel_entries: sampleFuel.results || [],
+                  expenses: sampleExpenses.results || [],
+                  maintenance_orders: sampleMaint.results || [],
+                },
+              };
+
+              return jsonResponse({ data: { auditReport, metrics, dataSummary } });
+            } catch (e: any) {
+              // fallthrough to normal flow if audit fails
+              console.warn("Audit generation failed:", e);
+            }
+          }
+
           const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
