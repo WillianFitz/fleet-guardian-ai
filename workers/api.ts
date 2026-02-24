@@ -265,6 +265,201 @@ function applyFieldOverrides(
     }
   }
   
+      // POST /api/ctes/import-xml - cria um rascunho de CTe a partir de um XML fornecido (raw XML string)
+      if (path === "/api/ctes/import-xml" && request.method === "POST") {
+        try {
+          const contentType = request.headers.get("content-type") || "";
+          let bodyJson: any = {};
+          if (contentType.includes("application/json")) {
+            bodyJson = await request.json();
+          } else {
+            // try to read as text and wrap
+            const txt = await request.text();
+            bodyJson = { xml: txt };
+          }
+
+          const xml = String(bodyJson.xml || "").trim();
+          if (!xml) return errorResponse("Parâmetro 'xml' é obrigatório no body (string contendo o XML)", 400);
+
+          const { tenantId } = await getTenantForRequest(request, env);
+
+          // helpers (same as used elsewhere)
+          const extractTag = (tag: string) => {
+            const re = new RegExp(`<(?:(?:[^>]*:)?${tag})(?:[^>]*)>([\\s\\S]*?)<\\/(?:[^>]*:)?${tag}>`, "i");
+            const m = xml.match(re);
+            return m ? m[1].trim() : "";
+          };
+          const extractFromParent = (parent: string, tag: string) => {
+            const re = new RegExp(`<${parent}[^>]*>[\\s\\S]*?<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>[\\s\\S]*?<\\/${parent}>`, "i");
+            const m = xml.match(re);
+            return m ? m[1].trim() : "";
+          };
+
+          const ch = extractTag("chNFe") || extractFromParent("infNFe", "Id") || "";
+          const nnum = extractTag("nNF") || (ch ? ch.substr(25, 9) : "");
+          const xNomeMatches = Array.from(xml.matchAll(/<(?:[^>]*:)?xNome[^>]*>([\s\S]*?)<\/(?:[^>]*:)?xNome>/gi)).map((m) => (m[1] || "").trim());
+          const xNomeEmit = xNomeMatches[0] || extractTag("xNomeEmit") || "";
+          const xNomeDest = xNomeMatches[1] || extractTag("xNomeDest") || "";
+          const vNFVal = extractTag("vNF") || extractTag("vProd") || "0";
+          const vNF = Number(String(vNFVal).replace(",", ".").replace(/[^0-9.\-]/g, "")) || 0;
+          const dhEmi = extractTag("dhEmi") || extractTag("dEmi") || "";
+          const placa = extractTag("placa") || "";
+          const emitCnpj = extractFromParent("emit", "CNPJ") || extractFromParent("emit", "CPF") || extractTag("CNPJ") || "";
+          const destMatch = xml.match(/<dest[^\>]*>[\s\S]*?<(?:[^>]*:)?CNPJ[^>]*>([\s\S]*?)<\/(?:[^>]*:)?CNPJ>/i);
+          const destCnpj = destMatch ? destMatch[1].trim() : extractTag("CNPJ") || "";
+
+          // addresses
+          const remetenteCep = extractFromParent("enderEmit", "CEP") || extractTag("CEP") || "";
+          const remetenteLogradouro = extractFromParent("enderEmit", "xLgr") || extractTag("xLgr") || "";
+          const remetenteNumero = extractFromParent("enderEmit", "nro") || extractTag("nro") || "";
+          const remetenteBairro = extractFromParent("enderEmit", "xBairro") || extractTag("xBairro") || "";
+          const remetenteMunicipio = extractFromParent("enderEmit", "xMun") || extractTag("xMun") || "";
+          const remetenteUf = extractFromParent("enderEmit", "UF") || extractTag("UF") || "";
+          const destinatarioCep = extractFromParent("enderDest", "CEP") || "";
+          const destinatarioLogradouro = extractFromParent("enderDest", "xLgr") || "";
+          const destinatarioNumero = extractFromParent("enderDest", "nro") || "";
+          const destinatarioBairro = extractFromParent("enderDest", "xBairro") || "";
+          const destinatarioMunicipio = extractFromParent("enderDest", "xMun") || "";
+          const destinatarioUf = extractFromParent("enderDest", "UF") || "";
+
+          let nfe: any = {
+            chave: ch,
+            nfe: nnum,
+            xNomeEmit,
+            xNomeDest,
+            vNF,
+            dhEmi,
+            placa,
+            emitCnpj,
+            destCnpj,
+            remetenteCep,
+            remetenteLogradouro,
+            remetenteNumero,
+            remetenteBairro,
+            remetenteMunicipio,
+            remetenteUf,
+            destinatarioCep,
+            destinatarioLogradouro,
+            destinatarioNumero,
+            destinatarioBairro,
+            destinatarioMunicipio,
+            destinatarioUf
+          };
+
+          // attempt to find vehicle by placa in DB and add veiculoId to nfe object
+          try {
+            const placaNormRaw = String(placa || "").trim();
+            const normalizePlaca = (s: string) => (s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+            const placaNorm = normalizePlaca(placaNormRaw);
+            if (placaNorm) {
+              const rowsRes = await env.DB.prepare("SELECT id, placa, modelo FROM vehicles WHERE tenant_id = ?").bind(tenantId).all();
+              const rows = rowsRes.results || [];
+              let found: any = null;
+              for (const r of rows) {
+                const dbPlacaNorm = normalizePlaca(String(r.placa || ""));
+                if (dbPlacaNorm === placaNorm) {
+                  found = r;
+                  break;
+                }
+              }
+              if (!found && placaNorm.length >= 4) {
+                const tail = placaNorm.slice(-4);
+                for (const r of rows) {
+                  const dbPlacaNorm = normalizePlaca(String(r.placa || ""));
+                  if (dbPlacaNorm.endsWith(tail)) {
+                    found = r;
+                    break;
+                  }
+                }
+              }
+              if (found) {
+                nfe.veiculoId = found.id;
+                nfe.veiculoModelo = found.modelo || null;
+              }
+            }
+          } catch (err) {
+            // ignore lookup errors
+          }
+
+          // Montar payload mínimo para rascunho de CTe baseado na NF-e
+          const ctePayload: Record<string, any> = {
+            numero: nfe.nfe || "",
+            numero_nota: nfe.nfe || "",
+            chave: nfe.chave || "",
+            chave_origem: nfe.chave || "",
+            remetente_nome: nfe.xNomeEmit || "",
+            destinatario_nome: nfe.xNomeDest || "",
+            remetenteCnpjCpf: nfe.emitCnpj || nfe.emitCnpj || "",
+            destinatarioCnpjCpf: nfe.destCnpj || nfe.destCnpj || "",
+            remetenteCep: nfe.remetenteCep || null,
+            remetenteLogradouro: nfe.remetenteLogradouro || null,
+            remetenteNumero: nfe.remetenteNumero || null,
+            remetenteBairro: nfe.remetenteBairro || null,
+            remetenteMunicipio: nfe.remetenteMunicipio || null,
+            remetenteUf: nfe.remetenteUf || null,
+            destinatarioCep: nfe.destinatarioCep || null,
+            destinatarioLogradouro: nfe.destinatarioLogradouro || null,
+            destinatarioNumero: nfe.destinatarioNumero || null,
+            destinatarioBairro: nfe.destinatarioBairro || null,
+            destinatarioMunicipio: nfe.destinatarioMunicipio || null,
+            destinatarioUf: nfe.destinatarioUf || null,
+            veiculoPlaca: (nfe.placa || nfe.veiculoPlaca || null) ? String(nfe.placa || nfe.veiculoPlaca).toUpperCase().replace(/[^A-Z0-9]/g, "") : null,
+            veiculoId: nfe.veiculoId || null,
+            municipioOrigem: nfe.remetenteMunicipio || null,
+            ufOrigem: nfe.remetenteUf || null,
+            municipioDestino: nfe.destinatarioMunicipio || null,
+            ufDestino: nfe.destinatarioUf || null,
+            valor_prestacao: nfe.vNF || 0,
+            valor_total: nfe.vNF || 0,
+            data_emissao: (nfe.dhEmi ? (String(nfe.dhEmi).split('T')[0]) : (new Date().toISOString().split('T')[0])),
+            inf_carga: [
+              {
+                numero: nfe.nfe || "",
+                produto: "Mercadoria",
+                valor: nfe.vNF || 0,
+                peso: 0,
+                chave: nfe.chave || ""
+              }
+            ],
+            informacoes_adicionais: [],
+            tomador: "",
+            cfop: "",
+            valor_frete: 0,
+            has_expedidor: 0,
+            has_recebedor: 0,
+            emitir_retroativo: 0,
+            texto_nota: `Referente à NF-e ${nfe.nfe || ''} - CHAVE ${nfe.chave || ''}`,
+            status: "rascunho"
+          };
+
+          // support preview flag
+          const previewFlag =
+            url.searchParams.get("preview") === "true" ||
+            (typeof (bodyJson?.preview) !== "undefined" && bodyJson.preview === true);
+
+          const matchedVehicle = nfe.veiculoId ? { id: nfe.veiculoId, placa: ctePayload.veiculoPlaca, modelo: nfe.veiculoModelo || null } : null;
+          if (previewFlag) {
+            return jsonResponse({ preview: ctePayload, matchedVehicle });
+          }
+
+          const config = RESOURCE_MAP["ctes"];
+          if (matchedVehicle) {
+            ctePayload.veiculoId = matchedVehicle.id;
+            ctePayload.veiculoModelo = matchedVehicle.modelo;
+          }
+          const createdRes = await handleCreate(env.DB, config.table, ctePayload, tenantId, config.fieldOverrides);
+          // handleCreate returns a Response; extract JSON to return consistent API
+          const createdJsonText = await createdRes.text();
+          let createdJson: any = {};
+          try {
+            createdJson = createdJsonText ? JSON.parse(createdJsonText) : {};
+          } catch {}
+          return jsonResponse(createdJson, 201);
+        } catch (e: any) {
+          return errorResponse(`Erro ao importar XML: ${e.message}`, 500);
+        }
+      }
+
   return result;
 }
 
@@ -1054,8 +1249,30 @@ export default {
             status: "rascunho"
           };
 
+          // Antes de persistir, suportar modo "preview" para retornar o payload ao frontend
+          // sem salvar — útil para mostrar dados (veículo, origem/destino) antes da confirmação.
+          const previewFlag =
+            url.searchParams.get("preview") === "true" ||
+            (typeof (body?.preview) !== "undefined" && body.preview === true);
+
+          // Incluir dados do veículo (se o lookup encontrou) no payload de preview
+          const matchedVehicle =
+            (nfe as any).veiculoId
+              ? { id: (nfe as any).veiculoId, placa: ctePayload.veiculoPlaca, modelo: (nfe as any).veiculoModelo || null }
+              : null;
+
+          if (previewFlag) {
+            // Retornar o payload sem persistir
+            return jsonResponse({ preview: ctePayload, matchedVehicle });
+          }
+
           // Usar handleCreate para persistir na tabela ctes (aplica conversões e overrides)
           const config = RESOURCE_MAP["ctes"];
+          // Garantir que veiculoId seja incluído no payload se encontrado
+          if (matchedVehicle) {
+            ctePayload.veiculoId = matchedVehicle.id;
+            ctePayload.veiculoModelo = matchedVehicle.modelo;
+          }
           return await handleCreate(env.DB, config.table, ctePayload, tenantId, config.fieldOverrides);
         } catch (e: any) {
           return errorResponse(`Erro ao criar rascunho CTe a partir da NF-e: ${e.message}`, 500);

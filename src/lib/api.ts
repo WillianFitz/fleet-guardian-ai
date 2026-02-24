@@ -169,6 +169,20 @@ export const cteApi = {
     }
     return json;
   },
+  async importXml(xml: string, preview?: boolean) {
+    const payload: any = { xml };
+    if (preview) payload.preview = true;
+    const res = await fetch(`${API_URL}/api/ctes/import-xml`, {
+      method: "POST",
+      headers: await getHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      throw new Error(json.error || json.message || `Falha ao importar XML: ${res.status}`);
+    }
+    return json;
+  },
   async consultar(chave: string, ambiente?: "producao" | "homologacao"): Promise<{ status: string; protocolo?: string; xml?: string; error?: string }> {
     const url = new URL(`${API_URL}/api/cte/consultar`);
     url.searchParams.set("chave", chave);

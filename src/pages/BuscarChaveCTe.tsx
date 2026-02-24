@@ -8,7 +8,7 @@ export default function BuscarChaveCTe() {
   const navigate = useNavigate();
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
-  const [mode, setMode] = useState<"chave" | "sefaz" | "xml">("chave");
+  const [mode, setMode] = useState<"chave" | "sefaz">("chave");
   const [chave, setChave] = useState("");
   const [loading, setLoading] = useState(false);
   const [sefazLoading, setSefazLoading] = useState(false);
@@ -17,7 +17,7 @@ export default function BuscarChaveCTe() {
   try {
     const qp = new URLSearchParams(window.location.search);
     const qm = qp.get("mode");
-    if ((qm === "sefaz" || qm === "xml") && mode !== (qm as any)) setMode(qm as any);
+    if ((qm === "sefaz") && mode !== (qm as any)) setMode(qm as any);
   } catch {
     // ignore (SSR safety)
   }
@@ -107,7 +107,7 @@ export default function BuscarChaveCTe() {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => setMode("chave")} className={`px-3 py-1 rounded ${mode === "chave" ? "bg-primary text-primary-foreground" : "bg-muted/20 text-muted-foreground"}`}>Por chave</button>
-            <button onClick={() => setMode("xml")} className={`px-3 py-1 rounded ${mode === "xml" ? "bg-primary text-primary-foreground" : "bg-muted/20 text-muted-foreground"}`}>Arquivo XML</button>
+            <button onClick={() => navigate("/ctes/buscar-xml")} className={`px-3 py-1 rounded bg-muted/20 text-muted-foreground`}>Arquivo XML</button>
             <button onClick={() => setMode("sefaz")} className={`px-3 py-1 rounded ${mode === "sefaz" ? "bg-primary text-primary-foreground" : "bg-muted/20 text-muted-foreground"}`}>Buscar na SEFAZ</button>
           </div>
         </div>
@@ -292,7 +292,7 @@ export default function BuscarChaveCTe() {
                       }
                       // sanitize payload: keep only columns supported by D1 schema (camelCase keys)
                       const allowed = new Set([
-                        "chave","numero","serie","veiculoPlaca","veiculoModelo","dataEmissao","dataInicioViagem",
+                        "chave","numero","serie","veiculoPlaca","veiculoModelo","veiculoId","dataEmissao","dataInicioViagem",
                         "valorPrestacao","valorFrete","remetenteNome","remetenteCnpjCpf","remetenteCep","remetenteLogradouro",
                         "remetenteNumero","remetenteBairro","remetenteMunicipio","remetenteUf","destinatarioNome","destinatarioCnpjCpf",
                         "destinatarioCep","destinatarioLogradouro","destinatarioNumero","destinatarioBairro","destinatarioMunicipio",

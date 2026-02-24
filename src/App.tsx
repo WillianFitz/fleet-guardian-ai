@@ -25,6 +25,7 @@ import Receitas from "./pages/Receitas";
 import Configuracoes from "./pages/Configuracoes";
 import Clientes from "./pages/Clientes";
 import BuscarChaveCTe from "./pages/BuscarChaveCTe";
+import BuscarXMLCTE from "./pages/BuscarXMLCTE";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 
@@ -72,6 +73,7 @@ const AppRoutes = () => {
         <Route path="/relatorios" element={<Relatorios />} />
         <Route path="/ctes" element={<Ctes />} />
         <Route path="/ctes/buscar-chave" element={<BuscarChaveCTe />} />
+        <Route path="/ctes/buscar-xml" element={<BuscarXMLCTE />} />
         <Route path="/clientes" element={<Clientes />} />
         <Route path="/receitas" element={<Receitas />} />
         <Route path="/configuracoes" element={<Configuracoes />} />
