@@ -720,6 +720,72 @@ export default {
               console.warn("Audit generation failed:", e);
             }
           }
+          // If caller requested transactions/expenses filtering, handle here
+          if (body?.action === "expenses" || body?.action === "transactions") {
+            try {
+              const plateRaw = String(body?.plate || "").trim();
+              const category = String(body?.category || "all").toLowerCase(); // fuel | expenses | maintenance | all
+              const limit = Number(body?.limit || 200);
+              const days = body?.days ? Number(body.days) : body?.period_days ? Number(body.period_days) : null;
+              const from = body?.from || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : body?.from);
+              const to = body?.to || new Date().toISOString().split("T")[0];
+
+              const normalize = (s: string) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+              const plateNorm = normalize(plateRaw);
+
+              const results: any[] = [];
+              let totalValue = 0;
+              // Helper to fetch and filter by plate in JS (robust to formatting)
+              const fetchAndFilter = async (sql: string, params: any[]) => {
+                const res = await env.DB.prepare(sql).bind(...params).all();
+                const rows = res.results || [];
+                for (const r of rows) {
+                  if (plateNorm) {
+                    const rPlate = normalize(String(r.veiculo_placa || r.plate || ""));
+                    if (!rPlate.includes(plateNorm)) continue;
+                  }
+                  results.push(r);
+                  // sum value fields if present
+                  const v = Number(r.valor ?? r.total ?? r.custo ?? 0);
+                  totalValue += Number(v || 0);
+                  if (results.length >= limit) break;
+                }
+              };
+
+              // Choose which tables to query
+              const dateFrom = from;
+              const dateTo = to;
+              if (category === "fuel" || category === "all") {
+                await fetchAndFilter(
+                  "SELECT id, veiculo_placa, motorista, litros, valor, km_atual, km_anterior, posto, data FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY date DESC LIMIT 1000",
+                  [tenantId, dateFrom, dateTo]
+                );
+              }
+              if ((category === "expenses" || category === "all") && results.length < limit) {
+                await fetchAndFilter(
+                  "SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY date DESC LIMIT 1000",
+                  [tenantId, dateFrom, dateTo]
+                );
+              }
+              if ((category === "maintenance" || category === "all") && results.length < limit) {
+                await fetchAndFilter(
+                  "SELECT id, numero, veiculo_placa, custo AS valor, data, tipo, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY date DESC LIMIT 1000",
+                  [tenantId, dateFrom, dateTo]
+                );
+              }
+
+              return jsonResponse({
+                data: {
+                  params: { plate: plateRaw || null, plateNorm, category, from: dateFrom, to: dateTo, limit },
+                  totals: { count: results.length, totalValue },
+                  records: results.slice(0, limit),
+                },
+              });
+            } catch (e: any) {
+              return errorResponse(`Erro ao buscar transações: ${e?.message || String(e)}`, 500);
+            }
+          }
+
           // If caller requested raw metrics only (for frontend cards), return metrics directly
           if (body?.action === "metrics" || body?.action === "metrics_only") {
             return jsonResponse({ data: { metrics, dataSummary } });
