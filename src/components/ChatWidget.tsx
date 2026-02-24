@@ -18,9 +18,15 @@ const ChatWidget = () => {
       setLoading(true);
       try {
         // Try relative endpoint first (ideal when frontend and worker share origin)
+        const headers: Record<string,string> = { "Content-Type": "application/json" };
+        const token = localStorage.getItem("fleet_auth_token");
+        const tenantId = localStorage.getItem("fleet_tenant_id");
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
+
         let res = await fetch("/api/insights", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ prompt: text, includeData: true }),
         });
 
@@ -29,7 +35,7 @@ const ChatWidget = () => {
           try {
             res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers,
               body: JSON.stringify({ prompt: text, includeData: true }),
             });
           } catch (e) {

@@ -41,9 +41,15 @@ const AiInsights = () => {
       setInput("");
       setLoading(true);
       try {
+        const headers: Record<string,string> = { "Content-Type": "application/json" };
+        const token = localStorage.getItem("fleet_auth_token");
+        const tenantId = localStorage.getItem("fleet_tenant_id");
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
+
         const res = await fetch("/api/insights", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({ prompt: text, includeData: true }),
         });
         const j = await res.json();
