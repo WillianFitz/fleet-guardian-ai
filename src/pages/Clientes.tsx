@@ -251,15 +251,38 @@ const Clientes = () => {
                   })()}
                 </div>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
-              <input value={form.telefone || ""} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Município / UF</label>
-              <div className="flex gap-2">
-                <input value={form.municipio || ""} onChange={(e) => setForm((p) => ({ ...p, municipio: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
-                <input value={form.uf || ""} onChange={(e) => setForm((p) => ({ ...p, uf: e.target.value.toUpperCase() }))} className="w-20 px-3 py-2 border rounded bg-muted/50" maxLength={2} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
+                <input value={form.telefone || ""} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">CEP</label>
+                <input value={form.cep || ""} onChange={(e) => setForm((p) => ({ ...p, cep: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Logradouro</label>
+                <input value={form.logradouro || ""} onChange={(e) => setForm((p) => ({ ...p, logradouro: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Número</label>
+                <input value={form.numero || ""} onChange={(e) => setForm((p) => ({ ...p, numero: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Bairro</label>
+                <input value={form.bairro || ""} onChange={(e) => setForm((p) => ({ ...p, bairro: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-xs text-muted-foreground block mb-1">Complemento</label>
+                <input value={form.complemento || ""} onChange={(e) => setForm((p) => ({ ...p, complemento: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Município</label>
+                <input value={form.municipio || ""} onChange={(e) => setForm((p) => ({ ...p, municipio: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">UF</label>
+                <input value={form.uf || ""} onChange={(e) => setForm((p) => ({ ...p, uf: e.target.value.toUpperCase() }))} className="w-full px-3 py-2 border rounded bg-muted/50" maxLength={2} />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-2">
