@@ -6,6 +6,7 @@ import AlertsList from "@/components/dashboard/AlertsList";
 import AiInsightCard from "@/components/dashboard/AiInsightCard";
 import useStore from "@/hooks/useStore";
 import { Vehicle, FuelEntry, MaintenanceOrder, Driver } from "@/types/fleet";
+import FleetMetricsCard from "@/components/dashboard/FleetMetricsCard";
 
 const Index = () => {
   const { items: vehicles } = useStore<Vehicle>("vehicles", []);
@@ -49,9 +50,10 @@ const Index = () => {
         <FleetStatusChart />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <AlertsList />
         <AiInsightCard />
+        <FleetMetricsCard />
       </div>
     </div>
   );

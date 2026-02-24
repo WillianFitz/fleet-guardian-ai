@@ -719,6 +719,10 @@ export default {
               console.warn("Audit generation failed:", e);
             }
           }
+          // If caller requested raw metrics only (for frontend cards), return metrics directly
+          if (body?.action === "metrics" || body?.action === "metrics_only") {
+            return jsonResponse({ data: { metrics, dataSummary } });
+          }
 
           const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
