@@ -17,7 +17,6 @@ const ChatWidget = () => {
       setInput("");
       setLoading(true);
       try {
-        // Try relative endpoint first (ideal when frontend and worker share origin)
         const headers: Record<string,string> = { "Content-Type": "application/json" };
         const token = localStorage.getItem("fleet_auth_token");
         const tenantId = localStorage.getItem("fleet_tenant_id");
@@ -30,7 +29,6 @@ const ChatWidget = () => {
           body: JSON.stringify({ prompt: text, includeData: true }),
         });
 
-        // Fallback to direct Worker domain if relative call failed / returned non-OK
         if (!res || !res.ok) {
           try {
             res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
@@ -38,12 +36,38 @@ const ChatWidget = () => {
               headers,
               body: JSON.stringify({ prompt: text, includeData: true }),
             });
-          } catch (e) {
-            // keep original error path
+          } catch (err) {
+            // continue to error handling
           }
         }
 
         const j = await (res?.json ? res.json() : Promise.resolve(null));
+
+        // If metrics returned, show a concise structured summary first
+        const metrics = j?.data?.metrics;
+        if (metrics) {
+          try {
+            const totalLitros = metrics.totalFuel ? Number(metrics.totalFuel) : (metrics.byVehicle ? metrics.byVehicle.reduce((acc:any, v:any) => acc + (Number(v.total_litros||0)), 0) : 0);
+            const totalValor = metrics.totalExpenses ? Number(metrics.totalExpenses) : (metrics.byVehicle ? metrics.byVehicle.reduce((acc:any, v:any) => acc + (Number(v.total_fuel||0)), 0) : 0);
+            const totalKm = metrics.byVehicle ? metrics.byVehicle.reduce((acc:any, v:any) => acc + (Number(v.km_driven||0)), 0) : 0;
+            const consumo = totalLitros > 0 ? (totalKm / totalLitros) : null;
+            const precoMedio = totalLitros > 0 ? (totalValor / totalLitros) : null;
+
+            const lines: string[] = [];
+            lines.push(`Resumo rápido:`);
+            lines.push(`• Total abastecido: ${Number(totalLitros).toLocaleString("pt-BR")} L`);
+            lines.push(`• Custo combustível: R$ ${Number(totalValor).toLocaleString("pt-BR")}`);
+            if (precoMedio) lines.push(`• Preço médio: R$ ${precoMedio.toFixed(2)} / L`);
+            if (consumo) lines.push(`• Consumo médio frota: ${consumo.toFixed(2)} km/L`);
+            lines.push(`• Veículos cadastrados: ${metrics.totalVehicles ?? (metrics.activeVehicles ? metrics.activeVehicles.length : 0)}`);
+            lines.push(`• Motoristas cadastrados: ${metrics.totalDrivers ?? 0}`);
+
+            setMessages((s) => [...s, { role: "assistant", text: lines.join("\n") }]);
+          } catch (err) {
+            // ignore metrics formatting errors
+          }
+        }
+
         const assistant = j?.data?.assistant || j?.assistant || (j?.raw?.choices?.[0]?.message?.content ?? "Sem resposta.");
         setMessages((s) => [...s, { role: "assistant", text: String(assistant) }]);
       } catch (e) {
