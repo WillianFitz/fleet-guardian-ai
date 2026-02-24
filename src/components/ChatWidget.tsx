@@ -81,7 +81,7 @@ const ChatWidget = () => {
               <div className="px-3 py-2 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-                    <Robot className="w-4 h-4 text-primary" />
+                    <Zap className="w-4 h-4 text-primary" />
                   </div>
                   <div>
                     <div className="text-sm font-semibold">IA & Insights</div>
