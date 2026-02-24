@@ -57,7 +57,15 @@ const FleetMetricsCard = () => {
   const totalLitros = metrics.totalFuel ?? 0;
   const totalValor = metrics.totalExpenses ?? 0;
   const precoMedio = totalLitros > 0 ? totalValor / totalLitros : 0;
-  const totalKm = metrics.monthly ? (metrics.monthly?.expenses?.reduce?.((s:any, r:any) => s + (r.total||0), 0) : 0) : 0;
+  const totalKm = (() => {
+    try {
+      const monthly = (metrics && metrics.monthly) ? metrics.monthly : null;
+      const expenses = monthly?.expenses || [];
+      return (expenses || []).reduce((s, r) => s + (Number(r.total) || 0), 0);
+    } catch {
+      return 0;
+    }
+  })();
 
   return (
     <div className="glass-card p-4 sm:p-5">
