@@ -600,10 +600,26 @@ export default {
               const monthlyFuel = (monthlyFuelRes.results || []).map((r: any) => ({ ym: r.ym, total: Number(r.total || 0) }));
               const monthlyMaint = (monthlyMaintRes.results || []).map((r: any) => ({ ym: r.ym, total: Number(r.total || 0) }));
 
+              // Also fetch registered vehicles (active) from vehicles table to reflect actual fleet
+              let activeVehicles: any[] = [];
+              try {
+                const vehiclesRes = await env.DB
+                  .prepare("SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ?")
+                  .bind(tenantId)
+                  .all();
+                activeVehicles = vehiclesRes.results || [];
+              } catch (e) {
+                // ignore vehicles query errors
+                activeVehicles = [];
+              }
+
               metrics = {
                 totalExpenses,
                 totalFuel,
                 totalMaint,
+                totalVehicles: activeVehicles.length,
+                activeVehicles: activeVehicles.map((v: any) => ({ id: v.id, plate: v.placa, model: v.modelo, status: v.status })),
+                detectedVehicles: byVehicle,
                 byVehicle,
                 monthly: {
                   expenses: monthlyExpenses,
@@ -617,8 +633,9 @@ export default {
  - Despesas totais: R$ ${totalExpenses.toFixed(2)}
  - Abastecimento (fuel_entries): R$ ${totalFuel.toFixed(2)}
  - Manutenção (maintenance_orders): R$ ${totalMaint.toFixed(2)}
- - Veículos detectados: ${byVehicle.length}
-`;
+ - Veículos cadastrados: ${activeVehicles.length}
+ - Veículos com dados detectados (abastecimento/despesas/manutenção): ${byVehicle.length}
+ `;
             } catch (e) {
               console.warn("Insights: failed to build data summary/metrics:", e);
             }
