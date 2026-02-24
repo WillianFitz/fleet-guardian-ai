@@ -370,6 +370,13 @@ async function handleCreate(
     snakeData.tenant_id = tenantId;
   }
 
+  // Debug log: when creating drivers, log payload to help debug missing fields
+  try {
+    if (table === "drivers") {
+      console.log("[API] handleCreate drivers payload:", JSON.stringify(snakeData));
+    }
+  } catch {}
+
   // Serializar objetos/arrays em JSON para armazenamento em colunas TEXT
   for (const [k, v] of Object.entries(snakeData)) {
     if (v !== null && typeof v === "object") {
@@ -410,8 +417,23 @@ async function handleUpdate(
     delete snakeData[f];
   }
   snakeData = sanitizeValues(snakeData);
-  // Add updated_at
-  snakeData.updated_at = new Date().toISOString();
+  // Add updated_at only if the target table actually has that column (some deployments may lack it)
+  try {
+    const pragma = await db.prepare(`PRAGMA table_info(${table})`).all();
+    const cols = (pragma.results || []).map((r: any) => String(r.name || r.name).trim());
+    if (cols.includes("updated_at")) {
+      snakeData.updated_at = new Date().toISOString();
+    }
+  } catch {
+    // If PRAGMA fails for any reason, skip adding updated_at to avoid SQL errors
+  }
+
+  // Debug log: when updating drivers, log payload to help debug missing fields
+  try {
+    if (table === "drivers") {
+      console.log("[API] handleUpdate drivers id:", id, "payload:", JSON.stringify(snakeData));
+    }
+  } catch {}
 
   // Serializar objetos/arrays em JSON para armazenamento em colunas TEXT
   for (const [k, v] of Object.entries(snakeData)) {
