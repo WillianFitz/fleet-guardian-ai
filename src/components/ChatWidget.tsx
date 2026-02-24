@@ -1,4 +1,4 @@
-import { Robot, Truck } from "lucide-react";
+import { Truck, Zap } from "lucide-react";
 import { useCallback, useState, useRef, useEffect } from "react";
 
 const ChatWidget = () => {
@@ -65,12 +65,12 @@ const ChatWidget = () => {
             }}
             className="w-14 h-14 rounded-full bg-primary/90 hover:bg-primary/100 text-white flex items-center justify-center shadow-xl border border-primary/30"
           >
-            <div className="relative">
-              <Truck className="w-6 h-6 opacity-90" />
-              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center">
-                <Robot className="w-3 h-3 text-primary" />
-              </span>
-            </div>
+              <div className="relative">
+                <Truck className="w-6 h-6 opacity-90" />
+                <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-white flex items-center justify-center">
+                  <Zap className="w-3 h-3 text-primary" />
+                </span>
+              </div>
           </button>
         </div>
 
