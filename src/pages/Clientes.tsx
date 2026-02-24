@@ -94,21 +94,21 @@ const Clientes = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-9">
           <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <div className="text-sm font-medium">Lista de clientes</div>
-              <div className="text-xs text-muted-foreground">{items.length} cadastrados</div>
+            <div className="p-6 border-b border-border flex items-center justify-between">
+              <div className="text-lg font-semibold">Lista de clientes</div>
+              <div className="text-sm text-muted-foreground">{items.length} cadastrados</div>
             </div>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-border text-sm">
+              <table className="min-w-full divide-y divide-border text-base">
                 <thead className="bg-muted/10">
                   <tr className="text-xs text-muted-foreground uppercase">
-                    <th className="text-left px-6 py-3">Nome</th>
-                    <th className="text-left px-6 py-3">CNPJ/CPF</th>
-                    <th className="text-left px-6 py-3">Município / UF</th>
-                    <th className="px-6 py-3 text-right">Ações</th>
+                    <th className="text-left px-6 py-4">Nome</th>
+                    <th className="text-left px-6 py-4">CNPJ/CPF</th>
+                    <th className="text-left px-6 py-4">Município / UF</th>
+                    <th className="px-6 py-4 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="bg-card">
@@ -185,14 +185,19 @@ const Clientes = () => {
           </DialogContent>
         </Dialog>
       </div>
-      {/* Floating add button bottom-right */}
-      <button
-        onClick={openNew}
-        title="Novo cliente"
-        className="fixed right-6 bottom-6 z-50 inline-flex items-center gap-2 px-4 py-3 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl focus:outline-none"
-      >
-        <Plus className="w-4 h-4" />
-      </button>
+      {/* Floating add button bottom-right with pulse */}
+      <div className="fixed right-6 bottom-6 z-50">
+        <div className="relative">
+          <span className="absolute -inset-1 rounded-full bg-primary/30 animate-ping"></span>
+          <button
+            onClick={openNew}
+            title="Novo cliente"
+            className="relative inline-flex items-center justify-center gap-2 px-6 py-5 rounded-full bg-primary text-primary-foreground shadow-2xl hover:scale-105 transform transition-transform"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
