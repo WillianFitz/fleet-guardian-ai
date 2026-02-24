@@ -61,7 +61,9 @@ const Clientes = () => {
       setForm((p) => ({
         ...p,
         nome: data.razao_social || data.nome || p.nome,
+        // preencher tanto contato quanto telefone (compatibilidade)
         contato: (data.telefone || p.contato) ?? "",
+        telefone: (data.telefone || p.telefone) ?? (data.telefone || p.contato) ?? "",
         cep: data.estabelecimento?.cep || p.cep || "",
         logradouro: data.estabelecimento?.logradouro || p.logradouro || "",
         municipio: data.estabelecimento?.municipio || p.municipio || "",
