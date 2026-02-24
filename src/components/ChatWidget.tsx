@@ -23,11 +23,104 @@ const ChatWidget = () => {
         if (token) headers["Authorization"] = `Bearer ${token}`;
         if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
 
-        let res = await fetch("/api/insights", {
-          method: "POST",
-          headers,
-          body: JSON.stringify({ prompt: text, includeData: true }),
-        });
+        // Intent detection: handle metric or expenses queries directly
+        const lower = text.toLowerCase();
+        const monthNames: Record<string, number> = {
+          janeiro: 1, jan: 1, fevereiro: 2, fev: 2, marco: 3, março: 3, mar: 3, abril: 4, abr: 4,
+          maio: 5, junho: 6, jul:7, julho:7, agosto:8, ago:8, setembro:9, set:9, outubro:10, out:10,
+          novembro:11, nov:11, dezembro:12, dez:12
+        };
+
+        const detectPlate = (s: string) => {
+          const m = s.match(/placa\s*[:\s]?\s*([A-Z0-9-]+)/i) || s.match(/veiculo\s*[:\s]?\s*([A-Z0-9-]+)/i);
+          return m ? m[1].toUpperCase() : null;
+        };
+
+        const detectMonth = (s: string) => {
+          for (const k of Object.keys(monthNames)) {
+            if (s.includes(k)) return monthNames[k];
+          }
+          return null;
+        };
+
+        const plate = detectPlate(text);
+        const month = detectMonth(lower);
+
+        // If user asked "quantos veiculos" or similar, call metrics
+        if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?/i.test(text)) {
+          let res = await fetch("/api/insights", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ action: "metrics", period_days: 90 }),
+          });
+          if (!res || !res.ok) {
+            res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ action: "metrics", period_days: 90 }),
+            });
+          }
+          const j = await res.json();
+          const metrics = j?.data?.metrics;
+          if (metrics) {
+            const totalVehicles = metrics.totalVehicles ?? (metrics.activeVehicles ? metrics.activeVehicles.length : 0);
+            setMessages((s) => [...s, { role: "assistant", text: `Você possui ${totalVehicles} veículo(s) cadastrados.` }]);
+          } else {
+            setMessages((s) => [...s, { role: "assistant", text: `Não foi possível obter a contagem de veículos.` }]);
+          }
+          setLoading(false);
+          return;
+        }
+
+        // If user mentioned a plate or asked for gastos/despesas, call expenses action
+        if (plate || /gasto|gastos|despesa|despesas|combustiv/i.test(lower)) {
+          // build date range
+          let from: string | null = null;
+          let to: string | null = null;
+          const year = new Date().getFullYear();
+          if (month) {
+            const lastDay = new Date(year, month, 0).getDate();
+            from = `${year}-${String(month).padStart(2,"0")}-01`;
+            to = `${year}-${String(month).padStart(2,"0")}-${String(lastDay).padStart(2,"0")}`;
+          }
+          // override if user specified explicit dates (very simple dd/mm/yyyy detection)
+          const dateMatch = text.match(/(\d{2})[\/\-](\d{2})[\/\-](\d{4})/);
+          if (dateMatch) {
+            from = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+            // if only one date provided treat as single-day to-day
+            to = from;
+          }
+
+          const category = /combust/i.test(lower) ? "fuel" : (/manut|os|servi/i.test(lower) ? "maintenance" : (/despes|gasto|expense/i.test(lower) ? "expenses" : "all"));
+          const bodyPayload: any = { action: "expenses", category, limit: 500 };
+          if (plate) bodyPayload.plate = plate;
+          if (from) bodyPayload.from = from;
+          if (to) bodyPayload.to = to;
+
+          let res = await fetch("/api/insights", { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+          if (!res || !res.ok) {
+            res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+          }
+          const j = await (res?.json ? res.json() : null);
+          const recs = j?.data?.records || [];
+          const totals = j?.data?.totals || {};
+          const params = j?.data?.params || {};
+
+          const lines: string[] = [];
+          lines.push(`Resultados para placa ${params.plate || "todas"} (${params.from} → ${params.to}) — categoria: ${params.category}`);
+          lines.push(`Registros: ${totals.count || recs.length} • Total valor: R$ ${Number(totals.totalValue || 0).toLocaleString("pt-BR")}`);
+          // show up to 5 sample lines
+          for (let i=0;i<Math.min(5, recs.length); i++) {
+            const r = recs[i];
+            if (r.litros) lines.push(`• ${r.data} · Fuel · ${r.veiculo_placa} · ${r.litros} L · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+            else if (r.numero || r.tipo) lines.push(`• ${r.data} · Manutenção (${r.tipo||r.numero}) · ${r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+            else lines.push(`• ${r.data} · Despesa · ${r.descricao || r.veiculo_placa} · R$ ${Number(r.valor||0).toLocaleString("pt-BR")}`);
+          }
+          if (recs.length > 5) lines.push(`... e mais ${recs.length-5} registro(s). Use 'limit' para ver mais.`);
+          setMessages((s) => [...s, { role: "assistant", text: lines.join("\n") }]);
+          setLoading(false);
+          return;
+        }
 
         if (!res || !res.ok) {
           try {
