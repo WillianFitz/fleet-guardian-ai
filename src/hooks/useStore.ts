@@ -28,8 +28,11 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
 
   // Sync to localStorage only when API is NOT configured (offline fallback)
   useEffect(() => {
-    if (!apiEnabled) {
+    // Always persist a local cache so UI survives reloads even if API is temporarily unreachable.
+    try {
       localStorage.setItem(`fleet_${key}`, JSON.stringify(items));
+    } catch {
+      // ignore storage errors
     }
   }, [key, items, apiEnabled]);
 
