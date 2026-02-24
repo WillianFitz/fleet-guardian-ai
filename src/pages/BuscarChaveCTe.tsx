@@ -8,8 +8,7 @@ export default function BuscarChaveCTe() {
   const navigate = useNavigate();
   const { tenant } = useTenant();
   const ambienteAtual = tenant?.ambienteCte || "homologacao";
-  const [mode, setMode] = useState<"chave" | "sefaz" | "xml">("chave");
-  const [onlyChaveMode, setOnlyChaveMode] = useState(false);
+  const [mode, setMode] = useState<"chave" | "sefaz">("chave");
   const [chave, setChave] = useState("");
   const [loading, setLoading] = useState(false);
   const [sefazLoading, setSefazLoading] = useState(false);
@@ -18,9 +17,7 @@ export default function BuscarChaveCTe() {
   try {
     const qp = new URLSearchParams(window.location.search);
     const qm = qp.get("mode");
-    const only = qp.get("onlyChave");
-    if (only === "true") setOnlyChaveMode(true);
-    if ((qm === "sefaz" || qm === "xml") && mode !== (qm as any)) setMode(qm as any);
+    if (qm === "sefaz" && mode !== (qm as any)) setMode(qm as any);
   } catch {
     // ignore (SSR safety)
   }

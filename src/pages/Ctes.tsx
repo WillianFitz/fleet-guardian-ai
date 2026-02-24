@@ -489,7 +489,7 @@ const Ctes = () => {
       // Fechar diálogo e navegar para a página dedicada de busca por chave
       setDialogOpen(false);
       setShowNfeTipoStep(false);
-      navigate("/ctes/buscar-chave?onlyChave=true");
+      navigate("/ctes/buscar-chave");
       return;
     }
     // Para XML: abrir página dedicada de importação por XML (fluxo separado)
