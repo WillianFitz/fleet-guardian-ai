@@ -79,11 +79,17 @@ const ChatWidget = () => {
           let from: string | null = null;
           let to: string | null = null;
           const year = new Date().getFullYear();
-          // detect "últimos N dias"
-          const daysMatch = lower.match(/últim(?:os|as)?\s+(\d+)\s*dias?/i) || lower.match(/last\s+(\d+)\s+days?/i);
+          // detect "últimos N dias" or standalone "30 dias"
           let detectedDays: number | null = null;
-          if (daysMatch) {
-            detectedDays = Number(daysMatch[1]);
+          const daysMatch1 = lower.match(/últim(?:os|as)?\s+(\d+)\s*dias?/i);
+          const daysMatch2 = lower.match(/last\s+(\d+)\s+days?/i);
+          const daysMatch3 = lower.match(/(\d+)\s*dias?/i);
+          if (daysMatch1) detectedDays = Number(daysMatch1[1]);
+          else if (daysMatch2) detectedDays = Number(daysMatch2[1]);
+          else if (daysMatch3) {
+            // ensure not a year or day in date dd/mm/yyyy (avoid picking day from date)
+            const before = lower.substring(0, daysMatch3.index || 0);
+            if (!/\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(before)) detectedDays = Number(daysMatch3[1]);
           }
           if (month) {
             const lastDay = new Date(year, month, 0).getDate();
@@ -165,32 +171,27 @@ ${JSON.stringify({ params, totals, sample })}`;
             // show brief header + analysis (try parse JSON)
             const header = lines.join("\n");
             if (analysis) {
-              // try parse as JSON
+              // try parse as JSON and produce concise summary (short & actionable)
               try {
                 const parsed = JSON.parse(String(analysis));
-                // format parsed JSON into readable text
                 const outLines: string[] = [];
                 if (parsed.summary) {
-                  outLines.push("### Resumo Numérico");
-                  outLines.push(`• Total Valor: R$ ${Number(parsed.summary.total_value || 0).toLocaleString("pt-BR")}`);
-                  outLines.push(`• Total Litros: ${parsed.summary.total_liters ?? "Não aplicável"}`);
-                  outLines.push(`• KM Total: ${parsed.summary.total_km ?? "Não aplicável"}`);
+                  outLines.push(`Resumo: R$ ${Number(parsed.summary.total_value || 0).toLocaleString("pt-BR")} • ${parsed.summary.total_liters ? `${parsed.summary.total_liters} L` : "Litros: —"} • ${parsed.summary.total_km ? `${parsed.summary.total_km} km` : "KM: —"}`);
                 }
                 if (parsed.breakdown && Array.isArray(parsed.breakdown)) {
-                  outLines.push("\n### Análise por Tipo e Veículo");
-                  for (const b of parsed.breakdown) {
-                    outLines.push(`• ${b.type} — ${b.plate || "—"}: R$ ${Number(b.total_value || 0).toLocaleString("pt-BR")}${b.total_liters ? ` • ${b.total_liters} L` : ""}${b.km ? ` • ${b.km} km` : ""}`);
+                  // show top 2 breakdown entries
+                  const top = parsed.breakdown.slice(0, 2);
+                  for (const b of top) {
+                    outLines.push(`${b.plate || "—"} • ${b.type} • R$ ${Number(b.total_value || 0).toLocaleString("pt-BR")}${b.total_liters ? ` • ${b.total_liters} L` : ""}`);
                   }
                 }
                 if (parsed.anomalies && parsed.anomalies.length) {
-                  outLines.push("\n### Principais Anomalias");
-                  for (const a of parsed.anomalies) outLines.push(`• ${a}`);
+                  outLines.push(`Anomalias: ${Array.isArray(parsed.anomalies) ? (parsed.anomalies[0].description || parsed.anomalies[0] || "") : parsed.anomalies}`);
                 }
                 if (parsed.recommendations && parsed.recommendations.length) {
-                  outLines.push("\n### Recomendações Práticas");
-                  for (const r of parsed.recommendations) outLines.push(`• ${r}`);
+                  outLines.push(`Recomendação: ${parsed.recommendations[0]}`);
                 }
-                setMessages((s) => [...s, { role: "assistant", text: header }, { role: "assistant", text: outLines.join("\n") }]);
+                setMessages((s) => [...s, { role: "assistant", text: header }, { role: "assistant", text: outLines.join(" | ") }]);
               } catch {
                 // not JSON, show raw analysis
                 setMessages((s) => [...s, { role: "assistant", text: header }, { role: "assistant", text: String(analysis) }]);
