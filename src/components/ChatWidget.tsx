@@ -91,46 +91,51 @@ const ChatWidget = () => {
 
         {/* Chat box */}
         {open && !minimized && (
-          <div className="mt-3 w-80 max-w-xs">
-            <div className="bg-card/80 border border-border rounded-lg shadow-lg overflow-hidden flex flex-col">
-              <div className="px-3 py-2 border-b border-border flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-                    <Zap className="w-4 h-4 text-primary" />
+          <div className="mt-3 w-96 max-w-md">
+            <div className="bg-card/90 border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <div className="text-sm font-semibold">IA & Insights</div>
-                    <div className="text-xs text-muted-foreground">Pergunte sobre custos, manutenção e economia</div>
+                    <div className="text-sm sm:text-base font-semibold">IA & Insights</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground">Peça relatórios, métricas e recomendações para reduzir custos</div>
                   </div>
                 </div>
-                <div>
-                  <button onClick={() => { setOpen(false); setMinimized(false); }} className="text-xs text-muted-foreground px-2">Fechar</button>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setMinimized(true)} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Minimizar</button>
+                  <button onClick={() => { setOpen(false); setMinimized(false); }} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Fechar</button>
                 </div>
               </div>
-              <div ref={boxRef} className="p-2 max-h-60 overflow-auto">
+
+              <div ref={boxRef} className="p-4 max-h-80 overflow-auto space-y-3 bg-gradient-to-b from-background/50 to-background/40">
                 {messages.length === 0 ? (
-                  <div className="text-xs text-muted-foreground p-2">Peça: "Me mostre custos por veículo nos últimos 3 meses" ou "Onde posso reduzir gastos?"</div>
+                  <div className="text-sm text-muted-foreground p-2">Sugestões: <span className="font-medium">"Me mostre custos por veículo nos últimos 3 meses"</span> • <span className="font-medium">"Onde posso reduzir gastos?"</span></div>
                 ) : (
                   messages.map((m, i) => (
-                    <div key={i} className={`mb-2 ${m.role === "user" ? "text-right" : "text-left"}`}>
-                      <div className={`inline-block px-3 py-2 rounded-md ${m.role === "user" ? "bg-primary/10 text-foreground" : "bg-muted-foreground/5 text-foreground"}`}>
-                        <div className="whitespace-pre-wrap text-sm">{m.text}</div>
+                    <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                      <div className={`${m.role === "user" ? "bg-primary text-white" : "bg-card/20 text-foreground"} max-w-[85%] px-4 py-2 rounded-2xl shadow-sm whitespace-pre-wrap text-sm`}>
+                        {m.text}
                       </div>
                     </div>
                   ))
                 )}
               </div>
-              <div className="p-2 border-t border-border">
-                <div className="flex gap-2">
-                  <input
+
+              <div className="p-3 border-t border-border bg-background/60">
+                <div className="flex gap-2 items-end">
+                  <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-                    className="flex-1 input"
-                    placeholder="Pergunte algo..."
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                    rows={2}
+                    className="flex-1 textarea resize-none h-12 px-3 py-2 rounded-md border border-border focus:outline-none"
+                    placeholder="Digite sua pergunta (Shift+Enter para nova linha)..."
                   />
                   <button className="btn" onClick={() => send()} disabled={loading}>{loading ? "..." : "Enviar"}</button>
                 </div>
+                <div className="text-xs text-muted-foreground mt-2">Respostas geradas por IA — sua privacidade é importante.</div>
               </div>
             </div>
           </div>
