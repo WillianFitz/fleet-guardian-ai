@@ -17,12 +17,27 @@ const ChatWidget = () => {
       setInput("");
       setLoading(true);
       try {
-        const res = await fetch("/api/insights", {
+        // Try relative endpoint first (ideal when frontend and worker share origin)
+        let res = await fetch("/api/insights", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: text, includeData: true }),
         });
-        const j = await res.json();
+
+        // Fallback to direct Worker domain if relative call failed / returned non-OK
+        if (!res || !res.ok) {
+          try {
+            res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ prompt: text, includeData: true }),
+            });
+          } catch (e) {
+            // keep original error path
+          }
+        }
+
+        const j = await (res?.json ? res.json() : Promise.resolve(null));
         const assistant = j?.data?.assistant || j?.assistant || (j?.raw?.choices?.[0]?.message?.content ?? "Sem resposta.");
         setMessages((s) => [...s, { role: "assistant", text: String(assistant) }]);
       } catch (e) {
