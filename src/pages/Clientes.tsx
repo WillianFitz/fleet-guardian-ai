@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Plus } from "lucide-react";
 import useStore from "@/hooks/useStore";
 import { Client } from "@/types/fleet";
 import { validateCPF, validateCNPJ, fetchCnpjData, onlyDigits } from "@/lib/cpfCnpj";
@@ -89,7 +90,7 @@ const Clientes = () => {
             placeholder="Buscar por nome ou CNPJ"
             className="hidden sm:block bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm w-64 focus:outline-none"
           />
-          <button onClick={openNew} className="px-4 py-2 rounded-lg bg-primary text-primary-foreground">Novo cliente</button>
+          {/* Floating add button relocated to bottom-right; keep space here for layout balance */}
         </div>
       </div>
 
@@ -97,31 +98,31 @@ const Clientes = () => {
         <div className="lg:col-span-2">
           <div className="bg-card border border-border rounded-lg overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">Lista de clientes</div>
+              <div className="text-sm font-medium">Lista de clientes</div>
               <div className="text-xs text-muted-foreground">{items.length} cadastrados</div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="min-w-full divide-y divide-border text-sm">
                 <thead className="bg-muted/10">
                   <tr className="text-xs text-muted-foreground uppercase">
-                    <th className="text-left px-4 py-3">Nome</th>
-                    <th className="text-left px-4 py-3">CNPJ/CPF</th>
-                    <th className="text-left px-4 py-3">Município / UF</th>
-                    <th className="px-4 py-3">Ações</th>
+                    <th className="text-left px-6 py-3">Nome</th>
+                    <th className="text-left px-6 py-3">CNPJ/CPF</th>
+                    <th className="text-left px-6 py-3">Município / UF</th>
+                    <th className="px-6 py-3 text-right">Ações</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="bg-card">
                   {items.filter(c => {
                     const q = search.trim().toLowerCase();
                     if (!q) return true;
                     return (c.nome || "").toLowerCase().includes(q) || (c.cnpjCpf || "").replace(/\D/g, "").includes(q.replace(/\D/g, ""));
                   }).map((c) => (
-                    <tr key={c.id} className="border-t hover:bg-muted/20 transition-colors">
-                      <td className="px-4 py-3">{c.nome}</td>
-                      <td className="px-4 py-3 font-mono">{c.cnpjCpf}</td>
-                      <td className="px-4 py-3">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={() => handleEdit(c)} className="px-2 py-1 rounded border mr-2">Editar</button>
+                    <tr key={c.id} className="hover:bg-muted/20 transition-colors">
+                      <td className="px-6 py-4 align-top max-w-md">{c.nome}</td>
+                      <td className="px-6 py-4 align-top font-mono">{c.cnpjCpf}</td>
+                      <td className="px-6 py-4 align-top">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
+                      <td className="px-6 py-4 text-right align-top">
+                        <button onClick={() => handleEdit(c)} className="px-3 py-1 rounded border mr-2">Editar</button>
                         <button
                           onClick={() => {
                             if (confirm(`Excluir cliente ${c.nome}?`)) {
@@ -129,7 +130,7 @@ const Clientes = () => {
                               toast({ title: "Cliente excluído" });
                             }
                           }}
-                          className="px-2 py-1 rounded border text-destructive"
+                          className="px-3 py-1 rounded border text-destructive"
                         >
                           Excluir
                         </button>
@@ -138,7 +139,7 @@ const Clientes = () => {
                   ))}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Nenhum cliente cadastrado</td>
+                      <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">Nenhum cliente cadastrado</td>
                     </tr>
                   )}
                 </tbody>
@@ -184,6 +185,14 @@ const Clientes = () => {
           </DialogContent>
         </Dialog>
       </div>
+      {/* Floating add button bottom-right */}
+      <button
+        onClick={openNew}
+        title="Novo cliente"
+        className="fixed right-6 bottom-6 z-50 inline-flex items-center gap-2 px-4 py-3 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl focus:outline-none"
+      >
+        <Plus className="w-4 h-4" />
+      </button>
     </div>
   );
 };
