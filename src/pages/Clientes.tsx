@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
 import { Client } from "@/types/fleet";
 import { validateCPF, validateCNPJ, fetchCnpjData, onlyDigits } from "@/lib/cpfCnpj";
@@ -12,17 +13,21 @@ const Clientes = () => {
   const [search, setSearch] = useState("");
   const nameRef = useRef<HTMLInputElement | null>(null);
 
+  const [modalOpen, setModalOpen] = useState(false);
+
   const openNew = () => {
     setEditing(null);
     setForm({});
-    // focus name input when opening
-    setTimeout(() => nameRef.current?.focus(), 20);
+    setModalOpen(true);
+    // focus will happen after modal opens
+    setTimeout(() => nameRef.current?.focus(), 200);
   };
 
   const handleEdit = (c: Client) => {
     setEditing(c);
     setForm(c);
-    setTimeout(() => nameRef.current?.focus(), 20);
+    setModalOpen(true);
+    setTimeout(() => nameRef.current?.focus(), 200);
   };
 
   const handleSave = () => {
@@ -142,37 +147,42 @@ const Clientes = () => {
           </div>
         </div>
 
-        <aside className="bg-card border border-border rounded-lg p-4">
-          <h2 className="text-sm font-semibold mb-3">{editing ? "Editar cliente" : "Novo cliente"}</h2>
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Nome</label>
-              <input ref={nameRef} value={form.nome || ""} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">CNPJ / CPF</label>
-              <div className="flex gap-2">
-                <input value={form.cnpjCpf || ""} onChange={(e) => setForm((p) => ({ ...p, cnpjCpf: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
-                <button onClick={handleFetchByCnpj} disabled={loadingFetch} className="px-3 py-2 rounded bg-primary text-primary-foreground">{loadingFetch ? "Buscando..." : "Buscar CNPJ"}</button>
+        {/* Modal for new/edit client */}
+        <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) { setForm({}); setEditing(null); } }}>
+          <DialogContent className="bg-card border-border w-full max-w-xl mx-4 sm:mx-auto p-4 sm:p-6">
+            <DialogHeader>
+              <DialogTitle>{editing ? "Editar cliente" : "Novo cliente"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 mt-2">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Nome</label>
+                <input ref={nameRef} value={form.nome || ""} onChange={(e) => setForm((p) => ({ ...p, nome: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">CNPJ / CPF</label>
+                <div className="flex gap-2">
+                  <input value={form.cnpjCpf || ""} onChange={(e) => setForm((p) => ({ ...p, cnpjCpf: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
+                  <button onClick={handleFetchByCnpj} disabled={loadingFetch} className="px-3 py-2 rounded bg-primary text-primary-foreground">{loadingFetch ? "Buscando..." : "Buscar CNPJ"}</button>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
+                <input value={form.telefone || ""} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1">Município / UF</label>
+                <div className="flex gap-2">
+                  <input value={form.municipio || ""} onChange={(e) => setForm((p) => ({ ...p, municipio: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
+                  <input value={form.uf || ""} onChange={(e) => setForm((p) => ({ ...p, uf: e.target.value.toUpperCase() }))} className="w-20 px-3 py-2 border rounded bg-muted/50" maxLength={2} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 mt-2">
+                <button onClick={() => { setModalOpen(false); setForm({}); setEditing(null); }} className="px-3 py-2 rounded border">Cancelar</button>
+                <button onClick={() => { handleSave(); setModalOpen(false); }} className="px-3 py-2 rounded bg-primary text-primary-foreground">Salvar</button>
               </div>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Telefone</label>
-              <input value={form.telefone || ""} onChange={(e) => setForm((p) => ({ ...p, telefone: e.target.value }))} className="w-full px-3 py-2 border rounded bg-muted/50" />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Município / UF</label>
-              <div className="flex gap-2">
-                <input value={form.municipio || ""} onChange={(e) => setForm((p) => ({ ...p, municipio: e.target.value }))} className="flex-1 px-3 py-2 border rounded bg-muted/50" />
-                <input value={form.uf || ""} onChange={(e) => setForm((p) => ({ ...p, uf: e.target.value.toUpperCase() }))} className="w-20 px-3 py-2 border rounded bg-muted/50" maxLength={2} />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-2">
-              <button onClick={() => { setForm({}); setEditing(null); }} className="px-3 py-2 rounded border">Cancelar</button>
-              <button onClick={handleSave} className="px-3 py-2 rounded bg-primary text-primary-foreground">Salvar</button>
-            </div>
-          </div>
-        </aside>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
