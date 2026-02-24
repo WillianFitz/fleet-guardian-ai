@@ -61,12 +61,25 @@ const Clientes = () => {
       try { console.log("[CLIENTES] fetchCnpjData result:", JSON.stringify(data)); } catch {}
 
       // Extract phone from several possible locations in BrasilAPI response
-      const phone =
-        data.telefone ||
-        data.telefone_contato ||
-        (data.estabelecimento && (data.estabelecimento.telefone || data.estabelecimento?.ddd_telefone)) ||
-        (Array.isArray(data.estabelecimentos) && (data.estabelecimentos[0]?.telefone || data.estabelecimentos[0]?.ddd_telefone)) ||
-        null;
+      // Try multiple possible fields/locations for phone numbers returned by BrasilAPI or other sources
+      const phoneCandidates = [
+        data.telefone,
+        data.telefone_contato,
+        data.telefones && Array.isArray(data.telefones) ? data.telefones[0] : null,
+        data.contato?.telefone,
+        data.contatos && Array.isArray(data.contatos) ? data.contatos[0]?.telefone : null,
+        data.estabelecimento?.telefone,
+        data.estabelecimento?.ddd && data.estabelecimento?.telefone ? `${data.estabelecimento.ddd}${data.estabelecimento.telefone}` : null,
+        data.estabelecimentos && Array.isArray(data.estabelecimentos) ? (data.estabelecimentos[0]?.telefone || data.estabelecimentos[0]?.ddd && data.estabelecimentos[0]?.telefone ? `${data.estabelecimentos[0].ddd || ""}${data.estabelecimentos[0].telefone || ""}` : null) : null,
+      ];
+      let phone = null;
+      for (const p of phoneCandidates) {
+        if (p && String(p).trim()) {
+          // normalize: remove spaces, keep digits and common symbols
+          phone = String(p).trim();
+          break;
+        }
+      }
 
       // Extract address/municipio/uf from multiple possible locations
       const cep = data.estabelecimento?.cep || data.cep || data.estabelecimentos?.[0]?.cep || null;
