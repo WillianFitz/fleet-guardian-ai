@@ -337,6 +337,17 @@ const Ctes = () => {
     setShowNfeTipoStep(false);
   };
 
+  const formatCurrency = (v?: number | null) => {
+    const n = typeof v === "number" ? v : Number(v || 0);
+    return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const parseCurrency = (s: string) => {
+    if (!s) return 0;
+    const cleaned = String(s).replace(/\s/g, "").replace(/\./g, "").replace(",", ".").replace(/[^\d.\-]/g, "");
+    const n = Number(cleaned);
+    return isNaN(n) ? 0 : n;
+  };
   const handleEdit = (c: CTe) => {
     setEditing(c);
     setForm(c);
@@ -1299,15 +1310,25 @@ const Ctes = () => {
           ].map((f) => (
             <div key={f.key}>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">{f.label}</label>
-              <input
-                type={f.type || "text"}
-                value={((form as Record<string, unknown>)[f.key] as string) ?? ""}
-                onChange={(e) =>
-                  setField(f.key, f.type === "number" ? Number(e.target.value) || 0 : e.target.value)
-                }
-                placeholder={f.placeholder}
-                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              />
+              {f.key === "valorPrestacao" ? (
+                <input
+                  type="text"
+                  value={formatCurrency(form.valorPrestacao)}
+                  onChange={(e) => setField("valorPrestacao", parseCurrency(e.target.value))}
+                  placeholder={f.placeholder}
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              ) : (
+                <input
+                  type={f.type || "text"}
+                  value={((form as Record<string, unknown>)[f.key] as string) ?? ""}
+                  onChange={(e) =>
+                    setField(f.key, f.type === "number" ? Number(e.target.value) || 0 : e.target.value)
+                  }
+                  placeholder={f.placeholder}
+                  className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              )}
             </div>
           ))}
           {/* Campos adicionais solicitados: CFOP, Valor Frete, Tomador, Número da nota origem, toggles */}
@@ -1324,7 +1345,12 @@ const Ctes = () => {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor do Frete (R$)</label>
-            <input type="number" step="0.01" value={form.valorFrete ?? 0} onChange={(e) => setField("valorFrete", Number(e.target.value) || 0)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
+            <input
+              type="text"
+              value={formatCurrency(form.valorFrete)}
+              onChange={(e) => setField("valorFrete", parseCurrency(e.target.value))}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+            />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Tomador</label>
