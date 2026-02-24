@@ -78,6 +78,12 @@ const ChatWidget = () => {
           let from: string | null = null;
           let to: string | null = null;
           const year = new Date().getFullYear();
+          // detect "últimos N dias"
+          const daysMatch = lower.match(/últim(?:os|as)?\s+(\d+)\s*dias?/i) || lower.match(/last\s+(\d+)\s+days?/i);
+          let detectedDays: number | null = null;
+          if (daysMatch) {
+            detectedDays = Number(daysMatch[1]);
+          }
           if (month) {
             const lastDay = new Date(year, month, 0).getDate();
             from = `${year}-${String(month).padStart(2,"0")}-01`;
@@ -96,6 +102,7 @@ const ChatWidget = () => {
           if (plate) bodyPayload.plate = plate;
           if (from) bodyPayload.from = from;
           if (to) bodyPayload.to = to;
+          if (detectedDays) bodyPayload.days = detectedDays;
 
           let res = await fetch("/api/insights", { method: "POST", headers, body: JSON.stringify(bodyPayload) });
           if (!res || !res.ok) {
