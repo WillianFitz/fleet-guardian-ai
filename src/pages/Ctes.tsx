@@ -492,7 +492,14 @@ const Ctes = () => {
       navigate("/ctes/buscar-chave");
       return;
     }
-    // Para XML: avançar para o formulário de cadastro
+    // Para XML: abrir página dedicada de importação por XML (fluxo separado)
+    if (tipo === "xml") {
+      setDialogOpen(false);
+      setShowNfeTipoStep(false);
+      navigate("/ctes/buscar-xml");
+      return;
+    }
+    // fallback: avançar para o formulário de cadastro
     setShowNfeTipoStep(false);
   };
 
