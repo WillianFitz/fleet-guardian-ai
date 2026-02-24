@@ -466,9 +466,6 @@ if (false) { } // placeholder to keep diff tidy
         }
       }
 
-  return result;
-}
-
 // ===== GENERIC CRUD =====
 
 async function handleList(
