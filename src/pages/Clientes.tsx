@@ -173,19 +173,24 @@ const Clientes = () => {
             <h1 className="text-2xl font-bold">Clientes</h1>
             <p className="text-sm text-muted-foreground">Gerencie clientes gerados pelas importações e buscas.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por nome ou CNPJ"
-              className="hidden sm:block bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm w-64 focus:outline-none"
-            />
-          </div>
+        <div className="flex items-center gap-3">
+          {/* Search moved below and aligned with the clients card */}
+        </div>
         </div>
 
         <div className="flex justify-center">
           <div className="w-full max-w-5xl">
+            <div className="flex items-center justify-between mb-4 px-2 sm:px-0">
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Buscar por nome ou CNPJ"
+                className="bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none"
+              />
+              {/* space for badge/count */}
+              <div className="hidden sm:block text-xs text-muted-foreground ml-4">{items.length} cadastrados</div>
+            </div>
             <div className="bg-card border border-border rounded-lg overflow-hidden mx-auto">
               <div className="p-6 border-b border-border flex items-center justify-between">
                 <div className="text-lg font-semibold">Lista de clientes</div>
