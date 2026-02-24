@@ -30,6 +30,7 @@ const AiInsights = () => {
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [metrics, setMetrics] = useState<any | null>(null);
 
   const send = useCallback(
     async (prompt?: string) => {
@@ -47,6 +48,7 @@ const AiInsights = () => {
         });
         const j = await res.json();
         const assistant = j?.data?.assistant || j?.assistant || (j?.raw?.choices?.[0]?.message?.content ?? "Desculpe, sem resposta.");
+        if (j?.data?.metrics) setMetrics(j.data.metrics);
         const assistantMsg = { role: "assistant" as const, text: String(assistant) };
         setChatMessages((s) => [...s, assistantMsg]);
       } catch (e) {
@@ -91,6 +93,27 @@ const AiInsights = () => {
           </div>
         ))}
       </div>
+
+      {metrics && (
+        <div className="glass-card p-4 sm:p-5 mt-4">
+          <h2 className="text-sm font-semibold mb-2">Resumo de Métricas (agregado)</h2>
+          <div className="text-sm text-muted-foreground mb-2">
+            <div>Período: últimos {metrics?.monthly?.expenses?.length ? metrics?.monthly?.expenses[0]?.ym : "últimos 90 dias"}</div>
+            <div>Total despesas: R$ {Number(metrics.totalExpenses || 0).toLocaleString("pt-BR")}</div>
+            <div>Total combustível: R$ {Number(metrics.totalFuel || 0).toLocaleString("pt-BR")}</div>
+            <div>Total manutenção: R$ {Number(metrics.totalMaint || 0).toLocaleString("pt-BR")}</div>
+          </div>
+          <h3 className="text-xs font-medium mb-2">Top veículos por custo</h3>
+          <div className="space-y-2">
+            {(metrics.byVehicle || []).slice(0, 5).map((v: any, idx: number) => (
+              <div key={idx} className="flex justify-between text-sm">
+                <div>{v.plate}</div>
+                <div>R$ {Number(v.totalCost || 0).toLocaleString("pt-BR")}{v.costPerKm ? ` • R$/km ${v.costPerKm.toFixed(2)}` : ""}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
     <div className="glass-card p-4 sm:p-5 mt-4">
       <h2 className="text-sm font-semibold mb-2">Converse com o agente</h2>

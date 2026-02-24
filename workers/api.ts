@@ -508,30 +508,119 @@ export default {
             const ct = request.headers.get("content-type") || "";
             if (ct.includes("application/json")) return await request.json();
             const txt = await request.text();
-            try { return JSON.parse(txt || "{}"); } catch { return { prompt: txt }; }
+            try {
+              return JSON.parse(txt || "{}");
+            } catch {
+              return { prompt: txt };
+            }
           })()) as any;
 
           const { tenantId } = await getTenantForRequest(request, env);
 
-          // Build optional data summary from DB when requested (best-effort; ignore failures)
+          // Build optional data summary and metrics from DB when requested (best-effort; ignore failures)
           let dataSummary = "";
+          let metrics: Record<string, any> = {};
           if (body?.includeData) {
             try {
-              // Total expenses
+              // Aggregate totals
               const expRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM expenses WHERE tenant_id = ?").bind(tenantId).first();
               const fuelRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM fuel_entries WHERE tenant_id = ?").bind(tenantId).first();
-              const manRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM maintenance_orders WHERE tenant_id = ?").bind(tenantId).first();
-              const totalExpenses = (expRow?.total || 0);
-              const totalFuel = (fuelRow?.total || 0);
-              const totalMaint = (manRow?.total || 0);
+              const manRow = await env.DB.prepare("SELECT SUM(CAST(custo as REAL)) as total FROM maintenance_orders WHERE tenant_id = ?").bind(tenantId).first();
+              const totalExpenses = Number(expRow?.total || 0);
+              const totalFuel = Number(fuelRow?.total || 0);
+              const totalMaint = Number(manRow?.total || 0);
+
+              // Per-vehicle breakdowns
+              const fuelRowsRes = await env.DB
+                .prepare(
+                  "SELECT veiculo_placa, SUM(valor) AS total_fuel, SUM(litros) AS total_litros, AVG(consumo) AS avg_consumo, SUM(COALESCE(km_atual,0) - COALESCE(km_anterior,0)) AS km_driven FROM fuel_entries WHERE tenant_id = ? GROUP BY veiculo_placa"
+                )
+                .bind(tenantId)
+                .all();
+              const fuelRows = fuelRowsRes.results || [];
+
+              const expRowsRes = await env.DB
+                .prepare("SELECT veiculo_placa, SUM(valor) AS total_expenses FROM expenses WHERE tenant_id = ? GROUP BY veiculo_placa")
+                .bind(tenantId)
+                .all();
+              const expRows = expRowsRes.results || [];
+
+              const manRowsRes = await env.DB
+                .prepare("SELECT veiculo_placa, SUM(custo) AS total_maint FROM maintenance_orders WHERE tenant_id = ? GROUP BY veiculo_placa")
+                .bind(tenantId)
+                .all();
+              const manRows = manRowsRes.results || [];
+
+              // Merge by plate
+              const byPlate: Record<string, any> = {};
+              for (const r of fuelRows) {
+                const plate = String(r.veiculo_placa || "UNASSIGNED");
+                byPlate[plate] = byPlate[plate] || { plate, total_fuel: 0, total_litros: 0, avg_consumo: null, km_driven: 0, total_expenses: 0, total_maint: 0 };
+                byPlate[plate].total_fuel = Number(r.total_fuel || 0);
+                byPlate[plate].total_litros = Number(r.total_litros || 0);
+                byPlate[plate].avg_consumo = r.avg_consumo !== null ? Number(r.avg_consumo) : null;
+                byPlate[plate].km_driven = Number(r.km_driven || 0);
+              }
+              for (const r of expRows) {
+                const plate = String(r.veiculo_placa || "UNASSIGNED");
+                byPlate[plate] = byPlate[plate] || { plate, total_fuel: 0, total_litros: 0, avg_consumo: null, km_driven: 0, total_expenses: 0, total_maint: 0 };
+                byPlate[plate].total_expenses = Number(r.total_expenses || 0);
+              }
+              for (const r of manRows) {
+                const plate = String(r.veiculo_placa || "UNASSIGNED");
+                byPlate[plate] = byPlate[plate] || { plate, total_fuel: 0, total_litros: 0, avg_consumo: null, km_driven: 0, total_expenses: 0, total_maint: 0 };
+                byPlate[plate].total_maint = Number(r.total_maint || 0);
+              }
+
+              // Compute totals per vehicle and cost/km when possible
+              const byVehicle = Object.values(byPlate).map((v: any) => {
+                const totalCost = Number(v.total_fuel || 0) + Number(v.total_expenses || 0) + Number(v.total_maint || 0);
+                const costPerKm = v.km_driven > 0 ? totalCost / v.km_driven : null;
+                return { ...v, totalCost, costPerKm };
+              });
+
+              // Monthly aggregates for a period (default 90 days)
+              const days = Number(body?.period_days || 90);
+              const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+              const monthlyExpensesRes = await env.DB
+                .prepare("SELECT substr(data,1,7) as ym, SUM(valor) as total FROM expenses WHERE tenant_id = ? AND date(data) >= date(?) GROUP BY ym ORDER BY ym DESC")
+                .bind(tenantId, since)
+                .all();
+              const monthlyFuelRes = await env.DB
+                .prepare("SELECT substr(data,1,7) as ym, SUM(valor) as total FROM fuel_entries WHERE tenant_id = ? AND date(data) >= date(?) GROUP BY ym ORDER BY ym DESC")
+                .bind(tenantId, since)
+                .all();
+              const monthlyMaintRes = await env.DB
+                .prepare("SELECT substr(data,1,7) as ym, SUM(custo) as total FROM maintenance_orders WHERE tenant_id = ? AND date(data) >= date(?) GROUP BY ym ORDER BY ym DESC")
+                .bind(tenantId, since)
+                .all();
+
+              const monthlyExpenses = (monthlyExpensesRes.results || []).map((r: any) => ({ ym: r.ym, total: Number(r.total || 0) }));
+              const monthlyFuel = (monthlyFuelRes.results || []).map((r: any) => ({ ym: r.ym, total: Number(r.total || 0) }));
+              const monthlyMaint = (monthlyMaintRes.results || []).map((r: any) => ({ ym: r.ym, total: Number(r.total || 0) }));
+
+              metrics = {
+                totalExpenses,
+                totalFuel,
+                totalMaint,
+                byVehicle,
+                monthly: {
+                  expenses: monthlyExpenses,
+                  fuel: monthlyFuel,
+                  maintenance: monthlyMaint,
+                },
+              };
+
               dataSummary = `Resumo (valores agregados do tenant):
-- Despesas totais: R$ ${Number(totalExpenses).toFixed(2)}
-- Abastecimento (fuel_entries): R$ ${Number(totalFuel).toFixed(2)}
-- Manutenção (maintenance_orders): R$ ${Number(totalMaint).toFixed(2)}
+ - Período: últimos ${days} dias
+ - Despesas totais: R$ ${totalExpenses.toFixed(2)}
+ - Abastecimento (fuel_entries): R$ ${totalFuel.toFixed(2)}
+ - Manutenção (maintenance_orders): R$ ${totalMaint.toFixed(2)}
+ - Veículos detectados: ${byVehicle.length}
 `;
             } catch (e) {
-              // ignore DB errors and continue without dataSummary
-              console.warn("Insights: failed to build data summary:", e);
+              console.warn("Insights: failed to build data summary/metrics:", e);
             }
           }
 
@@ -540,8 +629,7 @@ export default {
           if (body?.messages && Array.isArray(body.messages)) {
             messages = body.messages;
           } else {
-            const systemPrompt =
-              "Você é um assistente especializado em gestão de frotas. Responda em Português e seja conciso.";
+            const systemPrompt = "Você é um assistente especializado em gestão de frotas. Responda em Português e seja conciso.";
             const userPrompt = body?.prompt || "Analise os custos e despesas da frota e gere insights acionáveis.";
             messages.push({ role: "system", content: systemPrompt + (dataSummary ? `\n\nContexto do sistema:\n${dataSummary}` : "") });
             messages.push({ role: "user", content: userPrompt });
@@ -572,7 +660,7 @@ export default {
 
           const choice = oaJson.choices && oaJson.choices[0];
           const assistantMessage = choice?.message?.content || oaJson?.result || "";
-          return jsonResponse({ data: { assistant: assistantMessage, raw: oaJson, dataSummary } });
+          return jsonResponse({ data: { assistant: assistantMessage, raw: oaJson, dataSummary, metrics } });
         } catch (e: any) {
           return errorResponse(`Erro ao processar insights: ${e?.message || String(e)}`, 500);
         }
