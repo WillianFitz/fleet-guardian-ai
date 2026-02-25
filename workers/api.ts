@@ -953,9 +953,22 @@ Regras:
             }
           }
           const category = action.category || "all";
-          const days = action.days ? Number(action.days) : null;
-          const from = action.from || null;
+          let days = action.days ? Number(action.days) : null;
+          let from = action.from || null;
           const to = action.to || null;
+          const userText = String(body?.userText || "");
+          // if userText contains a period like "últimos 30 dias" and it differs from action.days, prefer parsed value
+          try {
+            const mDias = userText.match(/(?:ultimo|último|últimos|ultimos)\s+(\d{1,3})\s+dia/i) || userText.match(/(\d{1,3})\s+dias?/i);
+            const mMeses = userText.match(/(\d{1,2})\s+mes(es)?/i);
+            if (mDias && mDias[1]) {
+              const parsed = Number(mDias[1]);
+              if (!days || days !== parsed) days = parsed;
+            } else if (mMeses && mMeses[1]) {
+              const parsed = Number(mMeses[1]) * 30;
+              if (!days || days !== parsed) days = parsed;
+            }
+          } catch {}
           // compute date range
           const endDate = to || new Date().toISOString().split("T")[0];
           const startDate = from || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null);
