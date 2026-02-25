@@ -34,6 +34,41 @@ const ChatWidget = () => {
           localStorage.setItem("agent_conversation_id", convId);
         }
 
+        // Heuristic: if user explicitly asks for efficiency (km/L), call get_efficiency directly
+        const efficiencyRegexEarly = /km\/l|quil[oó]metro.*litro|quilometro.*litro|quil[oó]metros?\s+por\s+litro|km\s*por\s*litro|efici.ncia.*combust/i;
+        const plateDetected = (() => {
+          const m = text.match(/placa\s*[:\s]?\s*([A-Z0-9-]+)|veiculo\s*[:\s]?\s*([A-Z0-9-]+)/i);
+          if (!m) return null;
+          return (m[1]||m[2]||"").toUpperCase();
+        })();
+        if (efficiencyRegexEarly.test(text)) {
+          try {
+            const action = { intent: "get_efficiency", plate: plateDetected || null, days: null };
+            const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ action, userText: text, conversationId: convId })
+            });
+            if (!execRes || !execRes.ok) {
+              const txt = execRes ? await execRes.text().catch(()=>"") : "";
+              console.error("agent/execute non-ok (efficiency):", execRes?.status, txt, { action });
+              setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${execRes?.status || "?"} ${txt}` }]);
+              setLoading(false);
+              return;
+            }
+            const ej = await execRes.json().catch((e)=>{ console.error("agent/execute json parse error (efficiency)", e); return null; });
+            const assistantText = ej?.data?.text || (ej?.data ? JSON.stringify(ej.data) : null) || "Sem resposta.";
+            setMessages((s) => [...s, { role: "assistant", text: String(assistantText).trim() }]);
+            setLoading(false);
+            return;
+          } catch (err:any) {
+            console.error("agent/execute error (efficiency):", err);
+            setMessages((s) => [...s, { role: "assistant", text: `Erro ao calcular eficiência: ${String(err?.message||err)}` }]);
+            setLoading(false);
+            return;
+          }
+        }
+
         // First, try agent parser + executor pipeline (centralized)
         try {
           const parseRes = await fetch(`${WORKER_URL}/api/agent/parse`, {
