@@ -52,22 +52,22 @@ const ChatWidget = () => {
         let parsedAction: any = null;
         try {
           const parserPrompt = `
-You are an intent parser for a fleet management assistant.
-Receive a user's free-text request and output ONLY a JSON object (no explanation) with the following keys:
+Você é um parser de intenções em Português para um assistente de gestão de frotas.
+Receba a mensagem do usuário e retorne APENAS um JSON (sem explicações) com estas chaves:
 {
-  "intent": "<one of: get_metrics, get_expenses, get_expense_summary>",
-  "plate": "<plate or null>",
+  "intent": "<get_metrics|get_expenses|get_expense_summary>",
+  "plate": "<placa ou null>",
   "category": "<fuel|expenses|maintenance|all>",
-  "days": <number|null>, 
+  "days": <number|null>,
   "from": "<YYYY-MM-DD|null>",
   "to": "<YYYY-MM-DD|null>",
   "limit": <number|null>
 }
-Rules:
-- If the user asks for "custos por veículo" or "custos por veículo nos últimos X" -> intent get_metrics
-- If user asks for "gastos" / "despesas" for a specific vehicle or period -> intent get_expenses
-- If user asks for a compact numeric summary (contains "resumo", "apenas o resumo", "mostrar só o resumo") -> intent get_expense_summary
-Return valid JSON only.
+Regras:
+- "custos por veículo" ou "custos por veículo nos últimos X" => intent get_metrics
+- "gastos" ou "despesas" => intent get_expenses
+- palavras como "resumo", "apenas o resumo", "mostrar apenas o resumo" => intent get_expense_summary
+Retorne somente JSON válido.
 `;
 
           const parserRes = await fetch(`${WORKER_URL}/api/insights`, {
@@ -120,8 +120,8 @@ Return valid JSON only.
               const metrics = j?.data?.metrics;
               if (!metrics) throw new Error("No metrics returned");
               // ask worker to summarize concisely
-              const sys = "You are a concise assistant. Return a one-line numeric summary and one recommendation.";
-              const userP = `Summarize metrics as one concise line and one recommendation. Data: ${JSON.stringify(metrics)}`;
+              const sys = "Você é um assistente conciso em Português. Retorne uma linha numérica de resumo e uma recomendação prática curta.";
+              const userP = `Resuma as métricas em uma linha e uma recomendação. Dados: ${JSON.stringify(metrics)}`;
               const r2 = await fetch(`${WORKER_URL}/api/insights`, {
                 method: "POST",
                 headers,
@@ -158,8 +158,8 @@ Return valid JSON only.
                 return;
               }
               // For full analysis use worker LLM
-              const systemPrompt = "You are a concise analyst. Given these records and totals, produce a short human summary (one numeric line, two sentences conclusion, one recommendation).";
-              const userPrompt = `Records: ${JSON.stringify({ totals, sample: recs.slice(0,50) })}`;
+              const systemPrompt = "Você é um analista conciso em Português. Dado os registros e totais, produza uma linha numérica de resumo, duas frases de conclusão e uma recomendação prática.";
+              const userPrompt = `Registros: ${JSON.stringify({ totals, sample: recs.slice(0,50) })}`;
               const r2 = await fetch(`${WORKER_URL}/api/insights`, {
                 method: "POST",
                 headers,
