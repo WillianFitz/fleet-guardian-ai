@@ -81,6 +81,7 @@ const ChatWidget = () => {
         }
 
         // If user mentioned a plate or asked for gastos/despesas, call expenses action
+        const wantSummary = /(^|\s)(resumo|resuma|sum[aá]rio|apenas o resumo|mostrar apenas o resumo|mostrar resumo|resuma|total|resumos)(\s|$)/i.test(text);
         if (plate || /gasto|gastos|despesa|despesas|combustiv/i.test(lower)) {
           // build date range
           let from: string | null = null;
@@ -111,7 +112,17 @@ const ChatWidget = () => {
             to = from;
           }
 
-          const category = /combust/i.test(lower) ? "fuel" : (/manut|os|servi/i.test(lower) ? "maintenance" : (/despes|gasto|expense/i.test(lower) ? "expenses" : "all"));
+          // Robust category detection (avoid matching 'os' inside words)
+          let category: "fuel" | "maintenance" | "expenses" | "all" = "all";
+          if (/combust|diesel|etanol|gasolina|gasolina/i.test(lower)) {
+            category = "fuel";
+          } else if (/manuten|oficina|revis[aã]o|conserto|manut|servi[cç]o/i.test(lower)) {
+            category = "maintenance";
+          } else if (/gasto|despesa|expense|custo|custos/i.test(lower)) {
+            category = "expenses";
+          } else {
+            category = "all";
+          }
           const bodyPayload: any = { action: "expenses", category, limit: 500 };
           if (plate) bodyPayload.plate = plate;
           if (from) bodyPayload.from = from;
@@ -132,6 +143,21 @@ const ChatWidget = () => {
           const recs = j?.data?.records || [];
           const totals = j?.data?.totals || {};
           const params = j?.data?.params || {};
+
+          // If user asked for a quick summary, return concise numeric summary directly (no AI)
+          if (wantSummary) {
+            const totalValue = Number(totals.totalValue || recs.reduce((s:any,r:any)=>s + (Number(r.valor||0)),0));
+            const totalLiters = recs.reduce((s:any,r:any)=>s + (Number(r.litros||0)),0);
+            const totalKm = recs.reduce((s:any,r:any)=>s + ((Number(r.km_atual||0) - Number(r.km_anterior||0)) || 0),0);
+            const summaryTextParts = [];
+            summaryTextParts.push(`Resumo (${params.plate || "todas"} ${params.from}→${params.to}):`);
+            summaryTextParts.push(`Total: R$ ${Number(totalValue).toLocaleString("pt-BR")}`);
+            if (totalLiters > 0) summaryTextParts.push(`Litros: ${totalLiters} L`);
+            if (totalKm > 0) summaryTextParts.push(`KM: ${totalKm} km`);
+            setMessages((s) => [...s, { role: "assistant", text: summaryTextParts.join(" • ") }]);
+            setLoading(false);
+            return;
+          }
 
           const lines: string[] = [];
           lines.push(`Resultados para placa ${params.plate || "todas"} (${params.from} → ${params.to}) — categoria: ${params.category}`);
