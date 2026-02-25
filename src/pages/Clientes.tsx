@@ -70,7 +70,7 @@ const Clientes = () => {
     try {
       const data = await fetchCnpjData(cnpj);
       // Debug: if needed inspect returned JSON in logs
-      try { console.log("[CLIENTES] fetchCnpjData result:", JSON.stringify(data)); } catch {}
+      try { /* fetchCnpjData result logged during development */ } catch {}
 
       // Extract phone from several possible locations in BrasilAPI response
       // Try multiple possible fields/locations for phone numbers returned by BrasilAPI or other sources

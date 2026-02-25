@@ -92,11 +92,11 @@ function useStore<T extends StoreItem>(key: string, initialData: T[] = []) {
 
       // Sync to API
       if (isApiConfigured()) {
-        console.log(`[useStore] Creating ${key}...`, item);
+        // debug: creating item
         api
           .create<T>(key, item)
           .then((created) => {
-            console.log(`[useStore] Created ${key} successfully:`, created);
+            // created item successfully
             const normalized = normalizeVehicleData(created);
             setItems((prev) =>
               prev.map((i) => (i.id === tempId ? normalized : i))

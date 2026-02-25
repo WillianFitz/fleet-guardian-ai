@@ -403,7 +403,7 @@ async function handleCreate(
   // Debug log: when creating drivers, log payload to help debug missing fields
   try {
     if (table === "drivers") {
-      console.log("[API] handleCreate drivers payload:", JSON.stringify(snakeData));
+      // debug: payload logged during development
     }
   } catch {}
 
@@ -461,7 +461,7 @@ async function handleUpdate(
   // Debug log: when updating drivers, log payload to help debug missing fields
   try {
     if (table === "drivers") {
-      console.log("[API] handleUpdate drivers id:", id, "payload:", JSON.stringify(snakeData));
+      // debug: update drivers payload (removed in production)
     }
   } catch {}
 
@@ -518,7 +518,7 @@ export default {
     // Build-bump log (harmless) to trigger redeploy visibility
     try {
       // eslint-disable-next-line no-console
-      console.log("[BUILD-BUMP] redeploy trigger -", new Date().toISOString());
+  // build-bump log removed for cleaner output
     } catch {}
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: corsHeaders });
@@ -1385,11 +1385,9 @@ Regras:
                   const ctxJson = JSON.stringify(ctx);
                   if (existing) {
                     await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
-                    console.log("[API] updated agent_conversations context for", tenantId, convId);
                   } else {
                     const id = crypto.randomUUID().replace(/-/g, "");
                     await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
-                    console.log("[API] inserted agent_conversations context for", tenantId, convId);
                   }
                 }
               } catch (err:any) {
@@ -2333,10 +2331,10 @@ Regras:
                   (nfe as any).veiculoId = found.id;
                   (nfe as any).veiculoModelo = found.modelo || null;
                 } else {
-                  console.log("No vehicle match for placa:", placaNorm);
+                  // no vehicle match for placa
                 }
               } else {
-                console.log("No placa found in NFe payload");
+                // no placa found in NFe payload
               }
             } catch (err) {
               console.error("Vehicle lookup error:", err);
@@ -2426,7 +2424,6 @@ Regras:
             ctePayload.veiculoModelo = matchedVehicle.modelo;
           }
           const created = await handleCreate(env.DB, config.table, ctePayload, tenantId, config.fieldOverrides);
-          console.log("[API] CTe draft created", { tenantId, id: (created?.data?.id || null), plate: ctePayload.veiculoPlaca || null });
           return created;
         } catch (e: any) {
           return errorResponse(`Erro ao criar rascunho CTe a partir da NF-e: ${e.message}`, 500);

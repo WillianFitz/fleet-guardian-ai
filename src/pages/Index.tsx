@@ -14,7 +14,7 @@ const Index = () => {
     // Frontend build-bump log to trigger redeploy visibility
     try {
       // eslint-disable-next-line no-console
-      console.log("[BUILD-BUMP-FRONT] redeploy trigger -", new Date().toISOString());
+    // build-bump trigger removed for cleaner logs
     } catch {}
   }, []);
   const { items: vehicles } = useStore<Vehicle>("vehicles", []);
