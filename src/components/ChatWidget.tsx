@@ -213,7 +213,7 @@ ${JSON.stringify({ params, totals, sample })}`;
 
         if (!res || !res.ok) {
           try {
-            res = await fetch("https://fleet-guardian-ai.willian-fitzbr.workers.dev/api/insights", {
+            res = await fetch(`${API_URL}/api/insights`, {
               method: "POST",
               headers,
               body: JSON.stringify({ prompt: text, includeData: true }),
