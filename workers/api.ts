@@ -32,6 +32,34 @@ const objectKeysToCamel = (obj: Record<string, any>): Record<string, any> => {
   return result;
 };
 
+// Ensure assistant text is in Portuguese; if not, translate via OpenAI
+async function ensurePortuguese(env: Env, text: string | null): Promise<string | null> {
+  if (!text) return text;
+  // quick heuristic: if contains common English words, translate
+  const engWords = /\b(total expenses|recommendation|records|transaction|transaction occurred|last|minutes|hours|Recommendation|Total records|km\/l|liters|fuel)\b/i;
+  if (!engWords.test(String(text))) return text;
+  const openaiKey = env.OPENAI_API_KEY;
+  if (!openaiKey) return text;
+  try {
+    const sys = "You are a translator to Portuguese. Translate the assistant response into clear, concise Portuguese preserving all numeric values exactly and keep it short (1-3 sentences). Do not add explanations.";
+    const oa = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+      body: JSON.stringify({
+        model: env.OPENAI_MODEL || "gpt-4o-mini",
+        messages: [{ role: "system", content: sys }, { role: "user", content: String(text) }],
+        max_tokens: 200,
+        temperature: 0.2,
+      }),
+    });
+    const j = await oa.json().catch(() => null);
+    const t = j?.choices?.[0]?.message?.content || null;
+    return t || text;
+  } catch {
+    return text;
+  }
+}
+
 // Tentativa de parsear strings JSON em objetos/arrays antes de enviar ao frontend
 function tryParseJsonStrings(obj: Record<string, any>): Record<string, any> {
   const res: Record<string, any> = { ...obj };
@@ -520,7 +548,7 @@ export default {
             }
           })()) as any;
 
-          const { tenantId } = await getTenantForRequest(request, env);
+          const { tenantId, userId } = await getTenantForRequest(request, env);
 
           // Build optional data summary and metrics from DB when requested (best-effort; ignore failures)
           let dataSummary = "";
@@ -758,8 +786,8 @@ export default {
               };
 
               // Choose which tables to query
-              const dateFrom = from;
-              const dateTo = to;
+              const dateFrom = from || "1970-01-01";
+              const dateTo = to || new Date().toISOString().split("T")[0];
               if (category === "fuel" || category === "all") {
                 await fetchAndFilter(
                   "SELECT id, veiculo_placa, motorista, litros, valor, km_atual, km_anterior, posto, data FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000",
@@ -816,7 +844,8 @@ export default {
           }
 
           const choice = oaJson.choices && oaJson.choices[0];
-          const assistantMessage = choice?.message?.content || oaJson?.result || "";
+          let assistantMessage = choice?.message?.content || oaJson?.result || "";
+          assistantMessage = await ensurePortuguese(env, assistantMessage);
           return jsonResponse({ data: { assistant: assistantMessage, raw: oaJson, dataSummary, metrics } });
         } catch (e: any) {
           return errorResponse(`Erro ao processar insights: ${e?.message || String(e)}`, 500);
@@ -881,7 +910,7 @@ Regras:
         try {
           const body = await request.json().catch(() => ({}));
           const action = body?.action || {};
-          const { tenantId } = await getTenantForRequest(request, env);
+          const { tenantId, userId } = await getTenantForRequest(request, env);
           const openaiKey = env.OPENAI_API_KEY;
           // Validate
           const intent = String(action.intent || "").trim();
@@ -908,7 +937,7 @@ Regras:
             const byVehicle = (byVehicleRes.results || []).map((r:any)=>({ plate: r.veiculo_placa, liters: Number(r.litros||0), value: Number(r.valor||0), km: Number(r.km||0)}));
             const metrics = { totalExpenses, totalFuel, totalMaint, byVehicle };
             // generate concise human summary via OpenAI if available
-            if (openaiKey) {
+              if (openaiKey) {
               const sys = "Você é conciso e responde em Português. Produza uma linha numérica de resumo e uma recomendação prática curta.";
               const user = `Métricas: ${JSON.stringify(metrics)}`;
               const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -917,7 +946,31 @@ Regras:
                 body: JSON.stringify({ model: env.OPENAI_MODEL || "gpt-4o-mini", messages: [{role:"system", content: sys},{role:"user", content: user}], max_tokens:200 })
               });
               const oaJson = await oaResp.json().catch(()=>null);
-              const assistant = oaJson?.choices?.[0]?.message?.content || null;
+              let assistant = oaJson?.choices?.[0]?.message?.content || null;
+              assistant = await ensurePortuguese(env, assistant);
+              // persist conversation if provided
+              try {
+                const conversationId = body?.conversationId || userId || null;
+                const userText = body?.userText || null;
+                const assistantText = assistant || "";
+                if (conversationId) {
+                  // load existing
+                  const existing = await env.DB.prepare("SELECT messages FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, conversationId).first();
+                  let msgs: any[] = [];
+                  if (existing && existing.messages) {
+                    try { msgs = JSON.parse(existing.messages); } catch {}
+                  }
+                  if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
+                  msgs.push({ role: "assistant", text: String(assistantText), ts: new Date().toISOString() });
+                  const msgsJson = JSON.stringify(msgs);
+                  if (existing) {
+                    await env.DB.prepare("UPDATE agent_conversations SET messages = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, new Date().toISOString(), tenantId, conversationId).run();
+                  } else {
+                    const id = crypto.randomUUID().replace(/-/g, "");
+                    await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, conversationId, msgsJson, JSON.stringify({}), new Date().toISOString()).run();
+                  }
+                }
+              } catch {}
               return jsonResponse({ data: { metrics, assistant } });
             }
             return jsonResponse({ data: { metrics } });
@@ -966,7 +1019,28 @@ Regras:
               }
 
               const assistantText = `${line}\nRecomendação: ${recommendation}`;
-
+              // persist conversation if provided
+              try {
+                const conversationId = body?.conversationId || userId || null;
+                const userText = body?.userText || null;
+                if (conversationId) {
+                  const existing = await env.DB.prepare("SELECT messages FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, conversationId).first();
+                  let msgs: any[] = [];
+                  if (existing && existing.messages) {
+                    try { msgs = JSON.parse(existing.messages); } catch {}
+                  }
+                  if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
+                  msgs.push({ role: "assistant", text: assistantText, ts: new Date().toISOString() });
+                  const msgsJson = JSON.stringify(msgs);
+                  if (existing) {
+                    await env.DB.prepare("UPDATE agent_conversations SET messages = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, new Date().toISOString(), tenantId, conversationId).run();
+                  } else {
+                    const id = crypto.randomUUID().replace(/-/g, "");
+                    await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, conversationId, msgsJson, JSON.stringify({}), new Date().toISOString()).run();
+                  }
+                }
+                }
+              } catch {}
               return jsonResponse({ data: { totals, assistant: assistantText } });
             }
             // Otherwise generate analysis via OpenAI if key present
@@ -979,7 +1053,8 @@ Regras:
                 body: JSON.stringify({ model: env.OPENAI_MODEL || "gpt-4o-mini", messages: [{role:"system", content: sys},{role:"user", content: user}], max_tokens:400 })
               });
               const oaJson = await oaResp.json().catch(()=>null);
-              const assistant = oaJson?.choices?.[0]?.message?.content || null;
+              let assistant = oaJson?.choices?.[0]?.message?.content || null;
+              assistant = await ensurePortuguese(env, assistant);
               return jsonResponse({ data: { totals, records: results.slice(0,100), assistant } });
             }
             return jsonResponse({ data: { totals, records: results.slice(0,100) } });

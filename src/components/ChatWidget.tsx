@@ -25,6 +25,59 @@ const ChatWidget = () => {
         if (token) headers["Authorization"] = `Bearer ${token}`;
         if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
 
+        // Conversation id for memory
+        let convId = localStorage.getItem("agent_conversation_id");
+        if (!convId) {
+          try { convId = crypto.randomUUID().replace(/-/g,""); } catch { convId = String(Date.now()); }
+          localStorage.setItem("agent_conversation_id", convId);
+        }
+
+        // First, try agent parser + executor pipeline (centralized)
+        try {
+          const parseRes = await fetch(`${WORKER_URL}/api/agent/parse`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ text })
+          });
+          if (parseRes && parseRes.ok) {
+            const pj = await parseRes.json();
+            const action = pj?.data || null;
+            if (action && action.intent) {
+              // execute
+              const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ action, userText: text, conversationId: convId })
+              });
+              if (execRes && execRes.ok) {
+                const ej = await execRes.json();
+                const assistant = ej?.data?.assistant || ej?.assistant || null;
+                const totals = ej?.data?.totals || ej?.data?.metrics || null;
+                if (assistant) {
+                  setMessages((s) => [...s, { role: "assistant", text: String(assistant).trim() }]);
+                  setLoading(false);
+                  return;
+                }
+                if (totals) {
+                  // concise numeric reply
+                  if (totals.totalValue !== undefined) {
+                    setMessages((s) => [...s, { role: "assistant", text: `Total: R$ ${Number(totals.totalValue||0).toLocaleString("pt-BR")} • Registros: ${totals.count||0}` }]);
+                    setLoading(false);
+                    return;
+                  }
+                  if (totals.totalExpenses !== undefined) {
+                    setMessages((s) => [...s, { role: "assistant", text: `Resumo: Custo combustível R$ ${Number(totals.totalFuel||0).toLocaleString("pt-BR")} • Despesas R$ ${Number(totals.totalExpenses||0).toLocaleString("pt-BR")}` }]);
+                    setLoading(false);
+                    return;
+                  }
+                }
+              }
+            }
+          }
+        } catch (err) {
+          // fallthrough to heuristics if parser/execute fails
+        }
+
         // Intent detection: handle metric or expenses queries directly
         const lower = text.toLowerCase();
         const monthNames: Record<string, number> = {
@@ -120,7 +173,7 @@ Retorne somente JSON válido.
               const metrics = j?.data?.metrics;
               if (!metrics) throw new Error("No metrics returned");
               // ask worker to summarize concisely
-              const sys = "Você é um assistente conciso em Português. Retorne uma linha numérica de resumo e uma recomendação prática curta.";
+              const sys = "Você é um assistente conciso em Português. Retorne uma linha numérica de resumo e uma recomendação prática curta. Responda em Português, apenas em Português.";
               const userP = `Resuma as métricas em uma linha e uma recomendação. Dados: ${JSON.stringify(metrics)}`;
               const r2 = await fetch(`${WORKER_URL}/api/insights`, {
                 method: "POST",
@@ -158,7 +211,7 @@ Retorne somente JSON válido.
                 return;
               }
               // For full analysis use worker LLM
-              const systemPrompt = "Você é um analista conciso em Português. Dado os registros e totais, produza uma linha numérica de resumo, duas frases de conclusão e uma recomendação prática.";
+              const systemPrompt = "Você é um analista conciso em Português. Dado os registros e totais, produza uma linha numérica de resumo, duas frases de conclusão e uma recomendação prática. Responda em Português, apenas em Português.";
               const userPrompt = `Registros: ${JSON.stringify({ totals, sample: recs.slice(0,50) })}`;
               const r2 = await fetch(`${WORKER_URL}/api/insights`, {
                 method: "POST",
@@ -216,7 +269,7 @@ Retorne somente JSON válido.
           }
 
           // 2) ask worker to produce concise natural-language summary based on metrics
-          const systemPrompt = "Você é um assistente analítico de frota. Responda em Português, muito sucinto: 1 linha numérica resumo, 1-2 frases de conclusão, 1 recomendação prática.";
+          const systemPrompt = "Você é um assistente analítico de frota. Responda em Português, muito sucinto: 1 linha numérica resumo, 1-2 frases de conclusão, 1 recomendação prática. Responda em Português, apenas em Português.";
           const userPrompt = `Gere um resumo curto dos custos por veículo usando estes dados (JSON):\n${JSON.stringify({ period_days: periodDays, metrics })}`;
           let r2 = await fetch(`${WORKER_URL}/api/insights`, {
             method: "POST",
@@ -345,7 +398,7 @@ Retorne somente JSON válido.
           });
 
           // Ask the Worker to analyze these records via the AI
-          const systemPrompt = "Você é um assistente analítico especializado em gestão de frotas. Responda em Português de forma muito concisa e amigável — apenas texto, sem JSON, sem cabeçalhos técnicos, nem códigos. Primeiro mostre um resumo numérico em 1-2 linhas, depois 2-3 frases com as principais conclusões e 1 recomendação prática.";
+          const systemPrompt = "Você é um assistente analítico especializado em gestão de frotas. Responda em Português de forma muito concisa e amigável — apenas texto, sem JSON, sem cabeçalhos técnicos, nem códigos. Primeiro mostre um resumo numérico em 1-2 linhas, depois 2-3 frases com as principais conclusões e 1 recomendação prática. Responda em Português, apenas em Português.";
           const userPrompt = `Analise os seguintes registros (JSON) e gere apenas texto conciso.
 Mostre:
  - 1 linha de resumo numérico (valor total • litros totais • km totais quando houver).
