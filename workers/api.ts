@@ -1301,10 +1301,11 @@ Regras:
               }
               const totalValue = rows.reduce((s:any,r:any)=>s + Number(r.valor||0),0);
               const text = `Encontrados ${rows.length} registros de despesa (R$ ${totalValue.toLocaleString("pt-BR")}).`;
-              // persist lastRecords in conversation context for follow-ups
+              // persist lastRecords in conversation context for follow-ups — ALWAYS attempt to persist
               try {
                 const convId = body?.conversationId || userId || null;
                 if (convId) {
+                  // load existing messages/context
                   const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
                   let msgs: any[] = [];
                   if (existing && existing.messages) {
@@ -1318,19 +1319,23 @@ Regras:
                   if (existing && existing.context) {
                     try { ctx = JSON.parse(existing.context); } catch {}
                   }
-                  // store minimal lastRecords
+                  // store minimal lastRecords (keep small)
                   ctx.lastRecords = (rows || []).slice(0,10).map((r:any)=>({
                     id: r.id, veiculo_placa: r.veiculo_placa, descricao: r.descricao, valor: r.valor, data: r.data, fornecedor: r.fornecedor, nota_fiscal: r.nota_fiscal
                   }));
                   const ctxJson = JSON.stringify(ctx);
                   if (existing) {
                     await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+                    console.log("[API] updated agent_conversations context for", tenantId, convId);
                   } else {
                     const id = crypto.randomUUID().replace(/-/g, "");
                     await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+                    console.log("[API] inserted agent_conversations context for", tenantId, convId);
                   }
                 }
-              } catch {}
+              } catch (err:any) {
+                console.error("[API] failed to persist lastRecords:", String(err?.message||err));
+              }
               return jsonResponse({ data: { count: rows.length, totalValue, records: rows, text } });
             } catch (e:any) {
               return errorResponse(`Erro ao buscar despesas: ${String(e?.message||e)}`, 500);
