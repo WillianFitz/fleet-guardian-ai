@@ -1,6 +1,7 @@
 import { Truck, Zap } from "lucide-react";
 import { useCallback, useState, useRef, useEffect } from "react";
-import { API_URL } from "@/lib/api";
+// Use explicit worker URL to avoid Pages-relative routing issues
+const WORKER_URL = "https://fleet-guardian-ai.willian-fitzbr.workers.dev";
 
 const ChatWidget = () => {
   const [open, setOpen] = useState(false);
@@ -49,17 +50,23 @@ const ChatWidget = () => {
 
         // If user asked "quantos veiculos" or similar, call metrics
         if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?/i.test(text)) {
-          let res = await fetch(`${API_URL}/api/insights`, {
+          let res = await fetch(`${WORKER_URL}/api/insights`, {
             method: "POST",
             headers,
             body: JSON.stringify({ action: "metrics", period_days: 90 }),
           });
           if (!res || !res.ok) {
-            res = await fetch(`${API_URL}/api/insights`, {
+            res = await fetch(`${WORKER_URL}/api/insights`, {
               method: "POST",
               headers,
               body: JSON.stringify({ action: "metrics", period_days: 90 }),
             });
+          }
+          if (!res || !res.ok) {
+            const txt = res ? await res.text().catch(() => "") : "no response";
+            setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${res?.status || "?"} ${txt}` }]);
+            setLoading(false);
+            return;
           }
           const j = await res.json();
           const metrics = j?.data?.metrics;
@@ -111,9 +118,15 @@ const ChatWidget = () => {
           if (to) bodyPayload.to = to;
           if (detectedDays) bodyPayload.days = detectedDays;
 
-          let res = await fetch(`${API_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+          let res = await fetch(`${WORKER_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
           if (!res || !res.ok) {
-            res = await fetch(`${API_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+            res = await fetch(`${WORKER_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+          }
+          if (!res || !res.ok) {
+            const txt = res ? await res.text().catch(() => "") : "no response";
+            setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${res?.status || "?"} ${txt}` }]);
+            setLoading(false);
+            return;
           }
           const j = await (res?.json ? res.json() : null);
           const recs = j?.data?.records || [];
@@ -151,13 +164,13 @@ ${JSON.stringify({ params, totals, sample })}`;
 
           try {
             // send to Worker/OpenAI for natural-language analysis
-            let r2 = await fetch(`${API_URL}/api/insights`, {
+            let r2 = await fetch(`${WORKER_URL}/api/insights`, {
               method: "POST",
               headers,
               body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 600 }),
             });
             if (!r2 || !r2.ok) {
-              r2 = await fetch(`${API_URL}/api/insights`, {
+              r2 = await fetch(`${WORKER_URL}/api/insights`, {
                 method: "POST",
                 headers,
                 body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 600 }),
@@ -213,7 +226,7 @@ ${JSON.stringify({ params, totals, sample })}`;
 
         if (!res || !res.ok) {
           try {
-            res = await fetch(`${API_URL}/api/insights`, {
+            res = await fetch(`${WORKER_URL}/api/insights`, {
               method: "POST",
               headers,
               body: JSON.stringify({ prompt: text, includeData: true }),
@@ -222,7 +235,12 @@ ${JSON.stringify({ params, totals, sample })}`;
             // continue to error handling
           }
         }
-
+        if (!res || !res.ok) {
+          const txt = res ? await res.text().catch(() => "") : "no response";
+          setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${res?.status || "?"} ${txt}` }]);
+          setLoading(false);
+          return;
+        }
         const j = await (res?.json ? res.json() : Promise.resolve(null));
 
         // If metrics returned, show a concise structured summary first
