@@ -887,12 +887,32 @@ Regras:
 - Não retorne explicações, apenas o JSON.
 `;
 
+          // If conversationId provided, include recent conversation messages as context to help parsing
+          const convId = body?.conversationId || null;
+          let parseMessages: any[] = [{ role: "system", content: parserPrompt }];
+          if (convId) {
+            try {
+              const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(await (async () => { const t = await getTenantForRequest(request, env); return t.tenantId; })(), convId).first();
+              if (existing && existing.messages) {
+                try {
+                  const msgs = JSON.parse(existing.messages);
+                  // map stored messages (role,text) to OpenAI message roles
+                  for (const m of msgs.slice(-20)) {
+                    const role = m.role === "assistant" ? "assistant" : "user";
+                    parseMessages.push({ role, content: m.text || "" });
+                  }
+                } catch {}
+              }
+            } catch {}
+          }
+          parseMessages.push({ role: "user", content: text });
+
           const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
             body: JSON.stringify({
               model: env.OPENAI_MODEL || "gpt-4o-mini",
-              messages: [{ role: "system", content: parserPrompt }, { role: "user", content: text }],
+              messages: parseMessages,
               max_tokens: 200,
             }),
           });

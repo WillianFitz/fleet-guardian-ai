@@ -74,7 +74,7 @@ const ChatWidget = () => {
           const parseRes = await fetch(`${WORKER_URL}/api/agent/parse`, {
             method: "POST",
             headers,
-            body: JSON.stringify({ text })
+            body: JSON.stringify({ text, conversationId: convId })
           });
           if (parseRes && !parseRes.ok) {
             const txt = await parseRes.text().catch(() => "");
