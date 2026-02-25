@@ -96,8 +96,29 @@ const ChatWidget = () => {
               }
               if (execRes && execRes.ok) {
                 const ej = await execRes.json().catch((e)=>{ console.error("agent/execute json parse error", e); return null; });
-                const assistant = ej?.data?.assistant || ej?.assistant || null;
-                const totals = ej?.data?.totals || ej?.data?.metrics || null;
+                const data = ej?.data || ej;
+                // If this was an expense-details request, prefer showing the first record's fields only
+                try {
+                  if ((action?.intent === "get_expense_details" || action?.intent === "get_expense_summary") && data?.records && data.records.length > 0) {
+                    const rec = data.records[0];
+                    const parts: string[] = [];
+                    if (rec.descricao) parts.push(String(rec.descricao));
+                    if (rec.valor !== undefined) parts.push(`R$ ${Number(rec.valor).toLocaleString("pt-BR")}`);
+                    if (rec.data) parts.push(String(rec.data));
+                    if (rec.fornecedor) parts.push(String(rec.fornecedor));
+                    if (rec.nota_fiscal) parts.push(`NF ${String(rec.nota_fiscal)}`);
+                    if (rec.veiculo_placa) parts.push(`Veículo: ${String(rec.veiculo_placa)}`);
+                    const detailText = parts.join(" — ");
+                    setMessages((s) => [...s, { role: "assistant", text: detailText }]);
+                    setLoading(false);
+                    return;
+                  }
+                } catch (e) {
+                  console.error("Error formatting expense detail", e);
+                }
+
+                const assistant = data?.assistant || ej?.assistant || null;
+                const totals = data?.totals || data?.metrics || null;
                 if (assistant) {
                   setMessages((s) => [...s, { role: "assistant", text: String(assistant).trim() }]);
                   setLoading(false);
