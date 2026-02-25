@@ -248,15 +248,22 @@ Retorne somente JSON válido.
             body: JSON.stringify({ action: "metrics", period_days: periodDays }),
           });
           if (!res || !res.ok) {
-            res = await fetch(`${WORKER_URL}/api/insights`, {
-              method: "POST",
-              headers,
-              body: JSON.stringify({ action: "metrics", period_days: periodDays }),
-            });
+            // retry once
+            try {
+              res = await fetch(`${WORKER_URL}/api/insights`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ action: "metrics", period_days: periodDays }),
+              });
+            } catch (err) {
+              // network error on retry
+            }
           }
           if (!res || !res.ok) {
-            const txt = res ? await res.text().catch(() => "") : "no response";
-            setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${res?.status || "?"} ${txt}` }]);
+            const status = res ? res.status : "no-response";
+            const bodyText = res ? await res.text().catch(() => "") : "";
+            console.error("Insights error:", { status, bodyText });
+            setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${status} ${bodyText ? " — " + (bodyText.length > 300 ? bodyText.slice(0,300) + "..." : bodyText) : ""}` }]);
             setLoading(false);
             return;
           }
@@ -351,11 +358,15 @@ Retorne somente JSON válido.
 
           let res = await fetch(`${WORKER_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
           if (!res || !res.ok) {
-            res = await fetch(`${WORKER_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+            try {
+              res = await fetch(`${WORKER_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+            } catch (err) {}
           }
           if (!res || !res.ok) {
-            const txt = res ? await res.text().catch(() => "") : "no response";
-            setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${res?.status || "?"} ${txt}` }]);
+            const status = res ? res.status : "no-response";
+            const bodyText = res ? await res.text().catch(() => "") : "";
+            console.error("Insights error (expenses):", { status, bodyText, bodyPayload });
+            setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${status} ${bodyText ? " — " + (bodyText.length > 300 ? bodyText.slice(0,300) + "..." : bodyText) : ""}` }]);
             setLoading(false);
             return;
           }
@@ -477,13 +488,13 @@ ${JSON.stringify({ params, totals, sample })}`;
               headers,
               body: JSON.stringify({ prompt: text, includeData: true }),
             });
-          } catch (err) {
-            // continue to error handling
-          }
+          } catch (err) {}
         }
         if (!res || !res.ok) {
-          const txt = res ? await res.text().catch(() => "") : "no response";
-          setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${res?.status || "?"} ${txt}` }]);
+          const status = res ? res.status : "no-response";
+          const bodyText = res ? await res.text().catch(() => "") : "";
+          console.error("Insights fallback error:", { status, bodyText });
+          setMessages((s) => [...s, { role: "assistant", text: `Erro do serviço: ${status} ${bodyText ? " — " + (bodyText.length > 300 ? bodyText.slice(0,300) + "..." : bodyText) : ""}` }]);
           setLoading(false);
           return;
         }
