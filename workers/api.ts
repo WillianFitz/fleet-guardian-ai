@@ -1065,7 +1065,6 @@ Regras:
           let days = action.days ? Number(action.days) : null;
           let from = action.from || null;
           const to = action.to || null;
-          const userText = String(body?.userText || "");
           // if userText contains a period like "últimos 30 dias" and it differs from action.days, prefer parsed value
           try {
             const mDias = userText.match(/(?:ultimo|último|últimos|ultimos)\s+(\d{1,3})\s+dia/i) || userText.match(/(\d{1,3})\s+dias?/i);
