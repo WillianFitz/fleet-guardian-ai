@@ -299,6 +299,12 @@ Retorne somente JSON válido.
           }
         }
 
+        // No parsed action: ask clarificação antes de executar heurísticas.
+        // Em modo conversacional estrito, NÃO executamos análises genéricas automaticamente.
+        setMessages((s) => [...s, { role: "assistant", text: "Desculpe, não entendi exatamente sua intenção. Você pode reformular de forma direta? Ex.: 'Quantos motoristas ativos tenho?' ou 'Consumo do ABC-1234 nos últimos 30 dias'." }]);
+        setLoading(false);
+        return;
+
         // If user asked "quantos veiculos" or similar, call metrics
         if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?|custos\s+por\s+veículo|custos\s+por\s+veiculo|custos por veículo|custos por veiculo|custos\s+por\s+veiculos?/i.test(text)) {
           // Determine period_days if present (e.g., "3 meses" => 90 days)
