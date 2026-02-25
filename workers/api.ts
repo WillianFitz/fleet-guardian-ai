@@ -865,17 +865,23 @@ export default {
 Você é um parser de intenções em Português para um assistente de gestão de frotas.
 Receba a mensagem livre do usuário e retorne SOMENTE um JSON válido (apenas o objeto) com as chaves:
 {
-  "intent": "<get_metrics|get_expenses|get_expense_summary>",
+  "intent": "<get_metrics|get_expenses|get_expense_summary|get_km|get_vehicles|get_drivers|get_expense_details|get_fuel_total|get_maintenance_total|get_field>",
   "plate": "<placa ou null>",
   "category": "<fuel|expenses|maintenance|all>",
+  "field": "<campo solicitado ex: km | litros | total_fuel | total_expenses | ativo | null>",
   "days": <number|null>,
   "from": "<YYYY-MM-DD|null>",
   "to": "<YYYY-MM-DD|null>",
   "limit": <number|null>
 }
 Regras:
+- Quando o usuário pedir "quantos km", "km percorrido" ou similar, retorne intent = "get_km".
+- Para listar veículos/motoristas ativos use intents "get_vehicles" ou "get_drivers".
+- Para pedir detalhes de despesas use "get_expense_details".
+- Para pedir apenas totais de combustível ou manutenção use "get_fuel_total" / "get_maintenance_total".
+- Para perguntas genéricas sobre um campo use "get_field" com field apropriado.
 - Detecte claramente se o usuário pede "combustível" -> category = "fuel".
-- Detecte se pede "gastos/despesas" -> category = "expenses".
+- Detecte "gastos/despesas" -> category = "expenses".
 - Detecte "manutenção/OS/oficina" -> category = "maintenance".
 - Detecte períodos ("30 dias", "3 meses", mês por nome) e preencha days ou from/to.
 - Não retorne explicações, apenas o JSON.
@@ -953,6 +959,159 @@ Regras:
           // compute date range
           const endDate = to || new Date().toISOString().split("T")[0];
           const startDate = from || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null);
+
+          // New: handle more specific intents (get_km, get_vehicles, get_drivers, get_expense_details, get_fuel_total, get_maintenance_total, get_field)
+          // All handlers return deterministic Portuguese responses (when text is included) and JSON.
+          if (intent === "get_km") {
+            try {
+              const dateFrom = startDate || "1970-01-01";
+              const dateTo = endDate;
+              const res = await env.DB.prepare("SELECT veiculo_placa, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, dateFrom, dateTo).all();
+              const rows = res.results || [];
+              let plateKm = null;
+              if (plateRaw) {
+                const norm = String(plateRaw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                const found = (rows || []).find((r:any)=>{
+                  const rPlate = String(r.veiculo_placa || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                  return rPlate.includes(norm);
+                });
+                plateKm = Number(found?.km || 0);
+                const text = `O caminhão ${plateRaw} rodou ${plateKm.toLocaleString("pt-BR")} km entre ${dateFrom} e ${dateTo}.`;
+                // persist context.lastPlate
+                try {
+                  const convId = body?.conversationId || userId || null;
+                  if (convId) {
+                    const existing = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                    let ctx: any = {};
+                    if (existing && existing.context) {
+                      try { ctx = JSON.parse(existing.context); } catch {}
+                    }
+                    ctx.lastPlate = plateRaw;
+                    const ctxJson = JSON.stringify(ctx);
+                    if (existing) {
+                      await env.DB.prepare("UPDATE agent_conversations SET context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(ctxJson, new Date().toISOString(), tenantId, convId).run();
+                    } else {
+                      const id = crypto.randomUUID().replace(/-/g, "");
+                      await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, JSON.stringify([]), ctxJson, new Date().toISOString()).run();
+                    }
+                  }
+                } catch {}
+                return jsonResponse({ data: { plate: plateRaw, km: plateKm, text } });
+              } else {
+                const byVehicle = (rows || []).map((r:any)=>({ plate: r.veiculo_placa, km: Number(r.km||0) }));
+                const text = `KM por veículo entre ${dateFrom} e ${dateTo}.`;
+                return jsonResponse({ data: { byVehicle, text } });
+              }
+            } catch (e:any) {
+              return errorResponse(`Erro ao calcular KM: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          if (intent === "get_vehicles") {
+            try {
+              const onlyActive = (action.field || "").toLowerCase() === "ativo" || String(action.field || "").toLowerCase() === "ativos";
+              const q = onlyActive ? "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND status = 'ativo' ORDER BY placa" : "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? ORDER BY placa";
+              const r = await env.DB.prepare(q).bind(tenantId).all();
+              const rows = r.results || [];
+              const text = `Veículos ${onlyActive ? "ativos" : "cadastrados"}: ${rows.length} registros.`;
+              return jsonResponse({ data: { count: rows.length, vehicles: rows, text } });
+            } catch (e:any) {
+              return errorResponse(`Erro ao listar veículos: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          if (intent === "get_drivers") {
+            try {
+              const onlyActive = (action.field || "").toLowerCase() === "ativo" || String(action.field || "").toLowerCase() === "ativos";
+              const q = onlyActive ? "SELECT id, nome, cpf, status FROM drivers WHERE tenant_id = ? AND status = 'ativo' ORDER BY nome" : "SELECT id, nome, cpf, status FROM drivers WHERE tenant_id = ? ORDER BY nome";
+              const r = await env.DB.prepare(q).bind(tenantId).all();
+              const rows = r.results || [];
+              const text = `Motoristas ${onlyActive ? "ativos" : "cadastrados"}: ${rows.length} registros.`;
+              return jsonResponse({ data: { count: rows.length, drivers: rows, text } });
+            } catch (e:any) {
+              return errorResponse(`Erro ao listar motoristas: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          if (intent === "get_fuel_total") {
+            try {
+              const dateFrom = startDate || "1970-01-01";
+              const dateTo = endDate;
+              const res = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(valor) as total_valor FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, dateFrom, dateTo).first();
+              const totalLiters = Number(res?.total_litros || 0);
+              const totalValue = Number(res?.total_valor || 0);
+              const text = `Total de combustível: ${totalLiters} L (R$ ${totalValue.toLocaleString("pt-BR")}) entre ${dateFrom} e ${dateTo}.`;
+              return jsonResponse({ data: { totalLiters, totalValue, text } });
+            } catch (e:any) {
+              return errorResponse(`Erro ao calcular total de combustível: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          if (intent === "get_maintenance_total") {
+            try {
+              const dateFrom = startDate || "1970-01-01";
+              const dateTo = endDate;
+              const res = await env.DB.prepare("SELECT SUM(custo) as total_custo FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, dateFrom, dateTo).first();
+              const total = Number(res?.total_custo || 0);
+              const text = `Total de manutenção: R$ ${total.toLocaleString("pt-BR")} entre ${dateFrom} e ${dateTo}.`;
+              return jsonResponse({ data: { total, text } });
+            } catch (e:any) {
+              return errorResponse(`Erro ao calcular total de manutenção: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          if (intent === "get_expense_details") {
+            try {
+              const dateFrom = startDate || "1970-01-01";
+              const dateTo = endDate;
+              const params: any[] = [tenantId, dateFrom, dateTo];
+              let sql = "SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000";
+              const r = await env.DB.prepare(sql).bind(...params).all();
+              let rows = r.results || [];
+              if (plateRaw) {
+                const norm = String(plateRaw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                rows = rows.filter((row:any)=>{
+                  const rPlate = String(row.veiculo_placa || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                  return rPlate.includes(norm);
+                });
+              }
+              const totalValue = rows.reduce((s:any,r:any)=>s + Number(r.valor||0),0);
+              const text = `Encontrados ${rows.length} registros de despesa (R$ ${totalValue.toLocaleString("pt-BR")}).`;
+              return jsonResponse({ data: { count: rows.length, totalValue, records: rows, text } });
+            } catch (e:any) {
+              return errorResponse(`Erro ao buscar despesas: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          if (intent === "get_field") {
+            try {
+              const field = String(action.field || "").toLowerCase();
+              if (!field) return errorResponse("Campo 'field' é obrigatório para get_field", 400);
+              if (field === "vehicles_count" || field === "total_vehicles") {
+                const r = await env.DB.prepare("SELECT COUNT(1) as total FROM vehicles WHERE tenant_id = ?").bind(tenantId).first();
+                const total = Number(r?.total || 0);
+                return jsonResponse({ data: { field, value: total, text: `Total de veículos: ${total}` } });
+              }
+              if (field === "drivers_count" || field === "total_drivers") {
+                const r = await env.DB.prepare("SELECT COUNT(1) as total FROM drivers WHERE tenant_id = ?").bind(tenantId).first();
+                const total = Number(r?.total || 0);
+                return jsonResponse({ data: { field, value: total, text: `Total de motoristas: ${total}` } });
+              }
+              if (field === "total_fuel") {
+                const r = await env.DB.prepare("SELECT SUM(litros) as total_litros FROM fuel_entries WHERE tenant_id = ?").bind(tenantId).first();
+                const total = Number(r?.total_litros || 0);
+                return jsonResponse({ data: { field, value: total, text: `Total litros abastecidos: ${total} L` } });
+              }
+              if (field === "total_expenses") {
+                const r = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM expenses WHERE tenant_id = ?").bind(tenantId).first();
+                const total = Number(r?.total || 0);
+                return jsonResponse({ data: { field, value: total, text: `Total despesas: R$ ${total.toLocaleString("pt-BR")}` } });
+              }
+              return errorResponse("Campo não mapeado para get_field", 400);
+            } catch (e:any) {
+              return errorResponse(`Erro get_field: ${String(e?.message||e)}`, 500);
+            }
+          }
 
           // Implement two intents: get_metrics and get_expenses/get_expense_summary
           if (intent === "get_metrics") {
