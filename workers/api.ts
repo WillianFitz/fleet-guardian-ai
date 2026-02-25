@@ -1218,7 +1218,47 @@ Regras:
               let ctx: any = {};
               try { ctx = JSON.parse(convoRow.context || "{}"); } catch {}
               // accept several context key variants
-              const lastRecords = ctx.lastRecords || ctx.last_records || ctx.lastRecord || [];
+              let lastRecords = ctx.lastRecords || ctx.last_records || ctx.lastRecord || [];
+              // If no lastRecords stored, try to query the DB using lastRange or a reasonable default
+              if (!lastRecords || lastRecords.length === 0) {
+                try {
+                  let fromDate = (ctx && ctx.lastRange && ctx.lastRange.from) || null;
+                  let toDate = (ctx && ctx.lastRange && ctx.lastRange.to) || new Date().toISOString().split("T")[0];
+                  if (!fromDate) {
+                    // default to last 30 days
+                    fromDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                  }
+                  // fetch the most recent expense in that range
+                  const qr = await env.DB.prepare("SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1").bind(tenantId, fromDate, toDate).first();
+                  const rec = qr || null;
+                  if (rec) {
+                    lastRecords = [rec];
+                    // persist into context for future follow-ups
+                    try {
+                      const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                      let msgs: any[] = [];
+                      if (existing && existing.messages) {
+                        try { msgs = JSON.parse(existing.messages); } catch {}
+                      }
+                      msgs.push({ role: "assistant", text: `Encontrados 1 registros de despesa (R$ ${Number(rec.valor||0).toLocaleString("pt-BR")})`, ts: new Date().toISOString() });
+                      const msgsJson = JSON.stringify(msgs);
+                      let newCtx: any = existing && existing.context ? JSON.parse(existing.context || "{}") : {};
+                      newCtx.lastRecords = lastRecords.map((r:any)=>({ id: r.id, veiculo_placa: r.veiculo_placa, descricao: r.descricao, valor: r.valor, data: r.data, fornecedor: r.fornecedor, nota_fiscal: r.nota_fiscal }));
+                      const ctxJson = JSON.stringify(newCtx);
+                      if (existing) {
+                        await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+                      } else {
+                        const id = crypto.randomUUID().replace(/-/g, "");
+                        await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+                      }
+                    } catch (e:any) {
+                      console.error("Failed to persist lastRecords fallback:", e);
+                    }
+                  }
+                } catch (e:any) {
+                  console.error("Failed to query last expense fallback:", e);
+                }
+              }
               if (!lastRecords || lastRecords.length === 0) return jsonResponse({ data: { error: "Nenhum registro de despesa anterior encontrado" } }, 404);
               const first = lastRecords[0];
               return jsonResponse({ data: { veiculo_placa: first.veiculo_placa || first.veiculo || null, record: first } });
