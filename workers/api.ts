@@ -1142,20 +1142,30 @@ Regras:
           if (intent === "get_vehicles") {
             try {
               const onlyActive = (action.field || "").toLowerCase() === "ativo" || String(action.field || "").toLowerCase() === "ativos";
-              const q = onlyActive
-                ? "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND lower(trim(status)) = 'ativo' ORDER BY placa"
-                : "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? ORDER BY placa";
-              const r = await env.DB.prepare(q).bind(tenantId).all();
-              let rows = r.results || [];
-              // fallback: try looser match if active requested but nothing returned
-              if (onlyActive && rows.length === 0) {
-                try {
-                  const r2 = await env.DB.prepare("SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND lower(status) LIKE '%ativo%' ORDER BY placa").bind(tenantId).all();
-                  rows = r2.results || [];
-                } catch {}
+              if (onlyActive) {
+                // Treat as active any status that is not explicitly inactive, and consider common active words
+                const inactiveKeywords = ["inativo", "desativado", "cancelado", "removido", "inactive", "deleted"];
+                // First try strict match to common active terms
+                let r = await env.DB.prepare("SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND (lower(trim(status)) = 'ativo' OR lower(trim(status)) LIKE '%oper%' OR lower(trim(status)) LIKE '%ativo%') ORDER BY placa").bind(tenantId).all();
+                let rows = r.results || [];
+                // If none, try exclude inactive keywords (loose)
+                if (rows.length === 0) {
+                  try {
+                    const r2 = await env.DB.prepare(
+                      "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND NOT (lower(trim(status)) IN (?, ?, ?, ?, ?, ?)) ORDER BY placa"
+                    ).bind(tenantId, inactiveKeywords[0], inactiveKeywords[1], inactiveKeywords[2], inactiveKeywords[3], inactiveKeywords[4], inactiveKeywords[5]).all();
+                    rows = r2.results || [];
+                  } catch {}
+                }
+                const text = `Veículos ativos: ${rows.length} registros.`;
+                return jsonResponse({ data: { count: rows.length, vehicles: rows, text } });
+              } else {
+                const q = "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? ORDER BY placa";
+                const r = await env.DB.prepare(q).bind(tenantId).all();
+                const rows = r.results || [];
+                const text = `Veículos cadastrados: ${rows.length} registros.`;
+                return jsonResponse({ data: { count: rows.length, vehicles: rows, text } });
               }
-              const text = `Veículos ${onlyActive ? "ativos" : "cadastrados"}: ${rows.length} registros.`;
-              return jsonResponse({ data: { count: rows.length, vehicles: rows, text } });
             } catch (e:any) {
               return errorResponse(`Erro ao listar veículos: ${String(e?.message||e)}`, 500);
             }
