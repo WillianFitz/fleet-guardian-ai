@@ -870,6 +870,25 @@ export default {
         }
       }
 
+      // ===== AGENT: debug endpoint (read-only) =====
+      if (path === "/api/agent/debug" && request.method === "POST") {
+        try {
+          const b = await request.json().catch(() => ({}));
+          const convId = b?.conversationId || null;
+          if (!convId) return jsonResponse({ error: "conversationId required" }, 400);
+          const { tenantId } = await getTenantForRequest(request, env);
+          const row = await env.DB.prepare("SELECT messages, context, last_active FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+          if (!row) return jsonResponse({ error: "not found" }, 404);
+          let msgs = [];
+          try { msgs = row.messages ? JSON.parse(row.messages) : []; } catch {}
+          let ctx = {};
+          try { ctx = row.context ? JSON.parse(row.context) : {}; } catch {}
+          return jsonResponse({ data: { messages: msgs, context: ctx, last_active: row.last_active || null } });
+        } catch (e:any) {
+          return errorResponse(`Debug error: ${String(e?.message||e)}`, 500);
+        }
+      }
+
       // ===== AGENT: parse user text into action =====
       if (path === "/api/agent/parse" && request.method === "POST") {
         try {
