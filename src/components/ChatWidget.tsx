@@ -299,13 +299,80 @@ Retorne somente JSON válido.
           }
         }
 
-        // No parsed action: ask clarificação antes de executar heurísticas.
-        // Em modo conversacional estrito, NÃO executamos análises genéricas automaticamente.
-        setMessages((s) => [...s, { role: "assistant", text: "Desculpe, não entendi exatamente sua intenção. Você pode reformular de forma direta? Ex.: 'Quantos motoristas ativos tenho?' ou 'Consumo do ABC-1234 nos últimos 30 dias'." }]);
+        // No parsed action: tentar heurísticas locais seguras (sem gerar relatórios gerais)
+        // Regras: mapear intenção somente se houver correspondência clara; caso contrário pedir clarificação.
+        try {
+          const lower = text.toLowerCase();
+          // detect plate using earlier helper
+          const plateFallback = (() => {
+            const m = text.match(/([A-Z]{3}-?\d{4})/i) || text.match(/placa\s*[:\s]?\s*([A-Z0-9-]+)/i);
+            if (!m) return null;
+            return (m[1] || "").toUpperCase();
+          })();
+          // detect days
+          let daysFallback: number | null = null;
+          const dmatch = lower.match(/(\d{1,3})\s*dias?/i);
+          if (dmatch) daysFallback = Number(dmatch[1]);
+
+          let fallbackAction: any = null;
+          if (efficiencyRegexEarly.test(text) || /km\/l|km por litro|quilometro por litro/i.test(lower)) {
+            fallbackAction = { intent: "get_efficiency", plate: plateFallback || null, days: daysFallback || null };
+          } else if (/motorista(s)?\s+ativ/i.test(lower) || /quantos motoristas/i.test(lower)) {
+            fallbackAction = { intent: "get_drivers", field: "ativos" };
+          } else if (/ve[ií]culo(s)?\s+ativ/i.test(lower) || /quantos ve[ií]culos?/i.test(lower) || /quantos veículos/i.test(lower)) {
+            fallbackAction = { intent: "get_vehicles", field: "ativos" };
+          } else if (/combust|abastec|litros|posto/i.test(lower)) {
+            // user asking about fuel totals or records
+            if (plateFallback) fallbackAction = { intent: "get_fuel_total", plate: plateFallback, days: daysFallback || null };
+            else fallbackAction = { intent: "get_fuel_total", days: daysFallback || null };
+          } else if (/despes|gasto|nota fiscal|fornecedor/i.test(lower)) {
+            if (plateFallback) fallbackAction = { intent: "get_expense_details", plate: plateFallback, days: daysFallback || null };
+            else fallbackAction = { intent: "get_expense_details", days: daysFallback || null };
+          }
+
+          if (fallbackAction) {
+            // execute fallback action in strict mode to return only requested data
+            const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ action: fallbackAction, userText: text, conversationId: convId, strict: true }),
+            });
+            if (!execRes || !execRes.ok) {
+              const txt = execRes ? await execRes.text().catch(() => "") : "";
+              console.error("Fallback execute error:", execRes?.status, txt, { fallbackAction });
+              setMessages((s) => [...s, { role: "assistant", text: "Erro ao consultar os dados. Tente novamente." }]);
+              setLoading(false);
+              return;
+            }
+            const ej = await execRes.json().catch((e)=>{ console.error("fallback exec json parse error", e); return null; });
+            const data = ej?.data || ej;
+            // show only the minimal data field according to intent
+            if (data) {
+              if (data.text) {
+                setMessages((s) => [...s, { role: "assistant", text: String(data.text).trim() }]);
+              } else if (data.kmPerL !== undefined && data.kmPerL !== null) {
+                setMessages((s) => [...s, { role: "assistant", text: `${Number(data.kmPerL).toFixed(2)} km/L` }]);
+              } else if (data.totalLiters !== undefined && data.totalValue !== undefined) {
+                setMessages((s) => [...s, { role: "assistant", text: `Total: R$ ${Number(data.totalValue||0).toLocaleString("pt-BR")} • ${Number(data.totalLiters||0)} L` }]);
+              } else if (data.count !== undefined && data.totalValue !== undefined) {
+                setMessages((s) => [...s, { role: "assistant", text: `Registros: ${data.count} • Total: R$ ${Number(data.totalValue||0).toLocaleString("pt-BR")}` }]);
+              } else if (data.value !== undefined) {
+                setMessages((s) => [...s, { role: "assistant", text: String(data.value) }]);
+              } else {
+                setMessages((s) => [...s, { role: "assistant", text: JSON.stringify(data).slice(0,200) }]);
+              }
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (e) {
+          console.error("Fallback heuristics error:", e);
+        }
+
+        // If heuristics didn't match, ask for a direct reformulation
+        setMessages((s) => [...s, { role: "assistant", text: "Desculpe, não entendi exatamente sua intenção. Pode ser mais direto? Ex.: 'Quantos motoristas ativos tenho?' ou 'Consumo do ABC-1234 nos últimos 30 dias'." }]);
         setLoading(false);
         return;
-
-        // If user asked "quantos veiculos" or similar, call metrics
         if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?|custos\s+por\s+veículo|custos\s+por\s+veiculo|custos por veículo|custos por veiculo|custos\s+por\s+veiculos?/i.test(text)) {
           // Determine period_days if present (e.g., "3 meses" => 90 days)
           let periodDays = 90;
