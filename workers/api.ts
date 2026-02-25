@@ -786,7 +786,7 @@ export default {
               };
 
               // Choose which tables to query
-              const dateFrom = from || "1970-01-01";
+              const dateFrom = from || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
               const dateTo = to || new Date().toISOString().split("T")[0];
               if (category === "fuel" || category === "all") {
                 await fetchAndFilter(
@@ -1004,13 +1004,13 @@ Regras:
           } catch {}
           // compute date range
           const endDate = to || new Date().toISOString().split("T")[0];
-          const startDate = from || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null);
+          const startDate = from || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
 
           // New: handle more specific intents (get_km, get_vehicles, get_drivers, get_expense_details, get_fuel_total, get_maintenance_total, get_field)
           // All handlers return deterministic Portuguese responses (when text is included) and JSON.
           if (intent === "get_km") {
             try {
-              const dateFrom = startDate || "1970-01-01";
+              const dateFrom = startDate;
               const dateTo = endDate;
               const res = await env.DB.prepare("SELECT veiculo_placa, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, dateFrom, dateTo).all();
               const rows = res.results || [];
@@ -1138,7 +1138,7 @@ Regras:
 
           if (intent === "get_fuel_total") {
             try {
-              const dateFrom = startDate || "1970-01-01";
+              const dateFrom = startDate;
               const dateTo = endDate;
               const res = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(valor) as total_valor FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, dateFrom, dateTo).first();
               const totalLiters = Number(res?.total_litros || 0);
@@ -1180,7 +1180,7 @@ Regras:
 
           if (intent === "get_maintenance_total") {
             try {
-              const dateFrom = startDate || "1970-01-01";
+              const dateFrom = startDate;
               const dateTo = endDate;
               const res = await env.DB.prepare("SELECT SUM(custo) as total_custo FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, dateFrom, dateTo).first();
               const total = Number(res?.total_custo || 0);
@@ -1193,7 +1193,7 @@ Regras:
 
           if (intent === "get_expense_details") {
             try {
-              const dateFrom = startDate || "1970-01-01";
+              const dateFrom = startDate;
               const dateTo = endDate;
               const params: any[] = [tenantId, dateFrom, dateTo];
               let sql = "SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000";
@@ -1298,7 +1298,7 @@ Regras:
             const totalFuel = Number(fuelRow?.total || 0);
             const totalMaint = Number(manRow?.total || 0);
             // per-vehicle fuel
-            const byVehicleRes = await env.DB.prepare("SELECT veiculo_placa, SUM(litros) as litros, SUM(valor) as valor, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) >= date(?) AND date(data) <= date(?) GROUP BY veiculo_placa").bind(tenantId, startDate || "1970-01-01", endDate).all();
+            const byVehicleRes = await env.DB.prepare("SELECT veiculo_placa, SUM(litros) as litros, SUM(valor) as valor, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) >= date(?) AND date(data) <= date(?) GROUP BY veiculo_placa").bind(tenantId, startDate, endDate).all();
             const byVehicle = (byVehicleRes.results || []).map((r:any)=>({ plate: r.veiculo_placa, liters: Number(r.litros||0), value: Number(r.valor||0), km: Number(r.km||0)}));
             const metrics = { totalExpenses, totalFuel, totalMaint, byVehicle };
             // In strict mode return deterministic metrics only
