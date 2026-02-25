@@ -934,6 +934,28 @@ Regras:
                 }
               }
             } catch {}
+            // Normalize parsed dates: if parsed.from/to years are far in past, assume current year
+            try {
+              const nowYear = new Date().getFullYear();
+              if (parsed && parsed.from && typeof parsed.from === "string") {
+                const m = parsed.from.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m) {
+                  const y = Number(m[1]);
+                  if (y < nowYear - 1) {
+                    parsed.from = `${nowYear}-${m[2]}-${m[3]}`;
+                  }
+                }
+              }
+              if (parsed && parsed.to && typeof parsed.to === "string") {
+                const m2 = parsed.to.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                if (m2) {
+                  const y2 = Number(m2[1]);
+                  if (y2 < nowYear - 1) {
+                    parsed.to = `${nowYear}-${m2[2]}-${m2[3]}`;
+                  }
+                }
+              }
+            } catch {}
             return jsonResponse({ data: parsed });
           } catch {
             return jsonResponse({ data: { raw: parsedText } });
@@ -1113,13 +1135,40 @@ Regras:
           if (intent === "get_vehicles") {
             try {
               const onlyActive = (action.field || "").toLowerCase() === "ativo" || String(action.field || "").toLowerCase() === "ativos";
-              const q = onlyActive ? "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND status = 'ativo' ORDER BY placa" : "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? ORDER BY placa";
+              const q = onlyActive
+                ? "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND lower(trim(status)) = 'ativo' ORDER BY placa"
+                : "SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? ORDER BY placa";
               const r = await env.DB.prepare(q).bind(tenantId).all();
-              const rows = r.results || [];
+              let rows = r.results || [];
+              // fallback: try looser match if active requested but nothing returned
+              if (onlyActive && rows.length === 0) {
+                try {
+                  const r2 = await env.DB.prepare("SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ? AND lower(status) LIKE '%ativo%' ORDER BY placa").bind(tenantId).all();
+                  rows = r2.results || [];
+                } catch {}
+              }
               const text = `Veículos ${onlyActive ? "ativos" : "cadastrados"}: ${rows.length} registros.`;
               return jsonResponse({ data: { count: rows.length, vehicles: rows, text } });
             } catch (e:any) {
               return errorResponse(`Erro ao listar veículos: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          // Return vehicle from last expense stored in conversation context
+          if (intent === "get_last_expense_vehicle") {
+            try {
+              const convId = body?.conversationId || userId || null;
+              if (!convId) return jsonResponse({ data: { error: "Sem conversationId para recuperar contexto" } }, 400);
+              const convoRow = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+              if (!convoRow || !convoRow.context) return jsonResponse({ data: { error: "Sem contexto disponível" } }, 404);
+              let ctx: any = {};
+              try { ctx = JSON.parse(convoRow.context || "{}"); } catch {}
+              const lastRecords = ctx.lastRecords || [];
+              if (!lastRecords || lastRecords.length === 0) return jsonResponse({ data: { error: "Nenhum registro de despesa anterior encontrado" } }, 404);
+              const first = lastRecords[0];
+              return jsonResponse({ data: { veiculo_placa: first.veiculo_placa || null, record: first } });
+            } catch (e:any) {
+              return errorResponse(`Erro ao recuperar último registro de despesa: ${String(e?.message||e)}`, 500);
             }
           }
 
@@ -1140,7 +1189,15 @@ Regras:
             try {
               const dateFrom = startDate;
               const dateTo = endDate;
-              const res = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(valor) as total_valor FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, dateFrom, dateTo).first();
+              let res;
+              if (plateRaw) {
+                // normalize plate comparison (ignore hyphens/case)
+                res = await env.DB.prepare(
+                  "SELECT SUM(litros) as total_litros, SUM(valor) as total_valor FROM fuel_entries WHERE tenant_id = ? AND replace(upper(veiculo_placa), '-', '') = replace(upper(?), '-', '') AND date(data) BETWEEN date(?) AND date(?)"
+                ).bind(tenantId, plateRaw, dateFrom, dateTo).first();
+              } else {
+                res = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(valor) as total_valor FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, dateFrom, dateTo).first();
+              }
               const totalLiters = Number(res?.total_litros || 0);
               const totalValue = Number(res?.total_valor || 0);
               const text = `Total de combustível: ${totalLiters} L (R$ ${totalValue.toLocaleString("pt-BR")}) entre ${dateFrom} e ${dateTo}.`;
@@ -1208,6 +1265,36 @@ Regras:
               }
               const totalValue = rows.reduce((s:any,r:any)=>s + Number(r.valor||0),0);
               const text = `Encontrados ${rows.length} registros de despesa (R$ ${totalValue.toLocaleString("pt-BR")}).`;
+              // persist lastRecords in conversation context for follow-ups
+              try {
+                const convId = body?.conversationId || userId || null;
+                if (convId) {
+                  const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                  let msgs: any[] = [];
+                  if (existing && existing.messages) {
+                    try { msgs = JSON.parse(existing.messages); } catch {}
+                  }
+                  const userText = body?.userText || null;
+                  if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
+                  msgs.push({ role: "assistant", text: text, ts: new Date().toISOString() });
+                  const msgsJson = JSON.stringify(msgs);
+                  let ctx: any = {};
+                  if (existing && existing.context) {
+                    try { ctx = JSON.parse(existing.context); } catch {}
+                  }
+                  // store minimal lastRecords
+                  ctx.lastRecords = (rows || []).slice(0,10).map((r:any)=>({
+                    id: r.id, veiculo_placa: r.veiculo_placa, descricao: r.descricao, valor: r.valor, data: r.data, fornecedor: r.fornecedor, nota_fiscal: r.nota_fiscal
+                  }));
+                  const ctxJson = JSON.stringify(ctx);
+                  if (existing) {
+                    await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+                  } else {
+                    const id = crypto.randomUUID().replace(/-/g, "");
+                    await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+                  }
+                }
+              } catch {}
               return jsonResponse({ data: { count: rows.length, totalValue, records: rows, text } });
             } catch (e:any) {
               return errorResponse(`Erro ao buscar despesas: ${String(e?.message||e)}`, 500);
