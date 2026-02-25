@@ -934,6 +934,13 @@ Regras:
                 }
               }
             } catch {}
+              // Heuristic: if user asks "de qual caminhão" / "que caminhão é essa despesa", map to get_last_expense_vehicle
+              try {
+                const whichTruckRegex = /\bde qual caminh[aã]o\b|\bque caminh[aã]o (?:é|foi) essa\b|\bde qual carro\b/i;
+                if (typeof text === "string" && whichTruckRegex.test(text)) {
+                  parsed.intent = "get_last_expense_vehicle";
+                }
+              } catch {}
             // Normalize parsed dates: if parsed.from/to years are far in past, assume current year
             try {
               const nowYear = new Date().getFullYear();
