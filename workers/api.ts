@@ -1000,6 +1000,8 @@ Regras:
                       try { ctx = JSON.parse(existing.context); } catch {}
                     }
                     ctx.lastPlate = plateRaw;
+                    // persist lastRange as well
+                    ctx.lastRange = { from: dateFrom, to: dateTo, days: days || null };
                     const ctxJson = JSON.stringify(ctx);
                     if (existing) {
                       await env.DB.prepare("UPDATE agent_conversations SET context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(ctxJson, new Date().toISOString(), tenantId, convId).run();
@@ -1095,6 +1097,34 @@ Regras:
               const totalLiters = Number(res?.total_litros || 0);
               const totalValue = Number(res?.total_valor || 0);
               const text = `Total de combustível: ${totalLiters} L (R$ ${totalValue.toLocaleString("pt-BR")}) entre ${dateFrom} e ${dateTo}.`;
+              // persist context for follow-ups (lastPlate and lastRange)
+              try {
+                const convId = body?.conversationId || userId || null;
+                if (convId) {
+                  const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                  let msgs: any[] = [];
+                  if (existing && existing.messages) {
+                    try { msgs = JSON.parse(existing.messages); } catch {}
+                  }
+                  const userText = body?.userText || null;
+                  if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
+                  msgs.push({ role: "assistant", text: text, ts: new Date().toISOString() });
+                  const msgsJson = JSON.stringify(msgs);
+                  let ctx: any = {};
+                  if (existing && existing.context) {
+                    try { ctx = JSON.parse(existing.context); } catch {}
+                  }
+                  ctx.lastPlate = plateRaw || ctx.lastPlate || null;
+                  ctx.lastRange = { from: dateFrom, to: dateTo, days: days || null };
+                  const ctxJson = JSON.stringify(ctx);
+                  if (existing) {
+                    await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+                  } else {
+                    const id = crypto.randomUUID().replace(/-/g, "");
+                    await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+                  }
+                }
+              } catch {}
               return jsonResponse({ data: { totalLiters, totalValue, text } });
             } catch (e:any) {
               return errorResponse(`Erro ao calcular total de combustível: ${String(e?.message||e)}`, 500);
@@ -1207,7 +1237,7 @@ Regras:
                   if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
                   msgs.push({ role: "assistant", text: String(assistantText), ts: new Date().toISOString() });
                   const msgsJson = JSON.stringify(msgs);
-                  const ctxJson = JSON.stringify({ lastPlate: plateRaw || null });
+                  const ctxJson = JSON.stringify({ lastPlate: plateRaw || null, lastRange: { from: startDate || null, to: endDate || null, days: days || null } });
                   if (existing) {
                     await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, conversationId).run();
                   } else {
