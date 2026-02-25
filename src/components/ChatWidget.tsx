@@ -131,16 +131,10 @@ Regras:
 Retorne somente JSON válido.
 `;
 
-          const parserRes = await fetch(`${WORKER_URL}/api/insights`, {
+          const parserRes = await fetch(`${WORKER_URL}/api/agent/parse`, {
             method: "POST",
             headers,
-            body: JSON.stringify({
-              messages: [
-                { role: "system", content: parserPrompt },
-                { role: "user", content: text }
-              ],
-              max_tokens: 200
-            })
+            body: JSON.stringify({ text })
           });
           if (parserRes && parserRes.ok) {
             const pj = await parserRes.json();
