@@ -47,7 +47,7 @@ const ChatWidget = () => {
             const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
               method: "POST",
               headers,
-              body: JSON.stringify({ action, userText: text, conversationId: convId })
+              body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true })
             });
             if (!execRes || !execRes.ok) {
               const txt = execRes ? await execRes.text().catch(()=>"") : "";
@@ -88,7 +88,7 @@ const ChatWidget = () => {
               const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ action, userText: text, conversationId: convId })
+                body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true })
               });
               if (execRes && !execRes.ok) {
                 const txt = await execRes.text().catch(() => "");
@@ -274,7 +274,7 @@ Retorne somente JSON válido.
                 const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
                   method: "POST",
                   headers,
-                  body: JSON.stringify({ action, userText: text, conversationId: convId })
+                  body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true })
                 });
                 if (!execRes || !execRes.ok) {
                   const txt = execRes ? await execRes.text().catch(() => "") : "";

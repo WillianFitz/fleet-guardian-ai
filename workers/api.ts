@@ -890,13 +890,15 @@ Regras:
           // If conversationId provided, include recent conversation messages as context to help parsing
           const convId = body?.conversationId || null;
           let parseMessages: any[] = [{ role: "system", content: parserPrompt }];
-          if (convId) {
+          // only include conversation history when the user text contains anaphora/referring words
+          const refRegex = /\b(esse|essa|este|esta|anterior|anteriormente|o anterior|a anterior|o mesmo|mesmo|último|última|aquele|aquela)\b/i;
+          if (convId && refRegex.test(String(text || ""))) {
             try {
-              const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(await (async () => { const t = await getTenantForRequest(request, env); return t.tenantId; })(), convId).first();
+              const tenantForParse = await getTenantForRequest(request, env);
+              const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantForParse.tenantId, convId).first();
               if (existing && existing.messages) {
                 try {
                   const msgs = JSON.parse(existing.messages);
-                  // map stored messages (role,text) to OpenAI message roles
                   for (const m of msgs.slice(-20)) {
                     const role = m.role === "assistant" ? "assistant" : "user";
                     parseMessages.push({ role, content: m.text || "" });
@@ -946,6 +948,7 @@ Regras:
         try {
           const body = await request.json().catch(() => ({}));
           const action = body?.action || {};
+          const strict = body?.strict !== false; // default: strict mode ON
           const { tenantId, userId } = await getTenantForRequest(request, env);
           const openaiKey = env.OPENAI_API_KEY;
           // Validate
@@ -1298,8 +1301,12 @@ Regras:
             const byVehicleRes = await env.DB.prepare("SELECT veiculo_placa, SUM(litros) as litros, SUM(valor) as valor, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) >= date(?) AND date(data) <= date(?) GROUP BY veiculo_placa").bind(tenantId, startDate || "1970-01-01", endDate).all();
             const byVehicle = (byVehicleRes.results || []).map((r:any)=>({ plate: r.veiculo_placa, liters: Number(r.litros||0), value: Number(r.valor||0), km: Number(r.km||0)}));
             const metrics = { totalExpenses, totalFuel, totalMaint, byVehicle };
+            // In strict mode return deterministic metrics only
+            if (strict) {
+              return jsonResponse({ data: { metrics } });
+            }
             // generate concise human summary via OpenAI if available
-              if (openaiKey) {
+            if (!strict && openaiKey) {
               const sys = "Você é conciso e responde em Português. Produza uma linha numérica de resumo e uma recomendação prática curta.";
               const user = `Métricas: ${JSON.stringify(metrics)}`;
               const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -1389,8 +1396,12 @@ Regras:
                 recommendation = "Verifique consumo e notas fiscais do veículo; considere revisão ou treinamento de condução.";
               }
 
-              const assistantText = `${line}\nRecomendação: ${recommendation}`;
-              // persist conversation if provided
+            const assistantText = `${line}\nRecomendação: ${recommendation}`;
+              // In strict mode: return deterministic totals only (no assistant summary)
+              if (strict) {
+                return jsonResponse({ data: { totals } });
+              }
+              // persist conversation if provided (non-strict only)
               try {
                 const conversationId = body?.conversationId || userId || null;
                 const userText = body?.userText || null;
@@ -1414,7 +1425,7 @@ Regras:
               return jsonResponse({ data: { totals, assistant: assistantText } });
             }
             // Otherwise generate analysis via OpenAI if key present
-            if (openaiKey) {
+            if (!strict && openaiKey) {
               const sys = "Você é um analista conciso e responde em Português. Resuma estes registros em uma linha numérica, duas frases de conclusão e uma recomendação prática.";
               const user = `Totais: ${JSON.stringify(totals)} Amostras: ${JSON.stringify(results.slice(0,50))}`;
               const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
