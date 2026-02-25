@@ -1039,7 +1039,6 @@ Regras:
                     await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, conversationId, msgsJson, JSON.stringify({}), new Date().toISOString()).run();
                   }
                 }
-                }
               } catch {}
               return jsonResponse({ data: { totals, assistant: assistantText } });
             }
