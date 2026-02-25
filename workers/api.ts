@@ -945,7 +945,29 @@ Regras:
             const totals = { count: results.length, totalValue };
             // If summary intent, return concise text or numeric
             if (intent === "get_expense_summary") {
-              return jsonResponse({ data: { totals } });
+              // Build deterministic Portuguese summary here (avoid calling OpenAI) to guarantee language and scope
+              const totalValue = Number(totals.totalValue || 0);
+              const totalCount = Number(totals.count || 0);
+              // compute liters and km from results when present
+              const totalLiters = results.reduce((s:any,r:any)=>s + (Number(r.litros||0)),0);
+              const totalKm = results.reduce((s:any,r:any)=>s + ((Number(r.km_atual||0) - Number(r.km_anterior||0)) || 0),0);
+              // build concise Portuguese text
+              const parts: string[] = [];
+              parts.push(`Total: R$ ${totalValue.toLocaleString("pt-BR")}`);
+              if (totalLiters > 0) parts.push(`Litros: ${totalLiters} L`);
+              if (totalKm > 0) parts.push(`KM: ${totalKm} km`);
+              const line = parts.join(" • ");
+
+              // short recommendation heuristic
+              let recommendation = "Monitore os registros e mantenha quilometragem e litros atualizados.";
+              // if single high-value maintenance among fuel category unlikely, keep generic
+              if ((category === "fuel" && totalLiters > 0 && totalValue / totalLiters > 10) || (category === "fuel" && totalLiters > 0 && totalKm > 0 && (totalKm/totalLiters) < 5)) {
+                recommendation = "Verifique consumo e notas fiscais do veículo; considere revisão ou treinamento de condução.";
+              }
+
+              const assistantText = `${line}\nRecomendação: ${recommendation}`;
+
+              return jsonResponse({ data: { totals, assistant: assistantText } });
             }
             // Otherwise generate analysis via OpenAI if key present
             if (openaiKey) {
