@@ -1195,12 +1195,83 @@ Regras:
             } catch {}
           }
 
+          // Auto-prefetch memory when none exists and autoPrefetch not disabled
+          if (!convoContextMemory && (body?.autoPrefetch !== false)) {
+            try {
+              const periodDays = (body?.period && body.period.days) ? Number(body.period.days) : 90;
+              const to = new Date().toISOString().split("T")[0];
+              const from = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              const memory: any = { fetchedAt: new Date().toISOString(), range: { from, to } };
+
+              // vehicles
+              try {
+                const v = await env.DB.prepare("SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ?").bind(tenantId).all();
+                memory.vehicles = (v.results || []).slice(0,100);
+              } catch {}
+              // drivers
+              try {
+                const d = await env.DB.prepare("SELECT id, nome, cpf, status FROM drivers WHERE tenant_id = ?").bind(tenantId).all();
+                memory.drivers = (d.results || []).slice(0,100);
+              } catch {}
+              // fuel aggregates
+              try {
+                const totals = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(valor) as total_valor FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, from, to).first();
+                const byVehicle = await env.DB.prepare("SELECT veiculo_placa, SUM(litros) as litros, SUM(valor) as valor, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, from, to).all();
+                memory.fuel = { totals: { totalLiters: Number(totals?.total_litros||0), totalValue: Number(totals?.total_valor||0) }, byVehicle: (byVehicle.results||[]).slice(0,200) };
+              } catch {}
+              // expenses
+              try {
+                const e = await env.DB.prepare("SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 500").bind(tenantId, from, to).all();
+                memory.expenses = (e.results || []).slice(0,200);
+              } catch {}
+              // maintenance
+              try {
+                const m = await env.DB.prepare("SELECT id, numero, veiculo_placa, custo as valor, data, tipo, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
+                memory.maintenance = (m.results || []).slice(0,200);
+              } catch {}
+
+              // persist into agent_conversations.context
+              try {
+                const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convIdForMem).first();
+                let msgs: any[] = [];
+                if (existing && existing.messages) {
+                  try { msgs = JSON.parse(existing.messages); } catch {}
+                }
+                msgs.push({ role: "assistant", text: `Memória pré-carregada (${new Date().toISOString()})`, ts: new Date().toISOString() });
+                const ctxPrev = existing && existing.context ? (()=>{ try { return JSON.parse(existing.context); } catch { return {}; } })() : {};
+                ctxPrev.memory = memory;
+                const ctxJson = JSON.stringify(ctxPrev);
+                const msgsJson = JSON.stringify(msgs);
+                if (existing) {
+                  await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convIdForMem).run();
+                } else {
+                  const id = crypto.randomUUID().replace(/-/g,"");
+                  await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convIdForMem, msgsJson, ctxJson, new Date().toISOString()).run();
+                }
+                convoContextMemory = memory;
+              } catch (e:any) {
+                console.error("Auto-prefetch persist failed:", e);
+              }
+            } catch (e:any) {
+              // ignore prefetch errors
+            }
+          }
+
           // If memory exists and covers requested range, we can answer certain intents without hitting full DB
           const intentCanUseMemory = ["get_fuel_total","get_efficiency","get_km","get_expense_details","get_metrics"];
           const memoryCoversRange = (mem:any, fromDate:string, toDate:string) => {
             if (!mem || !mem.range) return false;
             try {
-              return (String(mem.range.from) <= String(fromDate)) && (String(mem.range.to) >= String(toDate));
+              // check date coverage
+              const covers = (String(mem.range.from) <= String(fromDate)) && (String(mem.range.to) >= String(toDate));
+              if (!covers) return false;
+              // check TTL (expiration) in seconds (env.MEMORY_TTL_SECONDS or default 60s)
+              const ttl = Number(env.MEMORY_TTL_SECONDS || 60);
+              if (!mem.fetchedAt) return false;
+              const fetched = new Date(String(mem.fetchedAt));
+              if (isNaN(fetched.getTime())) return false;
+              const ageMs = Date.now() - fetched.getTime();
+              return ageMs <= ttl * 1000;
             } catch { return false; }
           };
 

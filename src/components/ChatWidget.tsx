@@ -8,7 +8,6 @@ const ChatWidget = () => {
   const [minimized, setMinimized] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [saveMemory, setSaveMemory] = useState(false);
   const [memoryAvailable, setMemoryAvailable] = useState(false);
   const [prefetchLoading, setPrefetchLoading] = useState(false);
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
@@ -38,7 +37,20 @@ const ChatWidget = () => {
         if (res && res.ok) {
           const j = await res.json();
           const ctx = j?.data?.context || {};
-          setMemoryAvailable(Boolean(ctx && ctx.memory));
+          const hasMem = Boolean(ctx && ctx.memory);
+          setMemoryAvailable(hasMem);
+          // If no memory, auto-prefetch immediately (always save behavior)
+          if (!hasMem) {
+            setPrefetchLoading(true);
+            try {
+              const p = await fetch(`${WORKER_URL}/api/agent/prefetch`, { method: "POST", headers, body: JSON.stringify({ conversationId: convId, period: { days: 90 } }) });
+              if (p && p.ok) {
+                setMemoryAvailable(true);
+                setMessages((s) => [...s, { role: "assistant", text: "Memória pré-carregada automaticamente." }]);
+              }
+            } catch {}
+            setPrefetchLoading(false);
+          }
         } else {
           setMemoryAvailable(false);
         }
@@ -84,7 +96,7 @@ const ChatWidget = () => {
             const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
               method: "POST",
               headers,
-              body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true, useMemory: saveMemory })
+              body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true, useMemory: true })
             });
             if (!execRes || !execRes.ok) {
               const txt = execRes ? await execRes.text().catch(()=>"") : "";
@@ -128,7 +140,7 @@ const ChatWidget = () => {
               const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
                 method: "POST",
                 headers,
-                  body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true, useMemory: saveMemory })
+                  body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true, useMemory: true })
               });
               if (execRes && !execRes.ok) {
                 const txt = await execRes.text().catch(() => "");
@@ -399,7 +411,7 @@ Retorne somente JSON válido.
             const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
               method: "POST",
               headers,
-              body: JSON.stringify({ action: fallbackAction, userText: text, conversationId: convId, strict: true, useMemory: saveMemory }),
+              body: JSON.stringify({ action: fallbackAction, userText: text, conversationId: convId, strict: true, useMemory: true }),
             });
             if (!execRes || !execRes.ok) {
               const txt = execRes ? await execRes.text().catch(() => "") : "";
@@ -805,38 +817,9 @@ ${JSON.stringify({ params, totals, sample })}`;
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <input type="checkbox" checked={saveMemory} onChange={(e)=>setSaveMemory(e.target.checked)} className="w-4 h-4" />
-                    <span>Salvar contexto</span>
-                  </label>
-                  <button
-                    onClick={async () => {
-                      const convId = ensureConversationId();
-                      setPrefetchLoading(true);
-                      try {
-                        const token = localStorage.getItem("fleet_auth_token");
-                        const tenantId = localStorage.getItem("fleet_tenant_id");
-                        const headers: Record<string,string> = { "Content-Type":"application/json" };
-                        if (token) headers["Authorization"] = `Bearer ${token}`;
-                        if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
-                        const res = await fetch(`${WORKER_URL}/api/agent/prefetch`, { method: "POST", headers, body: JSON.stringify({ conversationId: convId, period: { days: 90 } }) });
-                        if (res && res.ok) {
-                          setMessages((s) => [...s, { role: "assistant", text: "Memória salva com sucesso." }]);
-                          setMemoryAvailable(true);
-                        } else {
-                          const txt = res ? await res.text().catch(()=>"") : "";
-                          setMessages((s) => [...s, { role: "assistant", text: `Falha ao salvar memória: ${txt || res?.status}` }]);
-                        }
-                      } catch (err:any) {
-                        setMessages((s) => [...s, { role: "assistant", text: `Erro ao salvar memória: ${String(err?.message||err)}` }]);
-                      } finally {
-                        setPrefetchLoading(false);
-                      }
-                    }}
-                    className="px-2 py-1 text-xs rounded-md bg-card/80 border border-border shadow-sm text-foreground"
-                  >
-                    {prefetchLoading ? "..." : "Salvar agora"}
-                  </button>
+                  <div className="text-xs text-muted-foreground">
+                    {prefetchLoading ? "Carregando memória..." : (memoryAvailable ? "Memória ativa" : "Memória ausente")}
+                  </div>
                   <button onClick={() => setMinimized(true)} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Minimizar</button>
                   <button onClick={() => { setOpen(false); setMinimized(false); }} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Fechar</button>
                 </div>
