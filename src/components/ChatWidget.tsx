@@ -39,6 +39,10 @@ const ChatWidget = () => {
             headers,
             body: JSON.stringify({ text })
           });
+          if (parseRes && !parseRes.ok) {
+            const txt = await parseRes.text().catch(() => "");
+            console.error("agent/parse non-ok:", parseRes.status, txt);
+          }
           if (parseRes && parseRes.ok) {
             const pj = await parseRes.json();
             const action = pj?.data || null;
@@ -49,8 +53,12 @@ const ChatWidget = () => {
                 headers,
                 body: JSON.stringify({ action, userText: text, conversationId: convId })
               });
+              if (execRes && !execRes.ok) {
+                const txt = await execRes.text().catch(() => "");
+                console.error("agent/execute non-ok:", execRes.status, txt, { action, conversationId: convId });
+              }
               if (execRes && execRes.ok) {
-                const ej = await execRes.json();
+                const ej = await execRes.json().catch((e)=>{ console.error("agent/execute json parse error", e); return null; });
                 const assistant = ej?.data?.assistant || ej?.assistant || null;
                 const totals = ej?.data?.totals || ej?.data?.metrics || null;
                 if (assistant) {
