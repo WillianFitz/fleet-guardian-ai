@@ -833,18 +833,23 @@ export default {
           if (!openaiKey) return errorResponse("OPENAI_API_KEY não configurada no Worker.", 503);
 
           const parserPrompt = `
-You are an intent parser for a fleet management assistant.
-Receive a user's free-text request and output ONLY a JSON object (no explanation) with the following keys:
+Você é um parser de intenções em Português para um assistente de gestão de frotas.
+Receba a mensagem livre do usuário e retorne SOMENTE um JSON válido (apenas o objeto) com as chaves:
 {
-  "intent": "<one of: get_metrics, get_expenses, get_expense_summary>",
-  "plate": "<plate or null>",
+  "intent": "<get_metrics|get_expenses|get_expense_summary>",
+  "plate": "<placa ou null>",
   "category": "<fuel|expenses|maintenance|all>",
-  "days": <number|null>, 
+  "days": <number|null>,
   "from": "<YYYY-MM-DD|null>",
   "to": "<YYYY-MM-DD|null>",
   "limit": <number|null>
 }
-Return valid JSON only.
+Regras:
+- Detecte claramente se o usuário pede "combustível" -> category = "fuel".
+- Detecte se pede "gastos/despesas" -> category = "expenses".
+- Detecte "manutenção/OS/oficina" -> category = "maintenance".
+- Detecte períodos ("30 dias", "3 meses", mês por nome) e preencha days ou from/to.
+- Não retorne explicações, apenas o JSON.
 `;
 
           const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -904,8 +909,8 @@ Return valid JSON only.
             const metrics = { totalExpenses, totalFuel, totalMaint, byVehicle };
             // generate concise human summary via OpenAI if available
             if (openaiKey) {
-              const sys = "You are concise. Produce one-line numeric summary and one recommendation.";
-              const user = `Metrics: ${JSON.stringify(metrics)}`;
+              const sys = "Você é conciso e responde em Português. Produza uma linha numérica de resumo e uma recomendação prática curta.";
+              const user = `Métricas: ${JSON.stringify(metrics)}`;
               const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
                 method: "POST",
                 headers: { "Content-Type":"application/json", Authorization: `Bearer ${openaiKey}` },
@@ -944,8 +949,8 @@ Return valid JSON only.
             }
             // Otherwise generate analysis via OpenAI if key present
             if (openaiKey) {
-              const sys = "You are a concise analyst. Summarize these records in one numeric line and two short sentences with one recommendation.";
-              const user = `Totals: ${JSON.stringify(totals)} Samples: ${JSON.stringify(results.slice(0,50))}`;
+              const sys = "Você é um analista conciso e responde em Português. Resuma estes registros em uma linha numérica, duas frases de conclusão e uma recomendação prática.";
+              const user = `Totais: ${JSON.stringify(totals)} Amostras: ${JSON.stringify(results.slice(0,50))}`;
               const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
                 method: "POST",
                 headers: { "Content-Type":"application/json", Authorization: `Bearer ${openaiKey}` },
