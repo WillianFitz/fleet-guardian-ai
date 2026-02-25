@@ -922,6 +922,16 @@ Regras:
           // try parse JSON
           try {
             const parsed = JSON.parse(parsedText);
+            // Heuristic override: if parser returned get_km/get_field but user asked about km/l, prefer get_efficiency
+            try {
+              const kmRegex = /km\/l|quil.*metro.*litro|km\s*por\s*litro|quilometro.*litro|quilometros?\s+por\s+litro/i;
+              if (parsed && parsed.intent && typeof text === "string" && kmRegex.test(text)) {
+                if (String(parsed.intent).toLowerCase() === "get_km" || String(parsed.intent).toLowerCase() === "get_field") {
+                  parsed.intent = "get_efficiency";
+                  if (!parsed.field) parsed.field = "km/l";
+                }
+              }
+            } catch {}
             return jsonResponse({ data: parsed });
           } catch {
             return jsonResponse({ data: { raw: parsedText } });

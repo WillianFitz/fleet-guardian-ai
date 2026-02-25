@@ -35,7 +35,7 @@ const ChatWidget = () => {
         }
 
         // Heuristic: if user explicitly asks for efficiency (km/L), call get_efficiency directly
-        const efficiencyRegexEarly = /km\/l|quil[oó]metro.*litro|quilometro.*litro|quil[oó]metros?\s+por\s+litro|km\s*por\s*litro|efici.ncia.*combust/i;
+        const efficiencyRegexEarly = /km\/l|quil.*metro.*litro|km\s*por\s*litro|quilometro.*litro|quilometros?\s+por\s+litro|efici.+combust/i;
         const plateDetected = (() => {
           const m = text.match(/placa\s*[:\s]?\s*([A-Z0-9-]+)|veiculo\s*[:\s]?\s*([A-Z0-9-]+)/i);
           if (!m) return null;
