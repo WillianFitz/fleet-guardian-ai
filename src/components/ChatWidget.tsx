@@ -267,6 +267,31 @@ Retorne somente JSON válido.
               setLoading(false);
               return;
             }
+            
+            if (intent === "get_efficiency") {
+              try {
+                const action = { intent: "get_efficiency", plate: plateArg || null, days: daysArg || null, from: fromArg || null, to: toArg || null };
+                const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
+                  method: "POST",
+                  headers,
+                  body: JSON.stringify({ action, userText: text, conversationId: convId })
+                });
+                if (!execRes || !execRes.ok) {
+                  const txt = execRes ? await execRes.text().catch(() => "") : "";
+                  throw new Error(`Worker error ${execRes?.status || "?"}: ${txt}`);
+                }
+                const ej = await execRes.json().catch((e)=>{ console.error("agent/execute json parse error", e); return null; });
+                const data = ej?.data || ej;
+                const replyText = data?.text || (data?.kmPerL ? `Eficiência: ${Number(data.kmPerL).toFixed(2)} km/L` : JSON.stringify(data));
+                setMessages((s) => [...s, { role: "assistant", text: String(replyText).trim() }]);
+                setLoading(false);
+                return;
+              } catch (err:any) {
+                setMessages((s) => [...s, { role: "assistant", text: `Erro ao executar eficiência: ${String(err?.message||err)}` }]);
+                setLoading(false);
+                return;
+              }
+            }
           } catch (err:any) {
             setMessages((s) => [...s, { role: "assistant", text: `Erro ao executar ação: ${String(err.message || err)}` }]);
             setLoading(false);
