@@ -157,8 +157,11 @@ Retorne somente JSON válido.
         // If parser returned a valid action, orchestrate calls
         if (parsedAction && parsedAction.intent) {
           try {
-            const intent = String(parsedAction.intent || "");
+            let intent = String(parsedAction.intent || "");
             const plateArg = parsedAction.plate || plate || null;
+            // If user asked about efficiency (km/L), prefer get_efficiency
+            const efficiencyRegex = /km\/l|quil[oó]metro.*litro|quil[oó]metros? por litro|km por litro|quilometro por litro/i;
+            if (efficiencyRegex.test(text)) intent = "get_efficiency";
             const categoryArg = parsedAction.category || "all";
             const daysArg = parsedAction.days ? Number(parsedAction.days) : (parsedAction.period_days ? Number(parsedAction.period_days) : null);
             const fromArg = parsedAction.from || null;

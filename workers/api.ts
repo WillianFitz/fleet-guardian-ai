@@ -865,7 +865,7 @@ export default {
 Você é um parser de intenções em Português para um assistente de gestão de frotas.
 Receba a mensagem livre do usuário e retorne SOMENTE um JSON válido (apenas o objeto) com as chaves:
 {
-  "intent": "<get_metrics|get_expenses|get_expense_summary|get_km|get_vehicles|get_drivers|get_expense_details|get_fuel_total|get_maintenance_total|get_field>",
+  "intent": "<get_metrics|get_expenses|get_expense_summary|get_km|get_efficiency|get_vehicles|get_drivers|get_expense_details|get_fuel_total|get_maintenance_total|get_field>",
   "plate": "<placa ou null>",
   "category": "<fuel|expenses|maintenance|all>",
   "field": "<campo solicitado ex: km | litros | total_fuel | total_expenses | ativo | null>",
@@ -1017,6 +1017,47 @@ Regras:
               }
             } catch (e:any) {
               return errorResponse(`Erro ao calcular KM: ${String(e?.message||e)}`, 500);
+            }
+          }
+
+          // Efficiency intent: km per liter
+          if (intent === "get_efficiency") {
+            try {
+              const dateFrom = startDate || "1970-01-01";
+              const dateTo = endDate;
+              let targetPlate = plateRaw || null;
+              if (!targetPlate) {
+                const convId = body?.conversationId || userId || null;
+                if (convId) {
+                  try {
+                    const convoRow = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                    if (convoRow && convoRow.context) {
+                      try {
+                        const ctx = JSON.parse(convoRow.context || "{}");
+                        if (ctx && ctx.lastPlate) targetPlate = String(ctx.lastPlate);
+                      } catch {}
+                    }
+                  } catch {}
+                }
+              }
+
+              if (targetPlate) {
+                const r = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as total_km FROM fuel_entries WHERE tenant_id = ? AND veiculo_placa = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, targetPlate, dateFrom, dateTo).first();
+                const totalLiters = Number(r?.total_litros || 0);
+                const totalKm = Number(r?.total_km || 0);
+                const kmPerL = totalLiters > 0 ? totalKm / totalLiters : null;
+                const text = totalLiters > 0 ? `Eficiência do ${targetPlate}: ${kmPerL?.toFixed(2)} km/L — ${totalKm} km, ${totalLiters} L entre ${dateFrom} e ${dateTo}.` : `Sem registros de combustível para ${targetPlate} no período ${dateFrom} → ${dateTo}.`;
+                return jsonResponse({ data: { plate: targetPlate, totalKm, totalLiters, kmPerL, text } });
+              } else {
+                const r = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as total_km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, dateFrom, dateTo).first();
+                const totalLiters = Number(r?.total_litros || 0);
+                const totalKm = Number(r?.total_km || 0);
+                const kmPerL = totalLiters > 0 ? totalKm / totalLiters : null;
+                const text = totalLiters > 0 ? `Eficiência média frota: ${kmPerL?.toFixed(2)} km/L — ${totalKm} km, ${totalLiters} L entre ${dateFrom} e ${dateTo}.` : `Sem registros de combustível no período ${dateFrom} → ${dateTo}.`;
+                return jsonResponse({ data: { totalKm, totalLiters, kmPerL, text } });
+              }
+            } catch (e:any) {
+              return errorResponse(`Erro ao calcular eficiência: ${String(e?.message||e)}`, 500);
             }
           }
 
