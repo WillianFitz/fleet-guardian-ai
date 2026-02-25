@@ -529,8 +529,10 @@ ${JSON.stringify({ params, totals, sample })}`;
 
         const assistant = j?.data?.assistant || j?.assistant || (j?.raw?.choices?.[0]?.message?.content ?? "Sem resposta.");
         setMessages((s) => [...s, { role: "assistant", text: String(assistant) }]);
-      } catch (e) {
-        setMessages((s) => [...s, { role: "assistant", text: "Erro ao consultar o serviço de Insights." }]);
+      } catch (e:any) {
+        console.error("ChatWidget send error:", e);
+        const msg = e?.message ? `Erro ao consultar o serviço de Insights: ${String(e.message).slice(0,300)}` : "Erro ao consultar o serviço de Insights.";
+        setMessages((s) => [...s, { role: "assistant", text: msg }]);
       } finally {
         setLoading(false);
       }
