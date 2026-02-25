@@ -914,7 +914,38 @@ Regras:
           const openaiKey = env.OPENAI_API_KEY;
           // Validate
           const intent = String(action.intent || "").trim();
-          const plateRaw = action.plate || null;
+          let plateRaw = action.plate || null;
+          // If plate not provided, try to recover from conversation context/messages (lastPlate)
+          if (!plateRaw) {
+            const convId = body?.conversationId || userId || null;
+            if (convId) {
+              try {
+                const convoRow = await env.DB.prepare("SELECT context, messages FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                if (convoRow) {
+                  // try context.first
+                  if (convoRow.context) {
+                    try {
+                      const ctx = JSON.parse(convoRow.context || "{}");
+                      if (ctx && ctx.lastPlate) {
+                        plateRaw = String(ctx.lastPlate);
+                      }
+                    } catch {}
+                  }
+                  // fallback: scan last messages for plate pattern
+                  if (!plateRaw && convoRow.messages) {
+                    try {
+                      const msgs = JSON.parse(convoRow.messages || "[]");
+                      const textBlob = (msgs || []).slice(-6).map((m:any)=>m.text||"").join(" ");
+                      const m = textBlob.match(/([A-Z]{3}-?\\d{4})/i);
+                      if (m) {
+                        plateRaw = m[1].toUpperCase().replace(/^([A-Z]{3})(\\d{4})$/,"$1-$2");
+                      }
+                    } catch {}
+                  }
+                }
+              } catch {}
+            }
+          }
           const category = action.category || "all";
           const days = action.days ? Number(action.days) : null;
           const from = action.from || null;
@@ -963,11 +994,12 @@ Regras:
                   if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
                   msgs.push({ role: "assistant", text: String(assistantText), ts: new Date().toISOString() });
                   const msgsJson = JSON.stringify(msgs);
+                  const ctxJson = JSON.stringify({ lastPlate: plateRaw || null });
                   if (existing) {
-                    await env.DB.prepare("UPDATE agent_conversations SET messages = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, new Date().toISOString(), tenantId, conversationId).run();
+                    await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, conversationId).run();
                   } else {
                     const id = crypto.randomUUID().replace(/-/g, "");
-                    await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, conversationId, msgsJson, JSON.stringify({}), new Date().toISOString()).run();
+                    await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, conversationId, msgsJson, ctxJson, new Date().toISOString()).run();
                   }
                 }
               } catch {}
@@ -980,7 +1012,7 @@ Regras:
             // build SQL filters
             const paramsFrom = startDate || "1970-01-01";
             const paramsTo = endDate;
-            const results: any[] = [];
+            let results: any[] = [];
             // fetch categories as in previous code
             if (category === "fuel" || category === "all") {
               const r = await env.DB.prepare("SELECT id, veiculo_placa, motorista, litros, valor, km_atual, km_anterior, posto, data FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000").bind(tenantId, paramsFrom, paramsTo).all();
@@ -993,6 +1025,14 @@ Regras:
             if ((category === "maintenance" || category === "all")) {
               const r = await env.DB.prepare("SELECT id, numero, veiculo_placa, custo as valor, data, tipo, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000").bind(tenantId, paramsFrom, paramsTo).all();
               (r.results || []).forEach((row:any)=>results.push({ ...row, _type:"maintenance" }));
+            }
+            // If plate provided, filter JS results by normalized plate (robust to formatting)
+            if (plateRaw) {
+              const norm = String(plateRaw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+              results = results.filter((r:any) => {
+                const rPlate = String(r.veiculo_placa || r.plate || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                return rPlate.includes(norm);
+              });
             }
             const totalValue = results.reduce((s:any,r:any)=>s + Number(r.valor||0),0);
             const totals = { count: results.length, totalValue };
