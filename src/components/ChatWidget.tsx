@@ -49,17 +49,25 @@ const ChatWidget = () => {
         const month = detectMonth(lower);
 
         // If user asked "quantos veiculos" or similar, call metrics
-        if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?/i.test(text)) {
+        if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?|custos\s+por\s+veículo|custos\s+por\s+veiculo|custos por veículo|custos por veiculo|custos\s+por\s+veiculos?/i.test(text)) {
+          // Determine period_days if present (e.g., "3 meses" => 90 days)
+          let periodDays = 90;
+          const mMonths = lower.match(/(\d+)\s*mes(es)?/i);
+          if (mMonths) periodDays = Number(mMonths[1]) * 30;
+          const daysMatch = lower.match(/(\d+)\s*dias?/i);
+          if (daysMatch) periodDays = Number(daysMatch[1]);
+
+          // 1) fetch metrics from worker
           let res = await fetch(`${WORKER_URL}/api/insights`, {
             method: "POST",
             headers,
-            body: JSON.stringify({ action: "metrics", period_days: 90 }),
+            body: JSON.stringify({ action: "metrics", period_days: periodDays }),
           });
           if (!res || !res.ok) {
             res = await fetch(`${WORKER_URL}/api/insights`, {
               method: "POST",
               headers,
-              body: JSON.stringify({ action: "metrics", period_days: 90 }),
+              body: JSON.stringify({ action: "metrics", period_days: periodDays }),
             });
           }
           if (!res || !res.ok) {
@@ -70,11 +78,39 @@ const ChatWidget = () => {
           }
           const j = await res.json();
           const metrics = j?.data?.metrics;
-          if (metrics) {
-            const totalVehicles = metrics.totalVehicles ?? (metrics.activeVehicles ? metrics.activeVehicles.length : 0);
-            setMessages((s) => [...s, { role: "assistant", text: `Você possui ${totalVehicles} veículo(s) cadastrados.` }]);
+          if (!metrics) {
+            setMessages((s) => [...s, { role: "assistant", text: `Não foi possível obter métricas.` }]);
+            setLoading(false);
+            return;
+          }
+
+          // 2) ask worker to produce concise natural-language summary based on metrics
+          const systemPrompt = "Você é um assistente analítico de frota. Responda em Português, muito sucinto: 1 linha numérica resumo, 1-2 frases de conclusão, 1 recomendação prática.";
+          const userPrompt = `Gere um resumo curto dos custos por veículo usando estes dados (JSON):\n${JSON.stringify({ period_days: periodDays, metrics })}`;
+          let r2 = await fetch(`${WORKER_URL}/api/insights`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 300 }),
+          });
+          if (!r2 || !r2.ok) {
+            r2 = await fetch(`${WORKER_URL}/api/insights`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 300 }),
+            });
+          }
+          if (!r2 || !r2.ok) {
+            const txt = r2 ? await r2.text().catch(()=>"") : "no response";
+            setMessages((s) => [...s, { role: "assistant", text: `Erro ao gerar análise: ${r2?.status || "?"} ${txt}` }]);
+            setLoading(false);
+            return;
+          }
+          const j2 = await r2.json();
+          const analysis = j2?.data?.assistant || j2?.assistant || (j2?.raw?.choices?.[0]?.message?.content ?? null);
+          if (analysis) {
+            setMessages((s) => [...s, { role: "assistant", text: String(analysis).trim() }]);
           } else {
-            setMessages((s) => [...s, { role: "assistant", text: `Não foi possível obter a contagem de veículos.` }]);
+            setMessages((s) => [...s, { role: "assistant", text: `Resumo rápido: veículos cadastrados ${metrics.totalVehicles || 0}` }]);
           }
           setLoading(false);
           return;
