@@ -823,6 +823,24 @@ export default {
           if (body?.action === "metrics" || body?.action === "metrics_only") {
             return jsonResponse({ data: { metrics, dataSummary } });
           }
+      // Debug endpoint: /api/agent/debug (POST) with { conversationId } will return stored context/messages
+      if (path === "/api/agent/debug" && request.method === "POST") {
+        try {
+          const b = await request.json().catch(() => ({}));
+          const convId = b?.conversationId || null;
+          if (!convId) return jsonResponse({ error: "conversationId required" }, 400);
+          const { tenantId } = await getTenantForRequest(request, env);
+          const row = await env.DB.prepare("SELECT messages, context, last_active FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+          if (!row) return jsonResponse({ error: "not found" }, 404);
+          let msgs = [];
+          try { msgs = row.messages ? JSON.parse(row.messages) : []; } catch {}
+          let ctx = {};
+          try { ctx = row.context ? JSON.parse(row.context) : {}; } catch {}
+          return jsonResponse({ data: { messages: msgs, context: ctx, last_active: row.last_active || null } });
+        } catch (e:any) {
+          return errorResponse(`Debug error: ${String(e?.message||e)}`, 500);
+        }
+      }
 
           const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
@@ -1180,10 +1198,11 @@ Regras:
               if (!convoRow || !convoRow.context) return jsonResponse({ data: { error: "Sem contexto disponível" } }, 404);
               let ctx: any = {};
               try { ctx = JSON.parse(convoRow.context || "{}"); } catch {}
-              const lastRecords = ctx.lastRecords || [];
+              // accept several context key variants
+              const lastRecords = ctx.lastRecords || ctx.last_records || ctx.lastRecord || [];
               if (!lastRecords || lastRecords.length === 0) return jsonResponse({ data: { error: "Nenhum registro de despesa anterior encontrado" } }, 404);
               const first = lastRecords[0];
-              return jsonResponse({ data: { veiculo_placa: first.veiculo_placa || null, record: first } });
+              return jsonResponse({ data: { veiculo_placa: first.veiculo_placa || first.veiculo || null, record: first } });
             } catch (e:any) {
               return errorResponse(`Erro ao recuperar último registro de despesa: ${String(e?.message||e)}`, 500);
             }
@@ -2342,7 +2361,9 @@ Regras:
             ctePayload.veiculoId = matchedVehicle.id;
             ctePayload.veiculoModelo = matchedVehicle.modelo;
           }
-          return await handleCreate(env.DB, config.table, ctePayload, tenantId, config.fieldOverrides);
+          const created = await handleCreate(env.DB, config.table, ctePayload, tenantId, config.fieldOverrides);
+          console.log("[API] CTe draft created", { tenantId, id: (created?.data?.id || null), plate: ctePayload.veiculoPlaca || null });
+          return created;
         } catch (e: any) {
           return errorResponse(`Erro ao criar rascunho CTe a partir da NF-e: ${e.message}`, 500);
         }
