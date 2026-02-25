@@ -1025,21 +1025,35 @@ Regras:
           // Efficiency intent: km per liter
           if (intent === "get_efficiency") {
             try {
-              const dateFrom = startDate || "1970-01-01";
+              // prefer explicit startDate, otherwise try context.lastRange, otherwise default to last 30 days
+              let dateFrom: string | null = startDate || null;
               const dateTo = endDate;
               let targetPlate = plateRaw || null;
-              if (!targetPlate) {
-                const convId = body?.conversationId || userId || null;
-                if (convId) {
-                  try {
-                    const convoRow = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
-                    if (convoRow && convoRow.context) {
-                      try {
-                        const ctx = JSON.parse(convoRow.context || "{}");
-                        if (ctx && ctx.lastPlate) targetPlate = String(ctx.lastPlate);
-                      } catch {}
-                    }
-                  } catch {}
+
+              const convId = body?.conversationId || userId || null;
+              if (convId && (!dateFrom || !targetPlate)) {
+                try {
+                  const convoRow = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                  if (convoRow && convoRow.context) {
+                    try {
+                      const ctx = JSON.parse(convoRow.context || "{}");
+                      if (!targetPlate && ctx && ctx.lastPlate) targetPlate = String(ctx.lastPlate);
+                      if (!dateFrom && ctx && ctx.lastRange) {
+                        const lr = ctx.lastRange;
+                        if (lr.from) dateFrom = lr.from;
+                        else if (lr.days) dateFrom = new Date(Date.now() - Number(lr.days) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                      }
+                    } catch {}
+                  }
+                } catch {}
+              }
+
+              // final fallback: if still no dateFrom, use days or default to last 30 days
+              if (!dateFrom) {
+                if (days) {
+                  dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                } else {
+                  dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
                 }
               }
 
