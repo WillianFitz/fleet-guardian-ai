@@ -978,6 +978,13 @@ Regras:
                   parsed.intent = "get_last_expense_vehicle";
                 }
               } catch {}
+              // Heuristic: detect explicit fleet scope (user asked about 'frota')
+              try {
+                const fleetRegex = /\bfrota\b|\bda frota\b|\bminha frota\b|\bfrota inteira\b|\bfrota toda\b/i;
+                if (typeof text === "string" && fleetRegex.test(text)) {
+                  parsed.scope = "fleet";
+                }
+              } catch {}
             // Normalize parsed dates: if parsed.from/to years are far in past, assume current year
             try {
               const nowYear = new Date().getFullYear();
@@ -1021,7 +1028,10 @@ Regras:
           const intent = String(action.intent || "").trim();
           let plateRaw = action.plate || null;
           // If plate not provided, try to recover from conversation context/messages (lastPlate)
-          if (!plateRaw) {
+          // BUT do not use context when the action/text explicitly requests fleet scope
+          const userText = String(body?.userText || "");
+          const isFleetScope = (action?.scope === "fleet") || /\bfrota\b|\bda frota\b|\bminha frota\b|\bfrota inteira\b|\bfrota toda\b/i.test(userText);
+          if (!plateRaw && !isFleetScope) {
             const convId = body?.conversationId || userId || null;
             if (convId) {
               try {
@@ -1031,8 +1041,8 @@ Regras:
                   if (convoRow.context) {
                     try {
                       const ctx = JSON.parse(convoRow.context || "{}");
-                      if (ctx && ctx.lastPlate) {
-                        plateRaw = String(ctx.lastPlate);
+                      if (ctx && (ctx.lastPlate || ctx.last_plate)) {
+                        plateRaw = String(ctx.lastPlate || ctx.last_plate);
                       }
                     } catch {}
                   }
