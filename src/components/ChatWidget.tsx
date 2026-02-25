@@ -48,6 +48,137 @@ const ChatWidget = () => {
         const plate = detectPlate(text);
         const month = detectMonth(lower);
 
+        // First: try LLM parser to produce structured action (brain)
+        let parsedAction: any = null;
+        try {
+          const parserPrompt = `
+You are an intent parser for a fleet management assistant.
+Receive a user's free-text request and output ONLY a JSON object (no explanation) with the following keys:
+{
+  "intent": "<one of: get_metrics, get_expenses, get_expense_summary>",
+  "plate": "<plate or null>",
+  "category": "<fuel|expenses|maintenance|all>",
+  "days": <number|null>, 
+  "from": "<YYYY-MM-DD|null>",
+  "to": "<YYYY-MM-DD|null>",
+  "limit": <number|null>
+}
+Rules:
+- If the user asks for "custos por veículo" or "custos por veículo nos últimos X" -> intent get_metrics
+- If user asks for "gastos" / "despesas" for a specific vehicle or period -> intent get_expenses
+- If user asks for a compact numeric summary (contains "resumo", "apenas o resumo", "mostrar só o resumo") -> intent get_expense_summary
+Return valid JSON only.
+`;
+
+          const parserRes = await fetch(`${WORKER_URL}/api/insights`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              messages: [
+                { role: "system", content: parserPrompt },
+                { role: "user", content: text }
+              ],
+              max_tokens: 200
+            })
+          });
+          if (parserRes && parserRes.ok) {
+            const pj = await parserRes.json();
+            const parsedText = pj?.data?.assistant || pj?.assistant || pj?.raw?.choices?.[0]?.message?.content;
+            if (parsedText) {
+              try {
+                parsedAction = JSON.parse(String(parsedText));
+              } catch {
+                // no-op, fallback to heuristics
+                parsedAction = null;
+              }
+            }
+          }
+        } catch (e) {
+          parsedAction = null;
+        }
+
+        // If parser returned a valid action, orchestrate calls
+        if (parsedAction && parsedAction.intent) {
+          try {
+            const intent = String(parsedAction.intent || "");
+            const plateArg = parsedAction.plate || plate || null;
+            const categoryArg = parsedAction.category || "all";
+            const daysArg = parsedAction.days ? Number(parsedAction.days) : (parsedAction.period_days ? Number(parsedAction.period_days) : null);
+            const fromArg = parsedAction.from || null;
+            const toArg = parsedAction.to || null;
+            const limitArg = parsedAction.limit ? Number(parsedAction.limit) : 500;
+
+            if (intent === "get_metrics") {
+              const pd = daysArg || 90;
+              const res = await fetch(`${WORKER_URL}/api/insights`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ action: "metrics", period_days: pd })
+              });
+              if (!res || !res.ok) throw new Error(await res.text().catch(()=>String(res?.status||"error")));
+              const j = await res.json();
+              const metrics = j?.data?.metrics;
+              if (!metrics) throw new Error("No metrics returned");
+              // ask worker to summarize concisely
+              const sys = "You are a concise assistant. Return a one-line numeric summary and one recommendation.";
+              const userP = `Summarize metrics as one concise line and one recommendation. Data: ${JSON.stringify(metrics)}`;
+              const r2 = await fetch(`${WORKER_URL}/api/insights`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ messages: [{ role: "system", content: sys }, { role: "user", content: userP }], max_tokens: 200 })
+              });
+              const j2 = await r2.json();
+              const reply = j2?.data?.assistant || j2?.assistant || (j2?.raw?.choices?.[0]?.message?.content ?? "Sem resposta.");
+              setMessages((s) => [...s, { role: "assistant", text: String(reply).trim() }]);
+              setLoading(false);
+              return;
+            }
+
+            if (intent === "get_expenses" || intent === "get_expense_summary") {
+              const bodyPayload: any = { action: "expenses", category: categoryArg || "all", limit: limitArg };
+              if (plateArg) bodyPayload.plate = plateArg;
+              if (daysArg) bodyPayload.days = daysArg;
+              if (fromArg) bodyPayload.from = fromArg;
+              if (toArg) bodyPayload.to = toArg;
+              const res = await fetch(`${WORKER_URL}/api/insights`, { method: "POST", headers, body: JSON.stringify(bodyPayload) });
+              if (!res || !res.ok) throw new Error(await res.text().catch(()=>String(res?.status||"error")));
+              const j = await res.json();
+              const recs = j?.data?.records || [];
+              const totals = j?.data?.totals || {};
+              // If user wanted a quick summary, return concise numeric text
+              if (intent === "get_expense_summary") {
+                const totalValue = Number(totals.totalValue || recs.reduce((s:any,r:any)=>s + (Number(r.valor||0)),0));
+                const totalLiters = recs.reduce((s:any,r:any)=>s + (Number(r.litros||0)),0);
+                const totalKm = recs.reduce((s:any,r:any)=>s + ((Number(r.km_atual||0) - Number(r.km_anterior||0)) || 0),0);
+                const parts = [`Total: R$ ${totalValue.toLocaleString("pt-BR")}`];
+                if (totalLiters) parts.push(`${totalLiters} L`);
+                if (totalKm) parts.push(`${totalKm} km`);
+                setMessages((s) => [...s, { role: "assistant", text: parts.join(" • ") }]);
+                setLoading(false);
+                return;
+              }
+              // For full analysis use worker LLM
+              const systemPrompt = "You are a concise analyst. Given these records and totals, produce a short human summary (one numeric line, two sentences conclusion, one recommendation).";
+              const userPrompt = `Records: ${JSON.stringify({ totals, sample: recs.slice(0,50) })}`;
+              const r2 = await fetch(`${WORKER_URL}/api/insights`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], max_tokens: 300 })
+              });
+              const j2 = await r2.json();
+              const analysis = j2?.data?.assistant || j2?.assistant || (j2?.raw?.choices?.[0]?.message?.content ?? null);
+              if (analysis) setMessages((s) => [...s, { role: "assistant", text: String(analysis).trim() }]);
+              else setMessages((s) => [...s, { role: "assistant", text: `Total: R$ ${Number(totals.totalValue||0).toLocaleString("pt-BR")} • Registros: ${totals.count||recs.length}` }]);
+              setLoading(false);
+              return;
+            }
+          } catch (err:any) {
+            setMessages((s) => [...s, { role: "assistant", text: `Erro ao executar ação: ${String(err.message || err)}` }]);
+            setLoading(false);
+            return;
+          }
+        }
+
         // If user asked "quantos veiculos" or similar, call metrics
         if (/quantos\s+veicul|quantos\s+veículos|quantos\s+motoristas|meu(s)?\s+veículo(s)?|custos\s+por\s+veículo|custos\s+por\s+veiculo|custos por veículo|custos por veiculo|custos\s+por\s+veiculos?/i.test(text)) {
           // Determine period_days if present (e.g., "3 meses" => 90 days)

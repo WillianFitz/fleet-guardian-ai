@@ -823,6 +823,147 @@ export default {
         }
       }
 
+      // ===== AGENT: parse user text into action =====
+      if (path === "/api/agent/parse" && request.method === "POST") {
+        try {
+          const body = await request.json().catch(() => ({}));
+          const text = String(body?.text || "");
+          if (!text) return errorResponse("text is required", 400);
+          const openaiKey = env.OPENAI_API_KEY;
+          if (!openaiKey) return errorResponse("OPENAI_API_KEY não configurada no Worker.", 503);
+
+          const parserPrompt = `
+You are an intent parser for a fleet management assistant.
+Receive a user's free-text request and output ONLY a JSON object (no explanation) with the following keys:
+{
+  "intent": "<one of: get_metrics, get_expenses, get_expense_summary>",
+  "plate": "<plate or null>",
+  "category": "<fuel|expenses|maintenance|all>",
+  "days": <number|null>, 
+  "from": "<YYYY-MM-DD|null>",
+  "to": "<YYYY-MM-DD|null>",
+  "limit": <number|null>
+}
+Return valid JSON only.
+`;
+
+          const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+            body: JSON.stringify({
+              model: env.OPENAI_MODEL || "gpt-4o-mini",
+              messages: [{ role: "system", content: parserPrompt }, { role: "user", content: text }],
+              max_tokens: 200,
+            }),
+          });
+          const oaJson = await oaResp.json();
+          if (!oaResp.ok) return jsonResponse({ error: "OpenAI error", details: oaJson }, oaResp.status);
+          const parsedText = oaJson?.choices?.[0]?.message?.content || "";
+          // try parse JSON
+          try {
+            const parsed = JSON.parse(parsedText);
+            return jsonResponse({ data: parsed });
+          } catch {
+            return jsonResponse({ data: { raw: parsedText } });
+          }
+        } catch (e: any) {
+          return errorResponse(`Erro no parse: ${e?.message || String(e)}`, 500);
+        }
+      }
+
+      // ===== AGENT: execute parsed action =====
+      if (path === "/api/agent/execute" && request.method === "POST") {
+        try {
+          const body = await request.json().catch(() => ({}));
+          const action = body?.action || {};
+          const { tenantId } = await getTenantForRequest(request, env);
+          const openaiKey = env.OPENAI_API_KEY;
+          // Validate
+          const intent = String(action.intent || "").trim();
+          const plateRaw = action.plate || null;
+          const category = action.category || "all";
+          const days = action.days ? Number(action.days) : null;
+          const from = action.from || null;
+          const to = action.to || null;
+          // compute date range
+          const endDate = to || new Date().toISOString().split("T")[0];
+          const startDate = from || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : null);
+
+          // Implement two intents: get_metrics and get_expenses/get_expense_summary
+          if (intent === "get_metrics") {
+            // reuse metrics building logic (simplified)
+            const expRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM expenses WHERE tenant_id = ?").bind(tenantId).first();
+            const fuelRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM fuel_entries WHERE tenant_id = ?").bind(tenantId).first();
+            const manRow = await env.DB.prepare("SELECT SUM(CAST(custo as REAL)) as total FROM maintenance_orders WHERE tenant_id = ?").bind(tenantId).first();
+            const totalExpenses = Number(expRow?.total || 0);
+            const totalFuel = Number(fuelRow?.total || 0);
+            const totalMaint = Number(manRow?.total || 0);
+            // per-vehicle fuel
+            const byVehicleRes = await env.DB.prepare("SELECT veiculo_placa, SUM(litros) as litros, SUM(valor) as valor, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) >= date(?) AND date(data) <= date(?) GROUP BY veiculo_placa").bind(tenantId, startDate || "1970-01-01", endDate).all();
+            const byVehicle = (byVehicleRes.results || []).map((r:any)=>({ plate: r.veiculo_placa, liters: Number(r.litros||0), value: Number(r.valor||0), km: Number(r.km||0)}));
+            const metrics = { totalExpenses, totalFuel, totalMaint, byVehicle };
+            // generate concise human summary via OpenAI if available
+            if (openaiKey) {
+              const sys = "You are concise. Produce one-line numeric summary and one recommendation.";
+              const user = `Metrics: ${JSON.stringify(metrics)}`;
+              const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: { "Content-Type":"application/json", Authorization: `Bearer ${openaiKey}` },
+                body: JSON.stringify({ model: env.OPENAI_MODEL || "gpt-4o-mini", messages: [{role:"system", content: sys},{role:"user", content: user}], max_tokens:200 })
+              });
+              const oaJson = await oaResp.json().catch(()=>null);
+              const assistant = oaJson?.choices?.[0]?.message?.content || null;
+              return jsonResponse({ data: { metrics, assistant } });
+            }
+            return jsonResponse({ data: { metrics } });
+          }
+
+          if (intent === "get_expenses" || intent === "get_expense_summary") {
+            // build SQL filters
+            const paramsFrom = startDate || "1970-01-01";
+            const paramsTo = endDate;
+            const results: any[] = [];
+            // fetch categories as in previous code
+            if (category === "fuel" || category === "all") {
+              const r = await env.DB.prepare("SELECT id, veiculo_placa, motorista, litros, valor, km_atual, km_anterior, posto, data FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000").bind(tenantId, paramsFrom, paramsTo).all();
+              (r.results || []).forEach((row:any)=>results.push({ ...row, _type:"fuel" }));
+            }
+            if ((category === "expenses" || category === "all")) {
+              const r = await env.DB.prepare("SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000").bind(tenantId, paramsFrom, paramsTo).all();
+              (r.results || []).forEach((row:any)=>results.push({ ...row, _type:"expense" }));
+            }
+            if ((category === "maintenance" || category === "all")) {
+              const r = await env.DB.prepare("SELECT id, numero, veiculo_placa, custo as valor, data, tipo, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000").bind(tenantId, paramsFrom, paramsTo).all();
+              (r.results || []).forEach((row:any)=>results.push({ ...row, _type:"maintenance" }));
+            }
+            const totalValue = results.reduce((s:any,r:any)=>s + Number(r.valor||0),0);
+            const totals = { count: results.length, totalValue };
+            // If summary intent, return concise text or numeric
+            if (intent === "get_expense_summary") {
+              return jsonResponse({ data: { totals } });
+            }
+            // Otherwise generate analysis via OpenAI if key present
+            if (openaiKey) {
+              const sys = "You are a concise analyst. Summarize these records in one numeric line and two short sentences with one recommendation.";
+              const user = `Totals: ${JSON.stringify(totals)} Samples: ${JSON.stringify(results.slice(0,50))}`;
+              const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
+                method: "POST",
+                headers: { "Content-Type":"application/json", Authorization: `Bearer ${openaiKey}` },
+                body: JSON.stringify({ model: env.OPENAI_MODEL || "gpt-4o-mini", messages: [{role:"system", content: sys},{role:"user", content: user}], max_tokens:400 })
+              });
+              const oaJson = await oaResp.json().catch(()=>null);
+              const assistant = oaJson?.choices?.[0]?.message?.content || null;
+              return jsonResponse({ data: { totals, records: results.slice(0,100), assistant } });
+            }
+            return jsonResponse({ data: { totals, records: results.slice(0,100) } });
+          }
+
+          return errorResponse("Intent not supported", 400);
+        } catch (e:any) {
+          return errorResponse(`Error executing agent action: ${String(e?.message||e)}`, 500);
+        }
+      }
+
       // Setup default tenant (modo legado - pode ser removido depois)
       if (path === "/api/setup" && request.method === "POST") {
         const tenantId = await getOrCreateTenant(env.DB);
