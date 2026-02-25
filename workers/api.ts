@@ -1203,8 +1203,11 @@ Regras:
 
           if (intent === "get_field") {
             try {
-              const field = String(action.field || "").toLowerCase();
-              if (!field) return errorResponse("Campo 'field' é obrigatório para get_field", 400);
+              const rawField = String(action.field || "").toLowerCase();
+              if (!rawField) return errorResponse("Campo 'field' é obrigatório para get_field", 400);
+              const field = rawField.replace(/\s+/g, "_");
+
+              // common simple fields
               if (field === "vehicles_count" || field === "total_vehicles") {
                 const r = await env.DB.prepare("SELECT COUNT(1) as total FROM vehicles WHERE tenant_id = ?").bind(tenantId).first();
                 const total = Number(r?.total || 0);
@@ -1225,6 +1228,47 @@ Regras:
                 const total = Number(r?.total || 0);
                 return jsonResponse({ data: { field, value: total, text: `Total despesas: R$ ${total.toLocaleString("pt-BR")}` } });
               }
+
+              // km per liter requests (map common variants)
+              const kmVariants = ["km/l", "kml", "km_l", "kmperlitro", "km_per_litro", "quilometros_por_litro", "quilometro_por_litro", "quilometrosporlitro"];
+              if (kmVariants.includes(field) || kmVariants.some(v => rawField.includes(v))) {
+                // delegate to efficiency computation
+                const dateFrom = startDate || (action.from || null) || null;
+                const dateTo = endDate;
+                let targetPlate = action.plate || null;
+                const convId = body?.conversationId || null;
+                if (!targetPlate && convId) {
+                  try {
+                    const convoRow = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                    if (convoRow && convoRow.context) {
+                      try {
+                        const ctx = JSON.parse(convoRow.context || "{}");
+                        if (ctx && ctx.lastPlate) targetPlate = String(ctx.lastPlate);
+                        if (!dateFrom && ctx && ctx.lastRange && ctx.lastRange.from) {
+                          // use lastRange.from if available
+                        }
+                      } catch {}
+                    }
+                  } catch {}
+                }
+                const fromDate = dateFrom || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
+                if (targetPlate) {
+                  const r = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as total_km FROM fuel_entries WHERE tenant_id = ? AND veiculo_placa = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, targetPlate, fromDate, dateTo).first();
+                  const totalLiters = Number(r?.total_litros || 0);
+                  const totalKm = Number(r?.total_km || 0);
+                  const kmPerL = totalLiters > 0 ? totalKm / totalLiters : null;
+                  const text = totalLiters > 0 ? `Eficiência do ${targetPlate}: ${kmPerL?.toFixed(2)} km/L — ${totalKm} km, ${totalLiters} L entre ${fromDate} e ${dateTo}.` : `Sem registros de combustível para ${targetPlate} no período ${fromDate} → ${dateTo}.`;
+                  return jsonResponse({ data: { field: "km/l", plate: targetPlate, totalKm, totalLiters, kmPerL, text } });
+                } else {
+                  const r = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as total_km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, fromDate, dateTo).first();
+                  const totalLiters = Number(r?.total_litros || 0);
+                  const totalKm = Number(r?.total_km || 0);
+                  const kmPerL = totalLiters > 0 ? totalKm / totalLiters : null;
+                  const text = totalLiters > 0 ? `Eficiência média frota: ${kmPerL?.toFixed(2)} km/L — ${totalKm} km, ${totalLiters} L entre ${fromDate} e ${dateTo}.` : `Sem registros de combustível no período ${fromDate} → ${dateTo}.`;
+                  return jsonResponse({ data: { field: "km/l", totalKm, totalLiters, kmPerL, text } });
+                }
+              }
+
               return errorResponse("Campo não mapeado para get_field", 400);
             } catch (e:any) {
               return errorResponse(`Erro get_field: ${String(e?.message||e)}`, 500);
