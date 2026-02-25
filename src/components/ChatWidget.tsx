@@ -18,6 +18,8 @@ const ChatWidget = () => {
       setMessages((s) => [...s, { role: "user", text }]);
       setInput("");
       setLoading(true);
+      // shared response variable used by multiple branches and fallback handlers
+      let res: any = null;
       try {
         const headers: Record<string,string> = { "Content-Type": "application/json" };
         const token = localStorage.getItem("fleet_auth_token");
