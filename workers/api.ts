@@ -842,6 +842,105 @@ export default {
         }
       }
 
+      // ===== AGENT: prefetch memory =====
+      if (path === "/api/agent/prefetch" && request.method === "POST") {
+        try {
+          const b = await request.json().catch(() => ({}));
+          const convId = b?.conversationId || null;
+          if (!convId) return jsonResponse({ error: "conversationId required" }, 400);
+          const period = b?.period || {};
+          const tables = Array.isArray(b?.tables) ? b.tables : ["vehicles","drivers","fuel_entries","expenses","maintenance_orders"];
+          const { tenantId } = await getTenantForRequest(request, env);
+          // resolve date range
+          const now = new Date();
+          const to = (period.to) || now.toISOString().split("T")[0];
+          let from = period.from || null;
+          if (!from) {
+            if (period.days) {
+              from = new Date(Date.now() - Number(period.days) * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+            } else {
+              from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+            }
+          }
+
+          const memory: any = { fetchedAt: new Date().toISOString(), range: { from, to } };
+
+          // vehicles sample
+          if (tables.includes("vehicles")) {
+            const v = await env.DB.prepare("SELECT id, placa, modelo, status FROM vehicles WHERE tenant_id = ?").bind(tenantId).all();
+            memory.vehicles = (v.results || []).slice(0,100);
+          }
+          // drivers sample
+          if (tables.includes("drivers")) {
+            const d = await env.DB.prepare("SELECT id, nome, cpf, status FROM drivers WHERE tenant_id = ?").bind(tenantId).all();
+            memory.drivers = (d.results || []).slice(0,100);
+          }
+          // fuel aggregates
+          if (tables.includes("fuel_entries")) {
+            const totals = await env.DB.prepare("SELECT SUM(litros) as total_litros, SUM(valor) as total_valor FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, from, to).first();
+            const byVehicle = await env.DB.prepare("SELECT veiculo_placa, SUM(litros) as litros, SUM(valor) as valor, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, from, to).all();
+            memory.fuel = { totals: { totalLiters: Number(totals?.total_litros||0), totalValue: Number(totals?.total_valor||0) }, byVehicle: (byVehicle.results||[]).slice(0,200) };
+          }
+          // expenses sample
+          if (tables.includes("expenses")) {
+            const e = await env.DB.prepare("SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 500").bind(tenantId, from, to).all();
+            memory.expenses = (e.results || []).slice(0,200);
+          }
+          // maintenance sample
+          if (tables.includes("maintenance_orders")) {
+            const m = await env.DB.prepare("SELECT id, numero, veiculo_placa, custo as valor, data, tipo, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
+            memory.maintenance = (m.results || []).slice(0,200);
+          }
+
+          // persist into agent_conversations.context
+          try {
+            const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+            let msgs: any[] = [];
+            if (existing && existing.messages) {
+              try { msgs = JSON.parse(existing.messages); } catch {}
+            }
+            msgs.push({ role: "assistant", text: `Memória salva (${new Date().toISOString()})`, ts: new Date().toISOString() });
+            const ctxPrev = existing && existing.context ? (()=>{ try { return JSON.parse(existing.context); } catch { return {}; } })() : {};
+            ctxPrev.memory = memory;
+            const ctxJson = JSON.stringify(ctxPrev);
+            const msgsJson = JSON.stringify(msgs);
+            if (existing) {
+              await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+            } else {
+              const id = crypto.randomUUID().replace(/-/g,"");
+              await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+            }
+          } catch (e:any) {
+            console.error("Failed to persist memory:", e);
+          }
+
+          return jsonResponse({ data: { memory }});
+        } catch (e:any) {
+          return errorResponse(`Erro no prefetch: ${String(e?.message||e)}`, 500);
+        }
+      }
+
+      // ===== AGENT: clear memory (conversation) =====
+      if (path === "/api/agent/clear-memory" && request.method === "POST") {
+        try {
+          const b = await request.json().catch(()=>({}));
+          const convId = b?.conversationId || null;
+          if (!convId) return jsonResponse({ error: "conversationId required" }, 400);
+          const { tenantId } = await getTenantForRequest(request, env);
+          const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+          if (!existing) return jsonResponse({ error: "not found" }, 404);
+          let ctx: any = {};
+          try { ctx = existing.context ? JSON.parse(existing.context) : {}; } catch {}
+          delete ctx.memory;
+          delete ctx.lastRecords;
+          const ctxJson = JSON.stringify(ctx);
+          await env.DB.prepare("UPDATE agent_conversations SET context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(ctxJson, new Date().toISOString(), tenantId, convId).run();
+          return jsonResponse({ data: { cleared: true }});
+        } catch (e:any) {
+          return errorResponse(`Erro clear memory: ${String(e?.message||e)}`, 500);
+        }
+      }
+
           const oaResp = await fetch("https://api.openai.com/v1/chat/completions", {
             method: "POST",
             headers: {
@@ -1081,12 +1180,76 @@ Regras:
           const endDate = to || new Date().toISOString().split("T")[0];
           const startDate = from || (days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0] : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
 
+          // New: attempt to use saved memory (if present) for faster deterministic responses
+          const convIdForMem = body?.conversationId || userId || null;
+          let convoContextMemory: any = null;
+          if (convIdForMem) {
+            try {
+              const convoRowMem = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convIdForMem).first();
+              if (convoRowMem && convoRowMem.context) {
+                try {
+                  const parsedCtx = JSON.parse(convoRowMem.context || "{}");
+                  if (parsedCtx && parsedCtx.memory) convoContextMemory = parsedCtx.memory;
+                } catch {}
+              }
+            } catch {}
+          }
+
+          // If memory exists and covers requested range, we can answer certain intents without hitting full DB
+          const intentCanUseMemory = ["get_fuel_total","get_efficiency","get_km","get_expense_details","get_metrics"];
+          const memoryCoversRange = (mem:any, fromDate:string, toDate:string) => {
+            if (!mem || !mem.range) return false;
+            try {
+              return (String(mem.range.from) <= String(fromDate)) && (String(mem.range.to) >= String(toDate));
+            } catch { return false; }
+          };
+
           // New: handle more specific intents (get_km, get_vehicles, get_drivers, get_expense_details, get_fuel_total, get_maintenance_total, get_field)
           // All handlers return deterministic Portuguese responses (when text is included) and JSON.
           if (intent === "get_km") {
             try {
               const dateFrom = startDate;
               const dateTo = endDate;
+              // Try using cached memory if available and allowed
+              if (convoContextMemory && memoryCoversRange(convoContextMemory, dateFrom, dateTo) && intentCanUseMemory.includes(intent) && body?.useMemory !== false) {
+                const memByVehicle = (convoContextMemory.fuel && Array.isArray(convoContextMemory.fuel.byVehicle)) ? convoContextMemory.fuel.byVehicle : [];
+                if (plateRaw) {
+                  const norm = String(plateRaw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                  const found = memByVehicle.find((r:any)=>{
+                    const rPlate = String(r.veiculo_placa || r.plate || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                    return rPlate.includes(norm);
+                  });
+                  const plateKm = Number(found?.km || 0);
+                  const text = `O caminhão ${plateRaw} rodou ${plateKm.toLocaleString("pt-BR")} km entre ${dateFrom} e ${dateTo}.`;
+                  // persist context
+                  try {
+                    const convId = body?.conversationId || userId || null;
+                    if (convId) {
+                      const existing = await env.DB.prepare("SELECT context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                      let ctx: any = {};
+                      if (existing && existing.context) {
+                        try { ctx = JSON.parse(existing.context); } catch {}
+                      }
+                      ctx.lastPlate = plateRaw;
+                      ctx.lastRange = { from: dateFrom, to: dateTo, days: days || null };
+                      const ctxJson = JSON.stringify(ctx);
+                      if (existing) {
+                        await env.DB.prepare("UPDATE agent_conversations SET context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(ctxJson, new Date().toISOString(), tenantId, convId).run();
+                      } else {
+                        const id = crypto.randomUUID().replace(/-/g, "");
+                        await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, JSON.stringify([]), ctxJson, new Date().toISOString()).run();
+                      }
+                    }
+                  } catch {}
+                  return jsonResponse({ data: { plate: plateRaw, km: plateKm, text, source: "memory" } });
+                } else {
+                  const byVehicle = memByVehicle.map((r:any)=>({ plate: r.veiculo_placa || r.plate, km: Number(r.km||0) }));
+                  const text = `KM por veículo entre ${dateFrom} e ${dateTo}.`;
+                  return jsonResponse({ data: { byVehicle, text, source: "memory" } });
+                }
+              }
+
+              // fallback to DB when no memory or memory not covering range
               const res = await env.DB.prepare("SELECT veiculo_placa, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, dateFrom, dateTo).all();
               const rows = res.results || [];
               let plateKm = null;
@@ -1162,6 +1325,29 @@ Regras:
                   dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
                 } else {
                   dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                }
+              }
+
+              // Try memory first when available
+              if (convoContextMemory && memoryCoversRange(convoContextMemory, dateFrom, dateTo) && intentCanUseMemory.includes(intent) && body?.useMemory !== false) {
+                const memFuel = convoContextMemory.fuel || {};
+                if (targetPlate) {
+                  const found = (memFuel.byVehicle || []).find((r:any)=>{
+                    const rPlate = String(r.veiculo_placa || r.plate || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                    const norm = String(targetPlate || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                    return rPlate.includes(norm);
+                  });
+                  const totalLiters = Number(found?.litros || found?.total_liters || 0);
+                  const totalKm = Number(found?.km || 0);
+                  const kmPerL = totalLiters > 0 ? totalKm / totalLiters : null;
+                  const text = totalLiters > 0 ? `Eficiência do ${targetPlate}: ${kmPerL?.toFixed(2)} km/L — ${totalKm} km, ${totalLiters} L entre ${dateFrom} e ${dateTo}.` : `Sem registros de combustível para ${targetPlate} no período ${dateFrom} → ${dateTo}.`;
+                  return jsonResponse({ data: { plate: targetPlate, totalKm, totalLiters, kmPerL, text, source: "memory" } });
+                } else {
+                  const totalLiters = Number((memFuel.totals && memFuel.totals.totalLiters) || 0);
+                  const totalKm = Number((memFuel.byVehicle || []).reduce((s:any,r:any)=>s + Number(r.km||0),0));
+                  const kmPerL = totalLiters > 0 ? totalKm / totalLiters : null;
+                  const text = totalLiters > 0 ? `Eficiência média frota: ${kmPerL?.toFixed(2)} km/L — ${totalKm} km, ${totalLiters} L entre ${dateFrom} e ${dateTo}.` : `Sem registros de combustível no período ${dateFrom} → ${dateTo}.`;
+                  return jsonResponse({ data: { totalKm, totalLiters, kmPerL, text, source: "memory" } });
                 }
               }
 
@@ -1293,6 +1479,55 @@ Regras:
             try {
               const dateFrom = startDate;
               const dateTo = endDate;
+              // Try memory first
+              if (convoContextMemory && memoryCoversRange(convoContextMemory, dateFrom, dateTo) && intentCanUseMemory.includes(intent) && body?.useMemory !== false) {
+                const memFuel = convoContextMemory.fuel || {};
+                if (plateRaw) {
+                  const norm = String(plateRaw || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                  const found = (memFuel.byVehicle || []).find((r:any)=>{
+                    const rPlate = String(r.veiculo_placa || r.plate || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                    return rPlate.includes(norm);
+                  });
+                  const totalLiters = Number(found?.litros || found?.total_liters || 0);
+                  const totalValue = Number(found?.valor || found?.total_valor || 0);
+                  const text = `Total de combustível: ${totalLiters} L (R$ ${totalValue.toLocaleString("pt-BR")}) entre ${dateFrom} e ${dateTo}.`;
+                  // persist context
+                  try {
+                    const convId = body?.conversationId || userId || null;
+                    if (convId) {
+                      const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                      let msgs: any[] = [];
+                      if (existing && existing.messages) {
+                        try { msgs = JSON.parse(existing.messages); } catch {}
+                      }
+                      const userText = body?.userText || null;
+                      if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
+                      msgs.push({ role: "assistant", text: text, ts: new Date().toISOString() });
+                      const msgsJson = JSON.stringify(msgs);
+                      let ctx: any = {};
+                      if (existing && existing.context) {
+                        try { ctx = JSON.parse(existing.context); } catch {}
+                      }
+                      ctx.lastPlate = plateRaw || ctx.lastPlate || null;
+                      ctx.lastRange = { from: dateFrom, to: dateTo, days: days || null };
+                      const ctxJson = JSON.stringify(ctx);
+                      if (existing) {
+                        await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+                      } else {
+                        const id = crypto.randomUUID().replace(/-/g, "");
+                        await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+                      }
+                    }
+                  } catch {}
+                  return jsonResponse({ data: { totalLiters, totalValue, text, source: "memory" } });
+                } else {
+                  const totalLiters = Number((memFuel.totals && memFuel.totals.totalLiters) || 0);
+                  const totalValue = Number((memFuel.totals && memFuel.totals.totalValue) || 0);
+                  const text = `Total de combustível: ${totalLiters} L (R$ ${totalValue.toLocaleString("pt-BR")}) entre ${dateFrom} e ${dateTo}.`;
+                  return jsonResponse({ data: { totalLiters, totalValue, text, source: "memory" } });
+                }
+              }
+
               let res;
               if (plateRaw) {
                 // normalize plate comparison (ignore hyphens/case)
@@ -1356,6 +1591,53 @@ Regras:
             try {
               const dateFrom = startDate;
               const dateTo = endDate;
+              // Try memory first
+              if (convoContextMemory && memoryCoversRange(convoContextMemory, dateFrom, dateTo) && intentCanUseMemory.includes(intent) && body?.useMemory !== false) {
+                const memExpenses = Array.isArray(convoContextMemory.expenses) ? convoContextMemory.expenses : [];
+                let rows = memExpenses.slice(0,1000);
+                if (plateRaw) {
+                  const norm = String(plateRaw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+                  rows = rows.filter((row:any)=>{
+                    const rPlate = String(row.veiculo_placa || "").toUpperCase().replace(/[^A-Z0-9]/g,"");
+                    return rPlate.includes(norm);
+                  });
+                }
+                const totalValue = rows.reduce((s:any,r:any)=>s + Number(r.valor||0),0);
+                const text = `Encontrados ${rows.length} registros de despesa (R$ ${totalValue.toLocaleString("pt-BR")}).`;
+                // persist lastRecords
+                try {
+                  const convId = body?.conversationId || userId || null;
+                  if (convId) {
+                    const existing = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+                    let msgs: any[] = [];
+                    if (existing && existing.messages) {
+                      try { msgs = JSON.parse(existing.messages); } catch {}
+                    }
+                    const userText = body?.userText || null;
+                    if (userText) msgs.push({ role: "user", text: String(userText), ts: new Date().toISOString() });
+                    msgs.push({ role: "assistant", text: text, ts: new Date().toISOString() });
+                    const msgsJson = JSON.stringify(msgs);
+                    let ctx: any = {};
+                    if (existing && existing.context) {
+                      try { ctx = JSON.parse(existing.context); } catch {}
+                    }
+                    ctx.lastRecords = (rows || []).slice(0,10).map((r:any)=>({
+                      id: r.id, veiculo_placa: r.veiculo_placa, descricao: r.descricao, valor: r.valor, data: r.data, fornecedor: r.fornecedor, nota_fiscal: r.nota_fiscal
+                    }));
+                    const ctxJson = JSON.stringify(ctx);
+                    if (existing) {
+                      await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+                    } else {
+                      const id = crypto.randomUUID().replace(/-/g, "");
+                      await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+                    }
+                  }
+                } catch (err:any) {
+                  console.error("[API] failed to persist lastRecords (memory):", String(err?.message||err));
+                }
+                return jsonResponse({ data: { count: rows.length, totalValue, records: rows, text, source: "memory" } });
+              }
+
               const params: any[] = [tenantId, dateFrom, dateTo];
               let sql = "SELECT id, veiculo_placa, descricao, valor, data, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 1000";
               const r = await env.DB.prepare(sql).bind(...params).all();
@@ -1484,6 +1766,17 @@ Regras:
 
           // Implement two intents: get_metrics and get_expenses/get_expense_summary
           if (intent === "get_metrics") {
+            // Try to serve from memory when available and allowed
+            if (convoContextMemory && memoryCoversRange(convoContextMemory, startDate, endDate) && body?.useMemory !== false) {
+              const mem = convoContextMemory;
+              const totalExpenses = Number((mem.expenses || []).reduce((s:any,r:any)=>s + Number(r.valor||0),0));
+              const totalFuel = Number((mem.fuel && mem.fuel.totals && mem.fuel.totals.totalValue) || 0);
+              const totalMaint = Number((mem.maintenance || []).reduce((s:any,r:any)=>s + Number(r.valor||r.custo||0),0));
+              const byVehicle = (mem.fuel && Array.isArray(mem.fuel.byVehicle)) ? mem.fuel.byVehicle.map((r:any)=>({ plate: r.veiculo_placa || r.plate, liters: Number(r.litros||0), value: Number(r.valor||0), km: Number(r.km||0)})) : [];
+              const metrics = { totalExpenses, totalFuel, totalMaint, byVehicle };
+              if (strict) return jsonResponse({ data: { metrics, source: "memory" } });
+              // non-strict: allow OpenAI summary (same as existing behavior)
+            }
             // reuse metrics building logic (simplified)
             const expRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM expenses WHERE tenant_id = ?").bind(tenantId).first();
             const fuelRow = await env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM fuel_entries WHERE tenant_id = ?").bind(tenantId).first();

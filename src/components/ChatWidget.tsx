@@ -8,8 +8,45 @@ const ChatWidget = () => {
   const [minimized, setMinimized] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [saveMemory, setSaveMemory] = useState(false);
+  const [memoryAvailable, setMemoryAvailable] = useState(false);
+  const [prefetchLoading, setPrefetchLoading] = useState(false);
   const [messages, setMessages] = useState<Array<{ role: "user" | "assistant"; text: string }>>([]);
   const boxRef = useRef<HTMLDivElement | null>(null);
+
+  const ensureConversationId = () => {
+    let convId = localStorage.getItem("agent_conversation_id");
+    if (!convId) {
+      try { convId = crypto.randomUUID().replace(/-/g,""); } catch { convId = String(Date.now()); }
+      localStorage.setItem("agent_conversation_id", convId);
+    }
+    return convId;
+  };
+
+  // check memory availability when opening the widget
+  useEffect(() => {
+    if (!open) return;
+    const convId = ensureConversationId();
+    (async () => {
+      try {
+        const token = localStorage.getItem("fleet_auth_token");
+        const tenantId = localStorage.getItem("fleet_tenant_id");
+        const headers: Record<string,string> = { "Content-Type": "application/json" };
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+        if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
+        const res = await fetch(`${WORKER_URL}/api/agent/debug`, { method: "POST", headers, body: JSON.stringify({ conversationId: convId }) });
+        if (res && res.ok) {
+          const j = await res.json();
+          const ctx = j?.data?.context || {};
+          setMemoryAvailable(Boolean(ctx && ctx.memory));
+        } else {
+          setMemoryAvailable(false);
+        }
+      } catch {
+        setMemoryAvailable(false);
+      }
+    })();
+  }, [open]);
 
   const send = useCallback(
     async (prompt?: string) => {
@@ -47,7 +84,7 @@ const ChatWidget = () => {
             const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
               method: "POST",
               headers,
-              body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true })
+              body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true, useMemory: saveMemory })
             });
             if (!execRes || !execRes.ok) {
               const txt = execRes ? await execRes.text().catch(()=>"") : "";
@@ -58,6 +95,9 @@ const ChatWidget = () => {
             }
             const ej = await execRes.json().catch((e)=>{ console.error("agent/execute json parse error (efficiency)", e); return null; });
             const assistantText = ej?.data?.text || (ej?.data ? JSON.stringify(ej.data) : null) || "Sem resposta.";
+            if (ej?.data?.source === "memory") {
+              setMessages((s) => [...s, { role: "assistant", text: "(Usando dados salvos na memória)" }]);
+            }
             setMessages((s) => [...s, { role: "assistant", text: String(assistantText).trim() }]);
             setLoading(false);
             return;
@@ -88,7 +128,7 @@ const ChatWidget = () => {
               const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
                 method: "POST",
                 headers,
-                body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true })
+                  body: JSON.stringify({ action, userText: text, conversationId: convId, strict: true, useMemory: saveMemory })
               });
               if (execRes && !execRes.ok) {
                 const txt = await execRes.text().catch(() => "");
@@ -97,6 +137,9 @@ const ChatWidget = () => {
               if (execRes && execRes.ok) {
                 const ej = await execRes.json().catch((e)=>{ console.error("agent/execute json parse error", e); return null; });
                 const data = ej?.data || ej;
+                    if (data?.source === "memory") {
+                      setMessages((s) => [...s, { role: "assistant", text: "(Usando dados salvos na memória)" }]);
+                    }
                 // If this was an expense-details request, prefer showing the first record's fields only
                 try {
                   if ((action?.intent === "get_expense_details" || action?.intent === "get_expense_summary") && data?.records && data.records.length > 0) {
@@ -356,7 +399,7 @@ Retorne somente JSON válido.
             const execRes = await fetch(`${WORKER_URL}/api/agent/execute`, {
               method: "POST",
               headers,
-              body: JSON.stringify({ action: fallbackAction, userText: text, conversationId: convId, strict: true }),
+              body: JSON.stringify({ action: fallbackAction, userText: text, conversationId: convId, strict: true, useMemory: saveMemory }),
             });
             if (!execRes || !execRes.ok) {
               const txt = execRes ? await execRes.text().catch(() => "") : "";
@@ -367,6 +410,9 @@ Retorne somente JSON válido.
             }
             const ej = await execRes.json().catch((e)=>{ console.error("fallback exec json parse error", e); return null; });
             const data = ej?.data || ej;
+            if (data?.source === "memory") {
+              setMessages((s) => [...s, { role: "assistant", text: "(Usando dados salvos na memória)" }]);
+            }
             // show only the minimal data field according to intent
             if (data) {
               if (data.text) {
@@ -759,6 +805,38 @@ ${JSON.stringify({ params, totals, sample })}`;
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <input type="checkbox" checked={saveMemory} onChange={(e)=>setSaveMemory(e.target.checked)} className="w-4 h-4" />
+                    <span>Salvar contexto</span>
+                  </label>
+                  <button
+                    onClick={async () => {
+                      const convId = ensureConversationId();
+                      setPrefetchLoading(true);
+                      try {
+                        const token = localStorage.getItem("fleet_auth_token");
+                        const tenantId = localStorage.getItem("fleet_tenant_id");
+                        const headers: Record<string,string> = { "Content-Type":"application/json" };
+                        if (token) headers["Authorization"] = `Bearer ${token}`;
+                        if (!token && tenantId) headers["X-Tenant-Id"] = tenantId;
+                        const res = await fetch(`${WORKER_URL}/api/agent/prefetch`, { method: "POST", headers, body: JSON.stringify({ conversationId: convId, period: { days: 90 } }) });
+                        if (res && res.ok) {
+                          setMessages((s) => [...s, { role: "assistant", text: "Memória salva com sucesso." }]);
+                          setMemoryAvailable(true);
+                        } else {
+                          const txt = res ? await res.text().catch(()=>"") : "";
+                          setMessages((s) => [...s, { role: "assistant", text: `Falha ao salvar memória: ${txt || res?.status}` }]);
+                        }
+                      } catch (err:any) {
+                        setMessages((s) => [...s, { role: "assistant", text: `Erro ao salvar memória: ${String(err?.message||err)}` }]);
+                      } finally {
+                        setPrefetchLoading(false);
+                      }
+                    }}
+                    className="px-2 py-1 text-xs rounded-md bg-card/80 border border-border shadow-sm text-foreground"
+                  >
+                    {prefetchLoading ? "..." : "Salvar agora"}
+                  </button>
                   <button onClick={() => setMinimized(true)} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Minimizar</button>
                   <button onClick={() => { setOpen(false); setMinimized(false); }} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Fechar</button>
                 </div>
