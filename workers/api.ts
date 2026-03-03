@@ -7,6 +7,7 @@ interface Env {
   CTE_API_URL?: string; // URL do backend PHP SPED-CTe (ex: https://sua-api-cte.com)
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
+  MEMORY_TTL_SECONDS?: string;
 }
 
 // ===== UTILS =====
@@ -966,6 +967,363 @@ export default {
           return jsonResponse({ data: { assistant: assistantMessage, raw: oaJson, dataSummary, metrics } });
         } catch (e: any) {
           return errorResponse(`Erro ao processar insights: ${e?.message || String(e)}`, 500);
+        }
+      }
+
+      // ===== AGENT: Function Calling Chat (new architecture) =====
+      if (path === "/api/agent/chat" && request.method === "POST") {
+        try {
+          const body = await request.json().catch(() => ({}));
+          const userMessage = String(body?.message || "").trim();
+          if (!userMessage) return jsonResponse({ error: "message is required" }, 400);
+          const openaiKey = env.OPENAI_API_KEY;
+          if (!openaiKey) return errorResponse("OPENAI_API_KEY não configurada no Worker.", 503);
+          const { tenantId } = await getTenantForRequest(request, env);
+          const convId = String(body?.conversationId || "default");
+          const model = env.OPENAI_MODEL || "gpt-4o-mini";
+
+          // load conversation history (last 20 messages to stay within context)
+          let storedMsgs: any[] = [];
+          let storedCtx: any = {};
+          const convoRow = await env.DB.prepare("SELECT messages, context FROM agent_conversations WHERE tenant_id = ? AND conversation_id = ?").bind(tenantId, convId).first();
+          if (convoRow) {
+            try { storedMsgs = JSON.parse(convoRow.messages || "[]"); } catch {}
+            try { storedCtx = JSON.parse(convoRow.context || "{}"); } catch {}
+          }
+          const historyForOAI = storedMsgs.slice(-20).map((m: any) => ({
+            role: m.role === "user" ? "user" : "assistant",
+            content: String(m.text || "")
+          }));
+
+          // ===== TOOLS DEFINITION =====
+          const tools = [
+            {
+              type: "function",
+              function: {
+                name: "get_fuel_summary",
+                description: "Retorna total de combustível (litros e valor) e detalhes por abastecimento. Também retorna o posto (fornecedor/posto) onde o veículo abasteceu. Use para perguntas sobre combustível, abastecimento, litros, postos de gasolina.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa do veículo (ex: ABC-1234). Omitir para frota toda." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Quantidade de dias para trás (ex: 30). Usado se from/to não forem fornecidos." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_expense_records",
+                description: "Retorna registros de despesas gerais (insulfilme, pneus, manutenção geral, etc.) com descrição, fornecedor, nota fiscal, valor e data. Use para perguntas sobre despesas, gastos, custos gerais.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa do veículo. Omitir para todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Dias para trás." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_efficiency",
+                description: "Calcula eficiência de combustível: km percorridos dividido por litros abastecidos (km/L). Use para perguntas sobre km/L, consumo, eficiência, quanto km por litro.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa do veículo." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Dias para trás." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_km_traveled",
+                description: "Retorna total de quilômetros rodados por um veículo ou pela frota em um período. Use para perguntas sobre KM percorrido, distância rodada.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa do veículo. Omitir para frota toda." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Dias para trás." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_maintenance_summary",
+                description: "Retorna registros e total de ordens de serviço/manutenção (oficina, revisão, conserto). Use para perguntas sobre manutenção, oficina, revisão.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa do veículo. Omitir para todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Dias para trás." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_vehicles",
+                description: "Lista veículos da frota com placa, modelo e status. Use para perguntas sobre quantos veículos, quais veículos ativos/inativos.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", description: "Filtro de status: 'ativo', 'inativo' ou omitir para todos." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_drivers",
+                description: "Lista motoristas com nome, CPF e status. Use para perguntas sobre motoristas, CNH, quantidade de motoristas.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    status: { type: "string", description: "Filtro: 'ativo', 'inativo' ou omitir para todos." }
+                  }
+                }
+              }
+            }
+          ];
+
+          // ===== TOOL EXECUTOR =====
+          const executeTool = async (name: string, args: any): Promise<string> => {
+            const nowDate = new Date().toISOString().split("T")[0];
+            const resolveDates = (a: any): { from: string; to: string } => {
+              const to = a.to || nowDate;
+              let from = a.from;
+              if (!from) {
+                const d = a.days ? Number(a.days) : 30;
+                from = new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              }
+              return { from, to };
+            };
+            const normPlate = (p: string | undefined) => p ? String(p).toUpperCase().trim() : null;
+
+            if (name === "get_fuel_summary") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              let rows: any[];
+              if (plate) {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, litros, valor, posto, km_anterior, km_atual FROM fuel_entries WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, plate, from, to).all();
+                rows = r.results || [];
+              } else {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, litros, valor, posto, km_anterior, km_atual FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
+                rows = r.results || [];
+              }
+              const totalLiters = rows.reduce((s: number, r: any) => s + Number(r.litros || 0), 0);
+              const totalValue = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+              const postos = [...new Set(rows.map((r: any) => r.posto).filter(Boolean))];
+              const byVehicle = Object.values(
+                rows.reduce((acc: any, r: any) => {
+                  const p = r.veiculo_placa || "desconhecido";
+                  if (!acc[p]) acc[p] = { placa: p, litros: 0, valor: 0, km: 0 };
+                  acc[p].litros += Number(r.litros || 0);
+                  acc[p].valor += Number(r.valor || 0);
+                  acc[p].km += Number(r.km_atual || 0) - Number(r.km_anterior || 0);
+                  return acc;
+                }, {})
+              );
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalLitros: totalLiters, totalValor: totalValue, postos, porVeiculo: byVehicle, registros: rows.slice(0, 50) });
+            }
+
+            if (name === "get_expense_records") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              let rows: any[];
+              if (plate) {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, valor, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, plate, from, to).all();
+                rows = r.results || [];
+              } else {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, valor, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
+                rows = r.results || [];
+              }
+              const total = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalValor: total, registros: rows });
+            }
+
+            if (name === "get_efficiency") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              if (plate) {
+                const r = await env.DB.prepare("SELECT SUM(litros) as litros, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, plate, from, to).first();
+                const litros = Number(r?.litros || 0);
+                const km = Number(r?.km || 0);
+                const kmPerL = litros > 0 ? (km / litros) : null;
+                return JSON.stringify({ placa: plate, periodo: `${from} a ${to}`, kmPercorridos: km, litrosAbastecidos: litros, kmPorLitro: kmPerL !== null ? Number(kmPerL.toFixed(2)) : null });
+              } else {
+                const r = await env.DB.prepare("SELECT veiculo_placa, SUM(litros) as litros, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, from, to).all();
+                const rows = (r.results || []).map((row: any) => {
+                  const l = Number(row.litros || 0);
+                  const k = Number(row.km || 0);
+                  return { placa: row.veiculo_placa, kmPercorridos: k, litrosAbastecidos: l, kmPorLitro: l > 0 ? Number((k / l).toFixed(2)) : null };
+                });
+                return JSON.stringify({ periodo: `${from} a ${to}`, porVeiculo: rows });
+              }
+            }
+
+            if (name === "get_km_traveled") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              if (plate) {
+                const r = await env.DB.prepare("SELECT SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, plate, from, to).first();
+                const km = Number(r?.km || 0);
+                return JSON.stringify({ placa: plate, periodo: `${from} a ${to}`, kmPercorridos: km });
+              } else {
+                const r = await env.DB.prepare("SELECT veiculo_placa, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, from, to).all();
+                const rows = (r.results || []).map((row: any) => ({ placa: row.veiculo_placa, km: Number(row.km || 0) }));
+                const total = rows.reduce((s: number, row: any) => s + row.km, 0);
+                return JSON.stringify({ periodo: `${from} a ${to}`, totalKm: total, porVeiculo: rows });
+              }
+            }
+
+            if (name === "get_maintenance_summary") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              let rows: any[];
+              if (plate) {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, tipo, numero, custo as valor, status FROM maintenance_orders WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 100").bind(tenantId, plate, from, to).all();
+                rows = r.results || [];
+              } else {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, tipo, numero, custo as valor, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 100").bind(tenantId, from, to).all();
+                rows = r.results || [];
+              }
+              const total = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalCusto: total, registros: rows });
+            }
+
+            if (name === "get_vehicles") {
+              const status = args.status ? String(args.status).toLowerCase().trim() : null;
+              let rows: any[];
+              if (status === "ativo" || status === "ativos") {
+                const r = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? AND (lower(trim(status)) = 'ativo' OR lower(trim(status)) LIKE '%oper%' OR lower(trim(status)) LIKE '%ativo%') ORDER BY placa").bind(tenantId).all();
+                rows = r.results || [];
+                if (rows.length === 0) {
+                  const r2 = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? AND NOT (lower(trim(status)) IN ('inativo','desativado','cancelado','removido','inactive','deleted')) ORDER BY placa").bind(tenantId).all();
+                  rows = r2.results || [];
+                }
+              } else if (status === "inativo" || status === "inativos") {
+                const r = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? AND lower(trim(status)) IN ('inativo','desativado','cancelado') ORDER BY placa").bind(tenantId).all();
+                rows = r.results || [];
+              } else {
+                const r = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? ORDER BY placa").bind(tenantId).all();
+                rows = r.results || [];
+              }
+              return JSON.stringify({ total: rows.length, veiculos: rows });
+            }
+
+            if (name === "get_drivers") {
+              const status = args.status ? String(args.status).toLowerCase().trim() : null;
+              const q = (status === "ativo" || status === "ativos") ? "SELECT nome, cpf, status, cnh_vencimento FROM drivers WHERE tenant_id = ? AND lower(trim(status)) = 'ativo' ORDER BY nome" : "SELECT nome, cpf, status, cnh_vencimento FROM drivers WHERE tenant_id = ? ORDER BY nome";
+              const r = await env.DB.prepare(q).bind(tenantId).all();
+              const rows = r.results || [];
+              return JSON.stringify({ total: rows.length, motoristas: rows });
+            }
+
+            return JSON.stringify({ error: `Ferramenta desconhecida: ${name}` });
+          };
+
+          // ===== OPENAI FUNCTION CALLING LOOP =====
+          const systemPrompt = `Você é o Fleet Guardian AI, assistente de gestão de frotas especializado.
+Você tem acesso a ferramentas para consultar dados reais do banco de dados.
+REGRAS OBRIGATÓRIAS:
+- Nunca invente ou estime números. Sempre use as ferramentas para obter dados reais.
+- Sempre responda em Português do Brasil, de forma profissional e concisa.
+- Se precisar calcular (ex: custo por km), use os dados retornados pelas ferramentas.
+- Seja direto: responda apenas o que foi perguntado, sem repetir recomendações óbvias ou análises não solicitadas.
+- Para perguntas sobre postos de combustível, use get_fuel_summary e retorne o campo "postos".
+- Para perguntas sobre km/L, use get_efficiency.
+- Para perguntas sobre custos gerais, use get_expense_records.
+- A data de hoje é ${new Date().toISOString().split("T")[0]}.`;
+
+          const messages: any[] = [
+            { role: "system", content: systemPrompt },
+            ...historyForOAI,
+            { role: "user", content: userMessage }
+          ];
+
+          let finalText = "";
+          // max 3 tool call rounds
+          for (let round = 0; round < 3; round++) {
+            const oaBody: any = {
+              model,
+              messages,
+              tools,
+              tool_choice: "auto",
+              max_tokens: 500
+            };
+            const oaRes = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+              body: JSON.stringify(oaBody)
+            });
+            if (!oaRes.ok) {
+              const errTxt = await oaRes.text().catch(() => "");
+              return errorResponse(`OpenAI error ${oaRes.status}: ${errTxt}`, 502);
+            }
+            const oaJson = await oaRes.json().catch(() => null);
+            const choice = oaJson?.choices?.[0];
+            const msg = choice?.message;
+            if (!msg) break;
+
+            messages.push(msg);
+
+            if (choice.finish_reason === "tool_calls" && msg.tool_calls && msg.tool_calls.length > 0) {
+              // execute all tool calls in parallel
+              const toolResults = await Promise.all(
+                msg.tool_calls.map(async (tc: any) => {
+                  let args: any = {};
+                  try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
+                  const result = await executeTool(tc.function.name, args).catch((e: any) => JSON.stringify({ error: String(e?.message || e) }));
+                  return { role: "tool", tool_call_id: tc.id, content: result };
+                })
+              );
+              for (const tr of toolResults) messages.push(tr);
+              continue;
+            }
+
+            finalText = String(msg.content || "").trim();
+            break;
+          }
+
+          if (!finalText) finalText = "Não consegui obter uma resposta. Tente reformular sua pergunta.";
+
+          // persist conversation
+          try {
+            storedMsgs.push({ role: "user", text: userMessage, ts: new Date().toISOString() });
+            storedMsgs.push({ role: "assistant", text: finalText, ts: new Date().toISOString() });
+            const msgsJson = JSON.stringify(storedMsgs.slice(-60));
+            const ctxJson = JSON.stringify(storedCtx);
+            if (convoRow) {
+              await env.DB.prepare("UPDATE agent_conversations SET messages = ?, context = ?, last_active = ? WHERE tenant_id = ? AND conversation_id = ?").bind(msgsJson, ctxJson, new Date().toISOString(), tenantId, convId).run();
+            } else {
+              const id = crypto.randomUUID().replace(/-/g, "");
+              await env.DB.prepare("INSERT INTO agent_conversations (id, tenant_id, conversation_id, messages, context, last_active) VALUES (?, ?, ?, ?, ?, ?)").bind(id, tenantId, convId, msgsJson, ctxJson, new Date().toISOString()).run();
+            }
+          } catch {}
+
+          return jsonResponse({ data: { text: finalText } });
+        } catch (e: any) {
+          return errorResponse(`Erro no agent/chat: ${String(e?.message || e)}`, 500);
         }
       }
 
