@@ -109,30 +109,18 @@ const Login = () => {
         aria-hidden
         className="absolute inset-0 w-full h-full object-cover object-center"
       />
-      {/* Overlay escuro para legibilidade do formulário */}
-      <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px]" />
+      {/* Overlay escuro — sem blur para preservar qualidade da imagem */}
+      <div className="absolute inset-0 bg-black/55" />
 
-      {/* Logo + título centralizado no topo da tela */}
+      {/* Logo + nome no topo */}
       <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10">
         <img src="/logo.png" alt="Fleet Guardian AI" style={{ mixBlendMode: "screen" }} className="w-10 h-10 object-contain" />
         <span className="text-white font-bold text-xl tracking-tight drop-shadow-lg">Fleet Guardian AI</span>
       </div>
 
-      {/* Card do formulário flutuando sobre a imagem */}
+      {/* Card do formulário */}
       <div className="relative z-10 w-full max-w-sm">
-        {/* Slogan acima do card */}
-        <div className="text-center mb-6">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow-lg leading-tight">
-            Gestão de frota<br />
-            <span className="text-orange-400">inteligente e completa</span>
-          </h1>
-          <p className="text-sm text-slate-300 mt-2 drop-shadow">
-            Monitore, analise e reduza custos com IA.
-          </p>
-        </div>
-
-        {/* Card do formulário */}
-        <div className="rounded-2xl border border-white/10 bg-slate-950/85 backdrop-blur-md shadow-2xl p-6 sm:p-8">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/90 shadow-2xl p-6 sm:p-8">
           <div className="flex gap-2 mb-4 sm:mb-6">
             <button
               type="button"
