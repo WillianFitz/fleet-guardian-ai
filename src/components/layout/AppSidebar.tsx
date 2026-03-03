@@ -81,13 +81,15 @@ const AppSidebar = () => {
         } lg:flex`}
       >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-sidebar-border">
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-          <Truck className="w-5 h-5 text-primary-foreground" />
-        </div>
+      <div className="flex items-center gap-3 px-3 h-16 border-b border-sidebar-border">
+        <img
+          src="/logo.png"
+          alt="Fleet Guardian AI"
+          className={`flex-shrink-0 object-contain transition-all duration-300 ${collapsed ? "w-8 h-8" : "w-9 h-9"}`}
+        />
         {!collapsed && (
           <div className="overflow-hidden">
-            <h1 className="text-sm font-bold text-foreground tracking-tight">FleetCommand</h1>
+            <h1 className="text-sm font-bold text-foreground tracking-tight leading-tight">Fleet Guardian AI</h1>
             <p className="text-[10px] text-muted-foreground">Gestão Inteligente</p>
           </div>
         )}
