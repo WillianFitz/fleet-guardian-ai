@@ -1,5 +1,104 @@
 import { Truck, Zap } from "lucide-react";
-import { useCallback, useState, useRef, useEffect } from "react";
+import { useCallback, useState, useRef, useEffect, Fragment } from "react";
+
+/** Renderiza markdown simples em JSX sem dependências externas */
+function MarkdownMessage({ text }: { text: string }) {
+  const lines = text.split("\n");
+  const elements: React.ReactNode[] = [];
+  let listItems: React.ReactNode[] = [];
+
+  const flushList = () => {
+    if (listItems.length > 0) {
+      elements.push(
+        <ul key={`ul-${elements.length}`} className="list-disc pl-4 space-y-0.5 my-1">
+          {listItems}
+        </ul>
+      );
+      listItems = [];
+    }
+  };
+
+  const renderInline = (raw: string, key: string): React.ReactNode => {
+    // bold (**text**), inline code (`code`)
+    const parts = raw.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+    return (
+      <Fragment key={key}>
+        {parts.map((part, i) => {
+          if (part.startsWith("**") && part.endsWith("**")) {
+            return <strong key={i} className="font-semibold text-foreground">{part.slice(2, -2)}</strong>;
+          }
+          if (part.startsWith("`") && part.endsWith("`")) {
+            return <code key={i} className="bg-muted/60 px-1 rounded text-xs font-mono">{part.slice(1, -1)}</code>;
+          }
+          return part;
+        })}
+      </Fragment>
+    );
+  };
+
+  lines.forEach((line, idx) => {
+    const key = String(idx);
+
+    // Heading ## or ###
+    if (/^#{1,3}\s/.test(line)) {
+      flushList();
+      const content = line.replace(/^#{1,3}\s/, "");
+      elements.push(
+        <p key={key} className="font-semibold text-foreground text-sm mt-2 mb-0.5">
+          {renderInline(content, key + "h")}
+        </p>
+      );
+      return;
+    }
+
+    // Bullet - or *
+    if (/^[-*•]\s/.test(line)) {
+      const content = line.replace(/^[-*•]\s/, "");
+      listItems.push(
+        <li key={key} className="text-sm leading-snug">
+          {renderInline(content, key + "li")}
+        </li>
+      );
+      return;
+    }
+
+    // Numbered list
+    if (/^\d+[.)]\s/.test(line)) {
+      const content = line.replace(/^\d+[.)]\s/, "");
+      listItems.push(
+        <li key={key} className="text-sm leading-snug">
+          {renderInline(content, key + "oli")}
+        </li>
+      );
+      return;
+    }
+
+    flushList();
+
+    // Horizontal rule ---
+    if (/^---+$/.test(line.trim())) {
+      elements.push(<hr key={key} className="border-border my-1.5" />);
+      return;
+    }
+
+    // Empty line → small spacer
+    if (line.trim() === "") {
+      elements.push(<div key={key} className="h-1" />);
+      return;
+    }
+
+    // Normal paragraph
+    elements.push(
+      <p key={key} className="text-sm leading-snug">
+        {renderInline(line, key + "p")}
+      </p>
+    );
+  });
+
+  flushList();
+
+  return <div className="space-y-0.5">{elements}</div>;
+}
 
 const WORKER_URL = "https://fleet-guardian-ai.willian-fitzbr.workers.dev";
 
@@ -150,8 +249,11 @@ const ChatWidget = () => {
                 ) : (
                   messages.map((m, i) => (
                     <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                      <div className={`${m.role === "user" ? "bg-primary text-white" : "bg-card/20 text-foreground"} max-w-[85%] px-4 py-2 rounded-2xl shadow-sm whitespace-pre-wrap text-sm`}>
-                        {m.text}
+                      <div className={`${m.role === "user" ? "bg-primary text-white" : "bg-card border border-border"} max-w-[90%] px-4 py-2.5 rounded-2xl shadow-sm text-sm`}>
+                        {m.role === "user"
+                          ? <span className="whitespace-pre-wrap">{m.text}</span>
+                          : <MarkdownMessage text={m.text} />
+                        }
                       </div>
                     </div>
                   ))
