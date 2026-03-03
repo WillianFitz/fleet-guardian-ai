@@ -129,11 +129,14 @@ const ChatWidget = () => {
                   <div className="text-sm text-muted-foreground p-2 space-y-1">
                     <p className="font-medium text-foreground">Exemplos de perguntas:</p>
                     {[
+                      "Quais são meus motoristas?",
+                      "Tem alguma CNH vencida ou vencendo?",
+                      "Qual o lucro da frota este mês?",
+                      "Quais pneus estão com sulco baixo?",
+                      "Tem peça abaixo do estoque mínimo?",
+                      "Quais seguros vencem em breve?",
                       "Combustível do ABC-1234 nos últimos 30 dias",
-                      "Qual o km/L do meu caminhão ABC-1234?",
-                      "Quais postos de gasolina foram usados?",
-                      "Quantos motoristas ativos tenho?",
-                      "Quais despesas tive em fevereiro?",
+                      "Qual o km/L da minha frota?",
                     ].map((ex) => (
                       <button
                         key={ex}

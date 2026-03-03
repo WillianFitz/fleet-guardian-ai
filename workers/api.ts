@@ -1000,79 +1000,13 @@ export default {
             {
               type: "function",
               function: {
-                name: "get_fuel_summary",
-                description: "Retorna total de combustível (litros e valor) e detalhes por abastecimento. Também retorna o posto (fornecedor/posto) onde o veículo abasteceu. Use para perguntas sobre combustível, abastecimento, litros, postos de gasolina.",
+                name: "get_drivers",
+                description: "Lista motoristas com nome, CPF, telefone, status, categoria CNH e datas de vencimento da CNH e exame médico. Use para: listar motoristas, CNHs vencidas ou próximas do vencimento, motoristas ativos/inativos, exames médicos.",
                 parameters: {
                   type: "object",
                   properties: {
-                    plate: { type: "string", description: "Placa do veículo (ex: ABC-1234). Omitir para frota toda." },
-                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
-                    to: { type: "string", description: "Data final YYYY-MM-DD." },
-                    days: { type: "number", description: "Quantidade de dias para trás (ex: 30). Usado se from/to não forem fornecidos." }
-                  }
-                }
-              }
-            },
-            {
-              type: "function",
-              function: {
-                name: "get_expense_records",
-                description: "Retorna registros de despesas gerais (insulfilme, pneus, manutenção geral, etc.) com descrição, fornecedor, nota fiscal, valor e data. Use para perguntas sobre despesas, gastos, custos gerais.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    plate: { type: "string", description: "Placa do veículo. Omitir para todos." },
-                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
-                    to: { type: "string", description: "Data final YYYY-MM-DD." },
-                    days: { type: "number", description: "Dias para trás." }
-                  }
-                }
-              }
-            },
-            {
-              type: "function",
-              function: {
-                name: "get_efficiency",
-                description: "Calcula eficiência de combustível: km percorridos dividido por litros abastecidos (km/L). Use para perguntas sobre km/L, consumo, eficiência, quanto km por litro.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    plate: { type: "string", description: "Placa do veículo." },
-                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
-                    to: { type: "string", description: "Data final YYYY-MM-DD." },
-                    days: { type: "number", description: "Dias para trás." }
-                  }
-                }
-              }
-            },
-            {
-              type: "function",
-              function: {
-                name: "get_km_traveled",
-                description: "Retorna total de quilômetros rodados por um veículo ou pela frota em um período. Use para perguntas sobre KM percorrido, distância rodada.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    plate: { type: "string", description: "Placa do veículo. Omitir para frota toda." },
-                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
-                    to: { type: "string", description: "Data final YYYY-MM-DD." },
-                    days: { type: "number", description: "Dias para trás." }
-                  }
-                }
-              }
-            },
-            {
-              type: "function",
-              function: {
-                name: "get_maintenance_summary",
-                description: "Retorna registros e total de ordens de serviço/manutenção (oficina, revisão, conserto). Use para perguntas sobre manutenção, oficina, revisão.",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    plate: { type: "string", description: "Placa do veículo. Omitir para todos." },
-                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
-                    to: { type: "string", description: "Data final YYYY-MM-DD." },
-                    days: { type: "number", description: "Dias para trás." }
+                    status: { type: "string", description: "Filtro: 'ativo', 'inativo' ou omitir para todos." },
+                    cnh_vencida: { type: "boolean", description: "Se true, retorna apenas motoristas com CNH vencida ou vencendo em 30 dias." }
                   }
                 }
               }
@@ -1081,11 +1015,11 @@ export default {
               type: "function",
               function: {
                 name: "get_vehicles",
-                description: "Lista veículos da frota com placa, modelo e status. Use para perguntas sobre quantos veículos, quais veículos ativos/inativos.",
+                description: "Lista veículos com placa, modelo, tipo, ano, km atual, status, cor, combustível. Use para: listar veículos, quantos tenho, status da frota.",
                 parameters: {
                   type: "object",
                   properties: {
-                    status: { type: "string", description: "Filtro de status: 'ativo', 'inativo' ou omitir para todos." }
+                    status: { type: "string", description: "Filtro: 'ativo', 'inativo' ou omitir para todos." }
                   }
                 }
               }
@@ -1093,12 +1027,227 @@ export default {
             {
               type: "function",
               function: {
-                name: "get_drivers",
-                description: "Lista motoristas com nome, CPF e status. Use para perguntas sobre motoristas, CNH, quantidade de motoristas.",
+                name: "get_fuel_summary",
+                description: "Retorna combustível abastecido: total de litros, valor total, postos utilizados, tipo de combustível, por veículo. Use para: abastecimentos, litros, postos de gasolina, tipo de combustível.",
                 parameters: {
                   type: "object",
                   properties: {
-                    status: { type: "string", description: "Filtro: 'ativo', 'inativo' ou omitir para todos." }
+                    plate: { type: "string", description: "Placa (ex: ABC-1234). Omitir para frota toda." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias (ex: 30). Usado se from/to omitidos." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_efficiency",
+                description: "Calcula km/L (eficiência de combustível) real com base nos abastecimentos. Use para: km por litro, consumo, eficiência, comparar veículos.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa do veículo. Omitir para comparar todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_km_traveled",
+                description: "Retorna quilômetros percorridos por veículo ou frota. Use para: km rodados, distância percorrida.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para frota toda." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_expense_records",
+                description: "Retorna despesas gerais: descrição, fornecedor, nota fiscal, categoria, valor. Use para: despesas, gastos gerais, custos diversos.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_maintenance_summary",
+                description: "Retorna ordens de serviço e manutenção: tipo, oficina, status, custo, data. Use para: manutenções, revisões, consertos, oficina.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_tires",
+                description: "Lista pneus cadastrados com marca, modelo, medida, sulco, status, posição e placa do veículo. Use para: pneus, sulco, desgaste, troca de pneu.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa para filtrar pneus de um veículo." },
+                    status: { type: "string", description: "Filtro de status do pneu (ex: 'ativo', 'descartado')." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_parts_stock",
+                description: "Lista estoque de peças e consumíveis: código, descrição, categoria, quantidade, quantidade mínima, custo unitário. Use para: estoque, peças em falta, inventário.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    low_stock: { type: "boolean", description: "Se true, retorna apenas peças com quantidade abaixo do mínimo." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_receitas",
+                description: "Retorna receitas e fretes: descrição, cliente, valor, CT-e, nota fiscal, forma de pagamento, status. Use para: receitas, fretes, faturamento, entradas financeiras.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todas." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_licenses",
+                description: "Retorna licenciamentos de veículos: tipo, ano de referência, valor, data de vencimento, status. Use para: licenciamentos, CRLV, vencimentos de licença.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todos." },
+                    vencidos: { type: "boolean", description: "Se true, apenas vencidos ou vencendo em 30 dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_insurances",
+                description: "Retorna seguros de veículos: apólice, seguradora, tipo, valor prêmio, vigência, status. Use para: seguros, apólice, seguradora, vigência.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todos." },
+                    vencidos: { type: "boolean", description: "Se true, apenas vencidos ou vencendo em 30 dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_incidents",
+                description: "Retorna ocorrências e infrações: tipo, data, veículo, motorista, valor, pontos CNH, local. Use para: ocorrências, multas, infrações, acidentes.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_ctes",
+                description: "Retorna CT-e (Conhecimentos de Transporte Eletrônico): número, veículo, remetente, destinatário, origem, destino, valor frete, status. Use para: CT-e, frete, transporte, emissão.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." },
+                    status: { type: "string", description: "Status do CT-e (ex: 'rascunho', 'emitido', 'cancelado')." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_garage_entries",
+                description: "Retorna movimentação de garagem: saídas, chegadas, destino, motorista, km. Use para: controle de garagem, saídas, entradas de veículos.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    plate: { type: "string", description: "Placa. Omitir para todos." },
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_clients",
+                description: "Lista clientes cadastrados: nome, CNPJ/CPF, telefone, município. Use para: clientes, quem são meus clientes.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    search: { type: "string", description: "Busca por nome ou CNPJ/CPF." }
+                  }
+                }
+              }
+            },
+            {
+              type: "function",
+              function: {
+                name: "get_financial_summary",
+                description: "Calcula resumo financeiro: total de receitas, total de despesas (combustível + manutenção + despesas gerais), lucro bruto. Use para: lucro, resultado financeiro, receita vs despesa.",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    from: { type: "string", description: "Data inicial YYYY-MM-DD." },
+                    to: { type: "string", description: "Data final YYYY-MM-DD." },
+                    days: { type: "number", description: "Últimos N dias." }
                   }
                 }
               }
@@ -1119,20 +1268,63 @@ export default {
             };
             const normPlate = (p: string | undefined) => p ? String(p).toUpperCase().trim() : null;
 
+            if (name === "get_drivers") {
+              const statusFilter = args.status ? String(args.status).toLowerCase().trim() : null;
+              const cnhVencida = Boolean(args.cnh_vencida);
+              let q: string;
+              if (cnhVencida) {
+                // CNH vencida ou vencendo nos próximos 30 dias
+                const limit30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+                q = `SELECT nome, cpf, telefone, status, categoria_cnh, vencimento_cnh, vencimento_exame_medico FROM drivers WHERE tenant_id = ? AND (vencimento_cnh <= '${limit30}' OR vencimento_cnh IS NULL) ORDER BY vencimento_cnh ASC`;
+              } else if (statusFilter === "ativo" || statusFilter === "ativos") {
+                q = "SELECT nome, cpf, telefone, status, categoria_cnh, vencimento_cnh, vencimento_exame_medico FROM drivers WHERE tenant_id = ? AND lower(trim(status)) = 'ativo' ORDER BY nome";
+              } else {
+                q = "SELECT nome, cpf, telefone, status, categoria_cnh, vencimento_cnh, vencimento_exame_medico FROM drivers WHERE tenant_id = ? ORDER BY nome";
+              }
+              const r = await env.DB.prepare(q).bind(tenantId).all();
+              const rows = (r.results || []).map((d: any) => ({
+                ...d,
+                cnh_vencida: d.vencimento_cnh && d.vencimento_cnh < nowDate ? true : false,
+                exame_vencido: d.vencimento_exame_medico && d.vencimento_exame_medico < nowDate ? true : false
+              }));
+              return JSON.stringify({ total: rows.length, motoristas: rows });
+            }
+
+            if (name === "get_vehicles") {
+              const status = args.status ? String(args.status).toLowerCase().trim() : null;
+              let rows: any[];
+              if (status === "ativo" || status === "ativos") {
+                const r = await env.DB.prepare("SELECT placa, modelo, tipo, ano, km, status, cor, combustivel FROM vehicles WHERE tenant_id = ? AND (lower(trim(status)) = 'ativo' OR lower(trim(status)) LIKE '%oper%' OR lower(trim(status)) LIKE '%ativo%') ORDER BY placa").bind(tenantId).all();
+                rows = r.results || [];
+                if (rows.length === 0) {
+                  const r2 = await env.DB.prepare("SELECT placa, modelo, tipo, ano, km, status, cor, combustivel FROM vehicles WHERE tenant_id = ? AND NOT (lower(trim(status)) IN ('inativo','desativado','cancelado','removido','inactive','deleted')) ORDER BY placa").bind(tenantId).all();
+                  rows = r2.results || [];
+                }
+              } else if (status === "inativo" || status === "inativos") {
+                const r = await env.DB.prepare("SELECT placa, modelo, tipo, ano, km, status, cor, combustivel FROM vehicles WHERE tenant_id = ? AND lower(trim(status)) IN ('inativo','desativado','cancelado') ORDER BY placa").bind(tenantId).all();
+                rows = r.results || [];
+              } else {
+                const r = await env.DB.prepare("SELECT placa, modelo, tipo, ano, km, status, cor, combustivel FROM vehicles WHERE tenant_id = ? ORDER BY placa").bind(tenantId).all();
+                rows = r.results || [];
+              }
+              return JSON.stringify({ total: rows.length, veiculos: rows });
+            }
+
             if (name === "get_fuel_summary") {
               const { from, to } = resolveDates(args);
               const plate = normPlate(args.plate);
               let rows: any[];
               if (plate) {
-                const r = await env.DB.prepare("SELECT data, veiculo_placa, litros, valor, posto, km_anterior, km_atual FROM fuel_entries WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, plate, from, to).all();
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, litros, valor, posto, tipo_combustivel, km_anterior, km_atual FROM fuel_entries WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, plate, from, to).all();
                 rows = r.results || [];
               } else {
-                const r = await env.DB.prepare("SELECT data, veiculo_placa, litros, valor, posto, km_anterior, km_atual FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, litros, valor, posto, tipo_combustivel, km_anterior, km_atual FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
                 rows = r.results || [];
               }
               const totalLiters = rows.reduce((s: number, r: any) => s + Number(r.litros || 0), 0);
               const totalValue = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
               const postos = [...new Set(rows.map((r: any) => r.posto).filter(Boolean))];
+              const tiposCombustivel = [...new Set(rows.map((r: any) => r.tipo_combustivel).filter(Boolean))];
               const byVehicle = Object.values(
                 rows.reduce((acc: any, r: any) => {
                   const p = r.veiculo_placa || "desconhecido";
@@ -1143,22 +1335,7 @@ export default {
                   return acc;
                 }, {})
               );
-              return JSON.stringify({ periodo: `${from} a ${to}`, totalLitros: totalLiters, totalValor: totalValue, postos, porVeiculo: byVehicle, registros: rows.slice(0, 50) });
-            }
-
-            if (name === "get_expense_records") {
-              const { from, to } = resolveDates(args);
-              const plate = normPlate(args.plate);
-              let rows: any[];
-              if (plate) {
-                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, valor, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, plate, from, to).all();
-                rows = r.results || [];
-              } else {
-                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, valor, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
-                rows = r.results || [];
-              }
-              const total = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
-              return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalValor: total, registros: rows });
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalLitros: totalLiters, totalValor: totalValue, postos, tiposCombustivel, porVeiculo: byVehicle, registros: rows.slice(0, 50) });
             }
 
             if (name === "get_efficiency") {
@@ -1186,14 +1363,27 @@ export default {
               const plate = normPlate(args.plate);
               if (plate) {
                 const r = await env.DB.prepare("SELECT SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, plate, from, to).first();
-                const km = Number(r?.km || 0);
-                return JSON.stringify({ placa: plate, periodo: `${from} a ${to}`, kmPercorridos: km });
+                return JSON.stringify({ placa: plate, periodo: `${from} a ${to}`, kmPercorridos: Number(r?.km || 0) });
               } else {
                 const r = await env.DB.prepare("SELECT veiculo_placa, SUM(COALESCE(km_atual,0)-COALESCE(km_anterior,0)) as km FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) GROUP BY veiculo_placa").bind(tenantId, from, to).all();
                 const rows = (r.results || []).map((row: any) => ({ placa: row.veiculo_placa, km: Number(row.km || 0) }));
-                const total = rows.reduce((s: number, row: any) => s + row.km, 0);
-                return JSON.stringify({ periodo: `${from} a ${to}`, totalKm: total, porVeiculo: rows });
+                return JSON.stringify({ periodo: `${from} a ${to}`, totalKm: rows.reduce((s: number, row: any) => s + row.km, 0), porVeiculo: rows });
               }
+            }
+
+            if (name === "get_expense_records") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              let rows: any[];
+              if (plate) {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, categoria, valor, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, plate, from, to).all();
+                rows = r.results || [];
+              } else {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, categoria, valor, fornecedor, nota_fiscal FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
+                rows = r.results || [];
+              }
+              const total = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalValor: total, registros: rows });
             }
 
             if (name === "get_maintenance_summary") {
@@ -1201,59 +1391,178 @@ export default {
               const plate = normPlate(args.plate);
               let rows: any[];
               if (plate) {
-                const r = await env.DB.prepare("SELECT data, veiculo_placa, tipo, numero, custo as valor, status FROM maintenance_orders WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 100").bind(tenantId, plate, from, to).all();
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, tipo, descricao, oficina, numero, custo as valor, status FROM maintenance_orders WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 100").bind(tenantId, plate, from, to).all();
                 rows = r.results || [];
               } else {
-                const r = await env.DB.prepare("SELECT data, veiculo_placa, tipo, numero, custo as valor, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 100").bind(tenantId, from, to).all();
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, tipo, descricao, oficina, numero, custo as valor, status FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 100").bind(tenantId, from, to).all();
                 rows = r.results || [];
               }
               const total = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
               return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalCusto: total, registros: rows });
             }
 
-            if (name === "get_vehicles") {
+            if (name === "get_tires") {
+              const plate = normPlate(args.plate);
               const status = args.status ? String(args.status).toLowerCase().trim() : null;
-              let rows: any[];
-              if (status === "ativo" || status === "ativos") {
-                const r = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? AND (lower(trim(status)) = 'ativo' OR lower(trim(status)) LIKE '%oper%' OR lower(trim(status)) LIKE '%ativo%') ORDER BY placa").bind(tenantId).all();
-                rows = r.results || [];
-                if (rows.length === 0) {
-                  const r2 = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? AND NOT (lower(trim(status)) IN ('inativo','desativado','cancelado','removido','inactive','deleted')) ORDER BY placa").bind(tenantId).all();
-                  rows = r2.results || [];
-                }
-              } else if (status === "inativo" || status === "inativos") {
-                const r = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? AND lower(trim(status)) IN ('inativo','desativado','cancelado') ORDER BY placa").bind(tenantId).all();
-                rows = r.results || [];
-              } else {
-                const r = await env.DB.prepare("SELECT placa, modelo, status, ano FROM vehicles WHERE tenant_id = ? ORDER BY placa").bind(tenantId).all();
-                rows = r.results || [];
-              }
-              return JSON.stringify({ total: rows.length, veiculos: rows });
+              let q = "SELECT codigo, marca, modelo, medida, dot, status, posicao, veiculo_placa, km_instalacao, km_atual, sulco, reformas FROM tires WHERE tenant_id = ?";
+              const binds: any[] = [tenantId];
+              if (plate) { q += " AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','')"; binds.push(plate); }
+              if (status) { q += " AND lower(trim(status)) = ?"; binds.push(status); }
+              q += " ORDER BY veiculo_placa, posicao";
+              const r = await env.DB.prepare(q).bind(...binds).all();
+              const rows = r.results || [];
+              return JSON.stringify({ total: rows.length, pneus: rows });
             }
 
-            if (name === "get_drivers") {
-              const status = args.status ? String(args.status).toLowerCase().trim() : null;
-              const q = (status === "ativo" || status === "ativos") ? "SELECT nome, cpf, status, cnh_vencimento FROM drivers WHERE tenant_id = ? AND lower(trim(status)) = 'ativo' ORDER BY nome" : "SELECT nome, cpf, status, cnh_vencimento FROM drivers WHERE tenant_id = ? ORDER BY nome";
+            if (name === "get_parts_stock") {
+              const lowStock = Boolean(args.low_stock);
+              let q = "SELECT codigo, descricao, categoria, quantidade, quantidade_minima, unidade, custo_unitario, fornecedor FROM parts WHERE tenant_id = ?";
+              if (lowStock) q += " AND quantidade <= quantidade_minima";
+              q += " ORDER BY descricao";
               const r = await env.DB.prepare(q).bind(tenantId).all();
               const rows = r.results || [];
-              return JSON.stringify({ total: rows.length, motoristas: rows });
+              const totalValor = rows.reduce((s: number, p: any) => s + (Number(p.quantidade || 0) * Number(p.custo_unitario || 0)), 0);
+              return JSON.stringify({ total: rows.length, valorTotalEstoque: Number(totalValor.toFixed(2)), pecas: rows });
+            }
+
+            if (name === "get_receitas") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              let rows: any[];
+              if (plate) {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, categoria, valor, cliente, cte_numero, nota_fiscal, status, forma_pagamento, data_recebimento FROM receitas WHERE tenant_id = ? AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','') AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, plate, from, to).all();
+                rows = r.results || [];
+              } else {
+                const r = await env.DB.prepare("SELECT data, veiculo_placa, descricao, categoria, valor, cliente, cte_numero, nota_fiscal, status, forma_pagamento, data_recebimento FROM receitas WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 200").bind(tenantId, from, to).all();
+                rows = r.results || [];
+              }
+              const total = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalValor: total, registros: rows });
+            }
+
+            if (name === "get_licenses") {
+              const plate = normPlate(args.plate);
+              const vencidos = Boolean(args.vencidos);
+              const limit30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              let q = "SELECT veiculo_placa, veiculo_modelo, tipo, ano_referencia, valor, data_vencimento, status FROM licenses WHERE tenant_id = ?";
+              const binds: any[] = [tenantId];
+              if (plate) { q += " AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','')"; binds.push(plate); }
+              if (vencidos) { q += ` AND (data_vencimento <= '${limit30}' OR status = 'vencido')`; }
+              q += " ORDER BY data_vencimento ASC";
+              const r = await env.DB.prepare(q).bind(...binds).all();
+              const rows = r.results || [];
+              return JSON.stringify({ total: rows.length, licenciamentos: rows });
+            }
+
+            if (name === "get_insurances") {
+              const plate = normPlate(args.plate);
+              const vencidos = Boolean(args.vencidos);
+              const limit30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              let q = "SELECT apolice, seguradora, veiculo_placa, veiculo_modelo, tipo, valor_premio, valor_franquia, vigencia_inicio, vigencia_fim, status FROM insurances WHERE tenant_id = ?";
+              const binds: any[] = [tenantId];
+              if (plate) { q += " AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','')"; binds.push(plate); }
+              if (vencidos) { q += ` AND (vigencia_fim <= '${limit30}' OR status = 'vencido')`; }
+              q += " ORDER BY vigencia_fim ASC";
+              const r = await env.DB.prepare(q).bind(...binds).all();
+              const rows = r.results || [];
+              return JSON.stringify({ total: rows.length, seguros: rows });
+            }
+
+            if (name === "get_incidents") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              let q = "SELECT data, tipo, veiculo_placa, motorista, descricao, valor, status, local, pontos_cnh FROM incidents WHERE tenant_id = ?";
+              const binds: any[] = [tenantId];
+              if (plate) { q += " AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','')"; binds.push(plate); }
+              q += " AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC LIMIT 100";
+              binds.push(from); binds.push(to);
+              const r = await env.DB.prepare(q).bind(...binds).all();
+              const rows = r.results || [];
+              const totalValor = rows.reduce((s: number, r: any) => s + Number(r.valor || 0), 0);
+              const totalPontos = rows.reduce((s: number, r: any) => s + Number(r.pontos_cnh || 0), 0);
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalValor, totalPontosCNH: totalPontos, ocorrencias: rows });
+            }
+
+            if (name === "get_ctes") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              const status = args.status ? String(args.status).toLowerCase().trim() : null;
+              let q = "SELECT numero, data_emissao, veiculo_placa, veiculo_modelo, remetente_nome, destinatario_nome, municipio_origem, uf_origem, municipio_destino, uf_destino, valor_frete, valor_total, status FROM ctes WHERE tenant_id = ?";
+              const binds: any[] = [tenantId];
+              if (plate) { q += " AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','')"; binds.push(plate); }
+              if (status) { q += " AND lower(trim(status)) = ?"; binds.push(status); }
+              q += " AND date(data_emissao) BETWEEN date(?) AND date(?) ORDER BY data_emissao DESC LIMIT 100";
+              binds.push(from); binds.push(to);
+              const r = await env.DB.prepare(q).bind(...binds).all();
+              const rows = r.results || [];
+              const totalFrete = rows.reduce((s: number, r: any) => s + Number(r.valor_frete || 0), 0);
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalRegistros: rows.length, totalFrete, ctes: rows });
+            }
+
+            if (name === "get_garage_entries") {
+              const { from, to } = resolveDates(args);
+              const plate = normPlate(args.plate);
+              let q = "SELECT data, hora, veiculo_placa, veiculo_modelo, motorista, tipo, destino, km, observacoes, status FROM garage_entries WHERE tenant_id = ?";
+              const binds: any[] = [tenantId];
+              if (plate) { q += " AND replace(upper(veiculo_placa),'-','') = replace(upper(?),'-','')"; binds.push(plate); }
+              q += " AND date(data) BETWEEN date(?) AND date(?) ORDER BY data DESC, hora DESC LIMIT 100";
+              binds.push(from); binds.push(to);
+              const r = await env.DB.prepare(q).bind(...binds).all();
+              const rows = r.results || [];
+              return JSON.stringify({ periodo: `${from} a ${to}`, totalMovimentacoes: rows.length, movimentacoes: rows });
+            }
+
+            if (name === "get_clients") {
+              const search = args.search ? String(args.search).toLowerCase() : null;
+              let q = "SELECT nome, cnpj_cpf, telefone, municipio, uf FROM clients WHERE tenant_id = ?";
+              const binds: any[] = [tenantId];
+              if (search) { q += " AND (lower(nome) LIKE ? OR cnpj_cpf LIKE ?)"; binds.push(`%${search}%`); binds.push(`%${search}%`); }
+              q += " ORDER BY nome LIMIT 100";
+              const r = await env.DB.prepare(q).bind(...binds).all();
+              const rows = r.results || [];
+              return JSON.stringify({ total: rows.length, clientes: rows });
+            }
+
+            if (name === "get_financial_summary") {
+              const { from, to } = resolveDates(args);
+              const [recRow, expRow, fuelRow, maintRow] = await Promise.all([
+                env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM receitas WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, from, to).first(),
+                env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM expenses WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, from, to).first(),
+                env.DB.prepare("SELECT SUM(CAST(valor as REAL)) as total FROM fuel_entries WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, from, to).first(),
+                env.DB.prepare("SELECT SUM(CAST(custo as REAL)) as total FROM maintenance_orders WHERE tenant_id = ? AND date(data) BETWEEN date(?) AND date(?)").bind(tenantId, from, to).first()
+              ]);
+              const totalReceitas = Number(recRow?.total || 0);
+              const totalDespesas = Number(expRow?.total || 0);
+              const totalCombustivel = Number(fuelRow?.total || 0);
+              const totalManutencao = Number(maintRow?.total || 0);
+              const totalSaidas = totalDespesas + totalCombustivel + totalManutencao;
+              const lucro = totalReceitas - totalSaidas;
+              return JSON.stringify({
+                periodo: `${from} a ${to}`,
+                totalReceitas: Number(totalReceitas.toFixed(2)),
+                totalDespesas: Number(totalDespesas.toFixed(2)),
+                totalCombustivel: Number(totalCombustivel.toFixed(2)),
+                totalManutencao: Number(totalManutencao.toFixed(2)),
+                totalSaidas: Number(totalSaidas.toFixed(2)),
+                lucroBruto: Number(lucro.toFixed(2))
+              });
             }
 
             return JSON.stringify({ error: `Ferramenta desconhecida: ${name}` });
           };
 
           // ===== OPENAI FUNCTION CALLING LOOP =====
-          const systemPrompt = `Você é o Fleet Guardian AI, assistente de gestão de frotas especializado.
-Você tem acesso a ferramentas para consultar dados reais do banco de dados.
-REGRAS OBRIGATÓRIAS:
-- Nunca invente ou estime números. Sempre use as ferramentas para obter dados reais.
-- Sempre responda em Português do Brasil, de forma profissional e concisa.
-- Se precisar calcular (ex: custo por km), use os dados retornados pelas ferramentas.
-- Seja direto: responda apenas o que foi perguntado, sem repetir recomendações óbvias ou análises não solicitadas.
-- Para perguntas sobre postos de combustível, use get_fuel_summary e retorne o campo "postos".
-- Para perguntas sobre km/L, use get_efficiency.
-- Para perguntas sobre custos gerais, use get_expense_records.
-- A data de hoje é ${new Date().toISOString().split("T")[0]}.`;
+          const systemPrompt = `Você é o Fleet Guardian AI, gerente de frotas inteligente com acesso completo ao banco de dados.
+REGRAS:
+- Nunca invente dados. Sempre chame as ferramentas disponíveis para obter informações reais.
+- Responda em Português do Brasil, de forma direta e profissional.
+- Se precisar calcular algo (custo por km, lucro, média), faça o cálculo com os dados retornados pelas ferramentas.
+- Responda apenas o que foi perguntado. Não adicione recomendações não solicitadas.
+- Para CNH vencida ou próxima ao vencimento, use get_drivers com cnh_vencida=true.
+- Para resultado financeiro (lucro/prejuízo), use get_financial_summary.
+- Para licenças/seguros vencidos, use get_licenses ou get_insurances com vencidos=true.
+- Para estoque baixo, use get_parts_stock com low_stock=true.
+- Hoje é ${new Date().toISOString().split("T")[0]}.`;
 
           const messages: any[] = [
             { role: "system", content: systemPrompt },
