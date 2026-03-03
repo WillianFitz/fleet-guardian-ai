@@ -101,56 +101,38 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <div className="w-full max-w-4xl shadow-2xl shadow-black/60 grid grid-cols-1 md:grid-cols-2 overflow-hidden rounded-2xl border border-slate-800/60">
+    <div className="min-h-screen relative flex items-center justify-center p-4">
+      {/* Imagem hero cobrindo 100% da tela */}
+      <img
+        src="/hero.png"
+        alt=""
+        aria-hidden
+        className="absolute inset-0 w-full h-full object-cover object-center"
+      />
+      {/* Overlay escuro para legibilidade do formulário */}
+      <div className="absolute inset-0 bg-black/65 backdrop-blur-[2px]" />
 
-        {/* Painel esquerdo — imagem hero com overlay */}
-        <div className="relative hidden md:flex flex-col justify-between overflow-hidden min-h-[520px]">
-          {/* Imagem de fundo */}
-          <img
-            src="/hero.png"
-            alt="Fleet Guardian AI"
-            className="absolute inset-0 w-full h-full object-cover object-center"
-          />
-          {/* Overlay escuro gradiente para legibilidade */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-900/30" />
+      {/* Logo + título centralizado no topo da tela */}
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-10">
+        <img src="/logo.png" alt="Fleet Guardian AI" style={{ mixBlendMode: "screen" }} className="w-10 h-10 object-contain" />
+        <span className="text-white font-bold text-xl tracking-tight drop-shadow-lg">Fleet Guardian AI</span>
+      </div>
 
-          {/* Conteúdo sobre a imagem */}
-          <div className="relative z-10 p-7 flex flex-col h-full justify-between">
-            {/* Logo + nome no topo */}
-            <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Fleet Guardian AI" style={{ mixBlendMode: "screen" }} className="w-10 h-10 object-contain" />
-              <span className="text-base font-bold text-white tracking-tight">Fleet Guardian AI</span>
-            </div>
-
-            {/* Descrição e features na base */}
-            <div>
-              <h2 className="text-2xl font-extrabold text-white leading-tight mb-2">
-                Gestão de frota<br />
-                <span className="text-orange-400">inteligente e completa</span>
-              </h2>
-              <p className="text-sm text-slate-300 mb-5">
-                Monitore veículos, motoristas, combustível, pneus e finanças em tempo real — com IA que responde suas dúvidas e identifica oportunidades de economia.
-              </p>
-              <div className="space-y-2">
-                {[
-                  { icon: "🚛", text: "Controle total da frota: veículos, manutenção e pneus" },
-                  { icon: "⛽", text: "Abastecimento, km/L e custo por km automáticos" },
-                  { icon: "🤖", text: "IA que analisa dados e responde suas perguntas" },
-                  { icon: "📊", text: "CT-e, receitas, despesas e resultado financeiro" },
-                  { icon: "🔔", text: "Alertas de CNH, seguro, licença e estoque mínimo" },
-                ].map(({ icon, text }) => (
-                  <div key={text} className="flex items-start gap-2 text-sm text-slate-200">
-                    <span className="text-base leading-tight">{icon}</span>
-                    <span>{text}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+      {/* Card do formulário flutuando sobre a imagem */}
+      <div className="relative z-10 w-full max-w-sm">
+        {/* Slogan acima do card */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white drop-shadow-lg leading-tight">
+            Gestão de frota<br />
+            <span className="text-orange-400">inteligente e completa</span>
+          </h1>
+          <p className="text-sm text-slate-300 mt-2 drop-shadow">
+            Monitore, analise e reduza custos com IA.
+          </p>
         </div>
 
-        <div className="p-4 sm:p-6 md:p-8 bg-slate-950">
+        {/* Card do formulário */}
+        <div className="rounded-2xl border border-white/10 bg-slate-950/85 backdrop-blur-md shadow-2xl p-6 sm:p-8">
           <div className="flex gap-2 mb-4 sm:mb-6">
             <button
               type="button"
@@ -346,6 +328,21 @@ const Login = () => {
               </div>
             </>
           )}
+        </div>
+
+        {/* Features compactas abaixo do card */}
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          {[
+            { icon: "🚛", text: "Veículos & manutenção" },
+            { icon: "⛽", text: "Combustível & km/L" },
+            { icon: "🤖", text: "IA que responde tudo" },
+            { icon: "📊", text: "CT-e & financeiro" },
+          ].map(({ icon, text }) => (
+            <div key={text} className="flex items-center gap-2 bg-white/5 backdrop-blur-sm rounded-lg px-3 py-2 text-xs text-slate-200">
+              <span>{icon}</span>
+              <span>{text}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
