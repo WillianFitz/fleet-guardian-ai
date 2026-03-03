@@ -193,56 +193,51 @@ const Clientes = () => {
         />
       </div>
 
-        <div>
-          <div className="w-full">
-            <div className="">
-            <div className="glass-card overflow-hidden">
-              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-                <div className="text-sm font-semibold text-foreground">Lista de clientes</div>
-                <div className="text-xs text-muted-foreground">{items.length} cadastrados</div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[600px]">
-                  <thead>
-                    <tr className="border-b border-border">
-                      {["Nome","CNPJ/CPF","Município / UF","Ações"].map(h => (
-                        <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 last:text-right">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.filter(c => {
-                      const q = normalize(search);
-                      if (!q) return true;
-                      const name = normalize(c.nome || "");
-                      const cnpjDigits = (c.cnpjCpf || "").replace(/\D/g, "");
-                      const qDigits = search.replace(/\D/g, "");
-                      return name.includes(q) || (qDigits && cnpjDigits.includes(qDigits));
-                    }).map((c) => (
-                      <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                        <td className="px-5 py-3.5 text-sm text-foreground">{c.nome}</td>
-                        <td className="px-5 py-3.5 text-sm font-mono text-muted-foreground">{c.cnpjCpf}</td>
-                        <td className="px-5 py-3.5 text-sm text-muted-foreground">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
-                        <td className="px-5 py-3.5 text-right">
-                          <div className="inline-flex items-center gap-1">
-                            <button onClick={() => handleEdit(c)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs px-3 py-1.5">Editar</button>
-                            <button
-                              onClick={() => { if (confirm(`Excluir cliente ${c.nome}?`)) { remove(c.id); toast({ title: "Cliente excluído" }); } }}
-                              className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors text-xs px-3 py-1.5"
-                            >Excluir</button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {items.length === 0 && (
-                      <tr><td colSpan={4} className="px-5 py-10 text-center text-muted-foreground text-sm">Nenhum cliente cadastrado</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+      <div className="glass-card overflow-hidden">
+        <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+          <div className="text-sm font-semibold text-foreground">Lista de clientes</div>
+          <div className="text-xs text-muted-foreground">{items.length} cadastrados</div>
         </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead>
+              <tr className="border-b border-border">
+                {["Nome","CNPJ/CPF","Município / UF","Ações"].map(h => (
+                  <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 last:text-right">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.filter(c => {
+                const q = normalize(search);
+                if (!q) return true;
+                const name = normalize(c.nome || "");
+                const cnpjDigits = (c.cnpjCpf || "").replace(/\D/g, "");
+                const qDigits = search.replace(/\D/g, "");
+                return name.includes(q) || (qDigits && cnpjDigits.includes(qDigits));
+              }).map((c) => (
+                <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                  <td className="px-5 py-3.5 text-sm text-foreground">{c.nome}</td>
+                  <td className="px-5 py-3.5 text-sm font-mono text-muted-foreground">{c.cnpjCpf}</td>
+                  <td className="px-5 py-3.5 text-sm text-muted-foreground">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
+                  <td className="px-5 py-3.5 text-right">
+                    <div className="inline-flex items-center gap-1">
+                      <button onClick={() => handleEdit(c)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs px-3 py-1.5">Editar</button>
+                      <button
+                        onClick={() => { if (confirm(`Excluir cliente ${c.nome}?`)) { remove(c.id); toast({ title: "Cliente excluído" }); } }}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors text-xs px-3 py-1.5"
+                      >Excluir</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {items.length === 0 && (
+                <tr><td colSpan={4} className="px-5 py-10 text-center text-muted-foreground text-sm">Nenhum cliente cadastrado</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* Modal for new/edit client */}
       <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) { setForm({}); setEditing(null); } }}>
