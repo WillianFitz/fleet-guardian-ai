@@ -106,7 +106,7 @@ const Login = () => {
         <div className="relative hidden md:flex flex-col justify-between bg-gradient-to-br from-primary/10 via-slate-900 to-slate-950 p-6 md:p-8">
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <img src="/logo.png" alt="Fleet Guardian AI" className="w-14 h-14 object-contain drop-shadow-lg" />
+              <img src="/logo.png" alt="Fleet Guardian AI" style={{ mixBlendMode: "screen" }} className="w-14 h-14 object-contain" />
               <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight">Fleet Guardian AI</h1>
             </div>
             <p className="text-xs md:text-sm text-muted-foreground">

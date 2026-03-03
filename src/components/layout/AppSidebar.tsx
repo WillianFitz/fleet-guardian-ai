@@ -85,6 +85,7 @@ const AppSidebar = () => {
         <img
           src="/logo.png"
           alt="Fleet Guardian AI"
+          style={{ mixBlendMode: "screen" }}
           className={`flex-shrink-0 object-contain transition-all duration-300 ${collapsed ? "w-8 h-8" : "w-9 h-9"}`}
         />
         {!collapsed && (
