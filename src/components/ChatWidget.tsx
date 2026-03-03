@@ -74,13 +74,13 @@ const ChatWidget = () => {
     <>
       <div className="fixed z-50 right-4 bottom-4 sm:right-6 sm:bottom-6">
         <div className="flex items-end">
-          {open && (
-            <div className="mr-2 hidden sm:block">
+          {open && minimized && (
+            <div className="mr-2">
               <button
                 className="px-3 py-1 text-xs rounded-md bg-card/80 border border-border shadow-sm text-foreground"
-                onClick={() => setMinimized(!minimized)}
+                onClick={() => setMinimized(false)}
               >
-                {minimized ? "Abrir" : "Minimizar"}
+                Abrir IA
               </button>
             </div>
           )}
@@ -118,9 +118,9 @@ const ChatWidget = () => {
                     <div className="text-xs sm:text-sm text-muted-foreground">Pergunte sobre custos, combustível, motoristas e mais</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setMinimized(true)} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Minimizar</button>
-                  <button onClick={() => { setOpen(false); setMinimized(false); }} className="text-sm text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10">Fechar</button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setMinimized(true)} className="text-xs text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10 transition-colors">Min</button>
+                  <button onClick={() => { setOpen(false); setMinimized(false); }} className="text-xs text-muted-foreground px-2 py-1 rounded-md hover:bg-muted/10 transition-colors">✕</button>
                 </div>
               </div>
 

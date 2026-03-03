@@ -131,7 +131,7 @@ export default function BuscarChaveCTe() {
   };
 
   return (
-    <div className="min-h-screen flex items-start justify-center bg-background p-4 pt-8">
+    <div className="flex items-start justify-center p-4 pt-4">
       <div className="w-full max-w-3xl bg-card border border-border rounded-lg p-4 sm:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>

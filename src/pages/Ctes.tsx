@@ -1331,7 +1331,7 @@ const Ctes = () => {
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Número da nota origem</label>
             <input value={form.numeroNota ?? ""} onChange={(e) => setField("numeroNota", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm" />
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
               <input id="hasExpedidor" type="checkbox" checked={!!form.hasExpedidor} onChange={(e) => setField("hasExpedidor", e.target.checked)} />
               <label htmlFor="hasExpedidor" className="text-xs text-muted-foreground">Tem Expedidor</label>
@@ -1340,7 +1340,7 @@ const Ctes = () => {
               <input id="hasRecebedor" type="checkbox" checked={!!form.hasRecebedor} onChange={(e) => setField("hasRecebedor", e.target.checked)} />
               <label htmlFor="hasRecebedor" className="text-xs text-muted-foreground">Tem Recebedor</label>
             </div>
-            <div className="flex items-center gap-2 ml-4">
+            <div className="flex items-center gap-2">
               <input id="emitirRetro" type="checkbox" checked={!!form.emitirRetroativo} onChange={(e) => setField("emitirRetroativo", e.target.checked)} />
               <label htmlFor="emitirRetro" className="text-xs text-muted-foreground">Emitir retroativo</label>
             </div>

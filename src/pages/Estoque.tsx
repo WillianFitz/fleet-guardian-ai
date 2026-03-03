@@ -51,7 +51,8 @@ const Estoque = () => {
       <input type="text" placeholder="Buscar peça..." value={search} onChange={e => setSearch(e.target.value)} className="max-w-sm w-full bg-muted/50 border border-border rounded-lg px-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50" />
 
       <div className="glass-card overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead><tr className="border-b border-border">{["Código", "Descrição", "Categoria", "Qtd", "Mín", "Custo Unit.", "Localização", "Fornecedor", "Ações"].map(h => <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3">{h}</th>)}</tr></thead>
           <tbody>
             {filtered.map(p => (
@@ -73,6 +74,7 @@ const Estoque = () => {
             {filtered.length === 0 && <tr><td colSpan={9} className="px-3 sm:px-5 py-10 text-center text-muted-foreground">Nenhuma peça</td></tr>}
           </tbody>
         </table>
+        </div>
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

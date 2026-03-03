@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { useSidebar } from "@/contexts/SidebarContext";
 import {
   Truck, LayoutDashboard, Wrench, Fuel, DollarSign, Users, Package,
   ShieldCheck, FileText, CircleDot, AlertTriangle, ParkingCircle,
@@ -49,7 +50,7 @@ const menuGroups = [
 ];
 
 const AppSidebar = () => {
-  const [collapsed, setCollapsed] = useState(false);
+  const { collapsed, setCollapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
 

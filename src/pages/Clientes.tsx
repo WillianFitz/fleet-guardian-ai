@@ -178,89 +178,71 @@ const Clientes = () => {
   };
 
   return (
-    <div className="p-4">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold">Clientes</h1>
-            <p className="text-sm text-muted-foreground">Gerencie clientes gerados pelas importações e buscas.</p>
-          </div>
-        <div className="flex items-center gap-3">
-          {/* Search moved below and aligned with the clients card */}
+    <div className="space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Clientes</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Gerencie clientes gerados pelas importações e buscas.</p>
         </div>
-        </div>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nome ou CNPJ"
+          className="bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-72 focus:outline-none focus:ring-1 focus:ring-primary/50"
+        />
+      </div>
 
-        <div className="flex justify-center">
-          <div className="w-full max-w-5xl">
-            <div className="flex justify-end mb-4">
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por nome ou CNPJ"
-                className="bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-80 focus:outline-none"
-              />
-            </div>
-            <div className="bg-card border border-border rounded-lg overflow-hidden mx-auto">
-              <div className="p-6 border-b border-border flex items-center justify-between">
-                <div className="text-lg font-semibold">Lista de clientes</div>
-                <div className="text-sm text-muted-foreground">{items.length} cadastrados</div>
+        <div>
+          <div className="w-full">
+            <div className="">
+            <div className="glass-card overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                <div className="text-sm font-semibold text-foreground">Lista de clientes</div>
+                <div className="text-xs text-muted-foreground">{items.length} cadastrados</div>
               </div>
               <div className="overflow-x-auto">
-                <div className="mx-auto">
-                  <table className="w-full min-w-[680px] divide-y divide-border text-base table-auto mx-auto">
-                    <thead className="bg-muted/10">
-                      <tr className="text-xs text-muted-foreground uppercase">
-                        <th className="text-left px-6 py-4">Nome</th>
-                        <th className="text-left px-6 py-4">CNPJ/CPF</th>
-                        <th className="text-left px-6 py-4">Município / UF</th>
-                        <th className="px-6 py-4 text-right w-40">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-card">
-                  {items.filter(c => {
-                    const q = normalize(search);
-                    if (!q) return true;
-                    const name = normalize(c.nome || "");
-                    const cnpjDigits = (c.cnpjCpf || "").replace(/\D/g, "");
-                    const qDigits = search.replace(/\D/g, "");
-                    return name.includes(q) || (qDigits && cnpjDigits.includes(qDigits));
-                  }).map((c) => (
-                        <tr key={c.id} className="hover:bg-muted/20 transition-colors">
-                          <td className="px-6 py-4 align-top max-w-md">{c.nome}</td>
-                          <td className="px-6 py-4 align-top font-mono">{c.cnpjCpf}</td>
-                          <td className="px-6 py-4 align-top">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
-                          <td className="px-6 py-4 text-right align-top">
-                            <div className="inline-flex items-center gap-2">
-                              <button onClick={() => handleEdit(c)} className="inline-flex items-center px-3 py-1.5 rounded border">Editar</button>
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Excluir cliente ${c.nome}?`)) {
-                                    remove(c.id);
-                                    toast({ title: "Cliente excluído" });
-                                  }
-                                }}
-                                className="inline-flex items-center px-3 py-1.5 rounded border text-destructive"
-                              >
-                                Excluir
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                <table className="w-full min-w-[600px]">
+                  <thead>
+                    <tr className="border-b border-border">
+                      {["Nome","CNPJ/CPF","Município / UF","Ações"].map(h => (
+                        <th key={h} className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-5 py-3 last:text-right">{h}</th>
                       ))}
-                      {items.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">Nenhum cliente cadastrado</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.filter(c => {
+                      const q = normalize(search);
+                      if (!q) return true;
+                      const name = normalize(c.nome || "");
+                      const cnpjDigits = (c.cnpjCpf || "").replace(/\D/g, "");
+                      const qDigits = search.replace(/\D/g, "");
+                      return name.includes(q) || (qDigits && cnpjDigits.includes(qDigits));
+                    }).map((c) => (
+                      <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                        <td className="px-5 py-3.5 text-sm text-foreground">{c.nome}</td>
+                        <td className="px-5 py-3.5 text-sm font-mono text-muted-foreground">{c.cnpjCpf}</td>
+                        <td className="px-5 py-3.5 text-sm text-muted-foreground">{c.municipio}{c.uf ? ` / ${c.uf}` : ""}</td>
+                        <td className="px-5 py-3.5 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button onClick={() => handleEdit(c)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors text-xs px-3 py-1.5">Editar</button>
+                            <button
+                              onClick={() => { if (confirm(`Excluir cliente ${c.nome}?`)) { remove(c.id); toast({ title: "Cliente excluído" }); } }}
+                              className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors text-xs px-3 py-1.5"
+                            >Excluir</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {items.length === 0 && (
+                      <tr><td colSpan={4} className="px-5 py-10 text-center text-muted-foreground text-sm">Nenhum cliente cadastrado</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
       {/* Modal for new/edit client */}
       <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) { setForm({}); setEditing(null); } }}>
@@ -333,18 +315,15 @@ const Clientes = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Floating add button bottom-right with pulse */}
-      <div className="fixed right-6 bottom-6 z-50">
-        <div className="relative">
-          <span className="absolute -inset-1 rounded-full bg-primary/30 animate-ping"></span>
-          <button
-            onClick={openNew}
-            title="Novo cliente"
-            className="relative inline-flex items-center justify-center gap-2 px-6 py-5 rounded-full bg-primary text-primary-foreground shadow-2xl hover:scale-105 transform transition-transform"
-          >
-            <Plus className="w-5 h-5" />
-          </button>
-        </div>
+      {/* FAB posicionado acima do ChatWidget (bottom-24) para não sobrepor */}
+      <div className="fixed right-4 bottom-24 sm:right-6 sm:bottom-24 z-40">
+        <button
+          onClick={openNew}
+          title="Novo cliente"
+          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-primary text-primary-foreground shadow-2xl flex items-center justify-center hover:scale-105 transition-transform"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
       </div>
     </div>
   );

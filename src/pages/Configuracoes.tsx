@@ -259,8 +259,8 @@ const Configuracoes = () => {
               className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="flex-1 min-w-[180px]">
               <label className="text-xs font-medium text-muted-foreground mb-1 block">CNPJ *</label>
               <input
                 value={form.cnpj}
@@ -273,7 +273,7 @@ const Configuracoes = () => {
               type="button"
               onClick={handleBuscarCnpj}
               disabled={loadingCnpj || (form.cnpj || "").replace(/\D/g, "").length !== 14}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/40 text-sm font-medium hover:bg-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/20 text-primary border border-primary/40 text-sm font-medium hover:bg-primary/30 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {loadingCnpj ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
               {loadingCnpj ? "Buscando..." : "Buscar por CNPJ"}

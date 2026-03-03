@@ -107,16 +107,26 @@ const AiInsights = () => {
       </div>
 
       <div className="glass-card p-4 sm:p-5 glow-amber">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-3">
           <Brain className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
           <h2 className="text-base sm:text-lg font-semibold text-foreground">Resumo Inteligente</h2>
         </div>
-        <div className="flex gap-2 mb-3">
-          <button className="btn btn-sm" onClick={runAudit} disabled={auditLoading}>
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            onClick={runAudit}
+            disabled={auditLoading}
+            className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs sm:text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
             {auditLoading ? "Executando..." : "Revisar tudo"}
           </button>
-          <button className="btn btn-ghost btn-sm" onClick={() => send("Me mostre custos por veículo nos últimos 90 dias")}>Custos 90 dias</button>
-          <button className="btn btn-ghost btn-sm" onClick={() => send("Onde posso reduzir gastos?")}>Onde reduzir gastos</button>
+          <button
+            onClick={() => send("Me mostre custos por veículo nos últimos 90 dias")}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs sm:text-sm text-foreground hover:bg-muted transition-colors"
+          >Custos 90 dias</button>
+          <button
+            onClick={() => send("Onde posso reduzir gastos?")}
+            className="px-3 py-1.5 rounded-lg border border-border text-xs sm:text-sm text-foreground hover:bg-muted transition-colors"
+          >Onde reduzir gastos</button>
         </div>
         <p className="text-xs sm:text-sm text-muted-foreground">
           Sua frota possui <span className="text-foreground font-medium">{vehicles.length} veículos</span>, dos quais <span className="text-success font-medium">{vehicles.filter(v => v.status === "operando").length} em operação</span>, <span className="text-warning font-medium">{vehicles.filter(v => v.status === "manutencao").length} em manutenção</span> e <span className="text-destructive font-medium">{parados} parado(s)</span>. O consumo médio é de <span className="text-foreground font-medium">{avgConsumo} km/l</span> com custo total em manutenção de <span className="text-foreground font-medium">R$ {totalCustoManut.toLocaleString("pt-BR")}</span>.
@@ -206,29 +216,33 @@ const AiInsights = () => {
     )}
 
     <div className="glass-card p-4 sm:p-5 mt-4">
-      <h2 className="text-sm font-semibold mb-2">Converse com o agente</h2>
-      <div className="border rounded-md p-3 max-h-60 overflow-auto bg-background/50 mb-3">
+      <h2 className="text-sm font-semibold mb-3 text-foreground">Converse com o agente</h2>
+      <div className="border border-border rounded-lg p-3 max-h-60 overflow-auto bg-background/50 mb-3">
         {chatMessages.length === 0 ? (
           <p className="text-xs text-muted-foreground">Peça algo como "Me mostre custos por veículo nos últimos 3 meses" ou "Onde posso reduzir gastos?"</p>
         ) : (
           chatMessages.map((m, idx) => (
             <div key={idx} className={`mb-2 ${m.role === "user" ? "text-right" : "text-left"}`}>
-              <div className={`inline-block px-3 py-2 rounded-md ${m.role === "user" ? "bg-primary/10 text-foreground" : "bg-muted-foreground/5 text-foreground"}`}>
-                <div className="whitespace-pre-wrap text-sm">{m.text}</div>
+              <div className={`inline-block px-3 py-2 rounded-lg text-sm ${m.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+                <div className="whitespace-pre-wrap">{m.text}</div>
               </div>
             </div>
           ))
         )}
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-end">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") send(); }}
-          className="flex-1 input w-full"
+          className="flex-1 bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
           placeholder="Pergunte algo sobre custos, manutenção ou economia..."
         />
-        <button className="btn" onClick={() => send()} disabled={loading}>{loading ? "..." : "Enviar"}</button>
+        <button
+          onClick={() => send()}
+          disabled={loading}
+          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors flex-shrink-0"
+        >{loading ? "..." : "Enviar"}</button>
       </div>
     </div>
 
