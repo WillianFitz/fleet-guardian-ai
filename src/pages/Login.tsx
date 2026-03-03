@@ -101,36 +101,56 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 p-4">
-      <div className="w-full max-w-3xl glass-card border border-slate-800/60 shadow-2xl shadow-primary/10 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
-        <div className="relative hidden md:flex flex-col justify-between bg-gradient-to-br from-primary/10 via-slate-900 to-slate-950 p-6 md:p-8">
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <img src="/logo.png" alt="Fleet Guardian AI" style={{ mixBlendMode: "screen" }} className="w-14 h-14 object-contain" />
-              <h1 className="text-xl md:text-2xl font-bold text-foreground leading-tight">Fleet Guardian AI</h1>
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
+      <div className="w-full max-w-4xl shadow-2xl shadow-black/60 grid grid-cols-1 md:grid-cols-2 overflow-hidden rounded-2xl border border-slate-800/60">
+
+        {/* Painel esquerdo — imagem hero com overlay */}
+        <div className="relative hidden md:flex flex-col justify-between overflow-hidden min-h-[520px]">
+          {/* Imagem de fundo */}
+          <img
+            src="/hero.png"
+            alt="Fleet Guardian AI"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+          />
+          {/* Overlay escuro gradiente para legibilidade */}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-900/30" />
+
+          {/* Conteúdo sobre a imagem */}
+          <div className="relative z-10 p-7 flex flex-col h-full justify-between">
+            {/* Logo + nome no topo */}
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="Fleet Guardian AI" style={{ mixBlendMode: "screen" }} className="w-10 h-10 object-contain" />
+              <span className="text-base font-bold text-white tracking-tight">Fleet Guardian AI</span>
             </div>
-            <p className="text-xs md:text-sm text-muted-foreground">
-              Plataforma completa para gestão de frotas com insights inteligentes, manutenção
-              preditiva e controle financeiro unificado.
-            </p>
-          </div>
-          <div className="mt-8 space-y-3 text-sm text-muted-foreground">
-            <p className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Dados isolados por empresa (multi-tenant)
-            </p>
-            <p className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Controle de veículos, motoristas, pneus, manutenção e muito mais
-            </p>
-            <p className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              Preparado para produção em Cloudflare Workers + D1
-            </p>
+
+            {/* Descrição e features na base */}
+            <div>
+              <h2 className="text-2xl font-extrabold text-white leading-tight mb-2">
+                Gestão de frota<br />
+                <span className="text-orange-400">inteligente e completa</span>
+              </h2>
+              <p className="text-sm text-slate-300 mb-5">
+                Monitore veículos, motoristas, combustível, pneus e finanças em tempo real — com IA que responde suas dúvidas e identifica oportunidades de economia.
+              </p>
+              <div className="space-y-2">
+                {[
+                  { icon: "🚛", text: "Controle total da frota: veículos, manutenção e pneus" },
+                  { icon: "⛽", text: "Abastecimento, km/L e custo por km automáticos" },
+                  { icon: "🤖", text: "IA que analisa dados e responde suas perguntas" },
+                  { icon: "📊", text: "CT-e, receitas, despesas e resultado financeiro" },
+                  { icon: "🔔", text: "Alertas de CNH, seguro, licença e estoque mínimo" },
+                ].map(({ icon, text }) => (
+                  <div key={text} className="flex items-start gap-2 text-sm text-slate-200">
+                    <span className="text-base leading-tight">{icon}</span>
+                    <span>{text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 md:p-8 bg-slate-950/90">
+        <div className="p-4 sm:p-6 md:p-8 bg-slate-950">
           <div className="flex gap-2 mb-4 sm:mb-6">
             <button
               type="button"
