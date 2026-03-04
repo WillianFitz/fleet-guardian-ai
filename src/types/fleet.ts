@@ -251,6 +251,34 @@ export interface CTe {
   emitirRetroativo?: boolean;
   /** Texto automático para nota / observações */
   textoNota?: string;
+
+  // ===== TRIBUTAÇÃO / ICMS =====
+  /** Regime tributário: "1"=Simples, "2"=Simples excesso, "3"=Normal */
+  regimeTributario?: string;
+  /** CST de ICMS (regime normal) */
+  cstIcms?: string;
+  /** CSOSN (Simples Nacional) */
+  csosn?: string;
+  /** Base de cálculo do ICMS */
+  icmsBaseCalculo?: number;
+  /** Alíquota ICMS (%) */
+  icmsAliquota?: number;
+  /** Valor do ICMS calculado */
+  icmsValor?: number;
+  /** Percentual de redução da base de cálculo */
+  icmsReducaoBase?: number;
+  /** Valor FCP (Fundo de Combate à Pobreza) */
+  fcpValor?: number;
+  /** RNTRC — Registro Nacional de Transportadores Rodoviários de Cargas */
+  rntrc?: string;
+  /** IE (Inscrição Estadual) do emitente */
+  ieEmitente?: string;
+  /** CNAE do emitente */
+  cnae?: string;
+  /** Produto predominante / descrição da carga */
+  produtoPredominante?: string;
+  /** Modal (01=Rodoviário, 02=Aéreo, etc.) */
+  modal?: string;
 }
 
 // ===== CLIENTS =====

@@ -1,5 +1,9 @@
-import { useState, useEffect } from "react";
-import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature, Loader2, FileCode } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { FileText, Plus, Edit, Trash2, Send, Search, AlertCircle, ExternalLink, Shield, FileCheck, Truck, Package, FileSignature, Loader2, FileCode, Calculator } from "lucide-react";
+import {
+  CFOP_OPTIONS, CST_ICMS_TRANSPORTE, CSOSN_OPTIONS, REGIME_TRIBUTARIO_OPTIONS,
+  sugerirCFOP, calcularICMS, getFCP, labelTipoOperacao, getAliquotaICMS
+} from "@/lib/cte-fiscal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import useStore from "@/hooks/useStore";
 import { CTe, Vehicle, FluxoOrigemCTe } from "@/types/fleet";
@@ -1297,18 +1301,203 @@ const Ctes = () => {
               )}
             </div>
           ))}
-          {/* Campos adicionais solicitados: CFOP, Valor Frete, Tomador, Número da nota origem, toggles */}
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1 block">CFOP</label>
-            <select value={form.cfop ?? "5353"} onChange={(e) => setField("cfop", e.target.value)} className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm">
-              <option value="">Selecione CFOP...</option>
-              <option value="5353">5353 - Serviço de Transporte de Cargas</option>
-              <option value="5254">5254 - Remessa p/ industrialização</option>
-              <option value="5933">5933 - Operações de transporte</option>
-              <option value="0000">0000 - Outro / Manual</option>
-            </select>
-            <p className="text-xs text-muted-foreground mt-1">Sugestão automática: 5353 para CT-e originados de NF-e (ajuste conforme necessário).</p>
+          {/* ===== TRIBUTAÇÃO / ICMS ===== */}
+          <div className="col-span-1 sm:col-span-2 mt-3">
+            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+              <Calculator className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Tributação / ICMS</span>
+              {(form.ufOrigem || form.ufDestino) && (
+                <span className="ml-auto text-xs text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full">
+                  {labelTipoOperacao(form.ufOrigem || "", form.ufDestino || "")}
+                </span>
+              )}
+            </div>
           </div>
+
+          {/* Regime Tributário */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Regime Tributário</label>
+            <select
+              value={form.regimeTributario ?? "3"}
+              onChange={(e) => setField("regimeTributario", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+            >
+              {REGIME_TRIBUTARIO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          {/* CFOP — automático + seleção */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
+              CFOP
+              {(form.ufOrigem && form.ufDestino) && (
+                <button
+                  type="button"
+                  className="ml-2 text-primary hover:underline text-[10px]"
+                  onClick={() => {
+                    const sug = sugerirCFOP(form.ufOrigem || "", form.ufDestino || "", form.tpServ);
+                    setField("cfop", sug.cfop.replace(".", ""));
+                    toast({ title: `CFOP sugerido: ${sug.cfop}`, description: sug.motivo });
+                  }}
+                >
+                  ⚡ Auto-preencher
+                </button>
+              )}
+            </label>
+            <select
+              value={form.cfop ?? "5353"}
+              onChange={(e) => setField("cfop", e.target.value)}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="">Selecione CFOP...</option>
+              {CFOP_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          {/* CST / CSOSN conforme regime */}
+          {(form.regimeTributario === "1" || form.regimeTributario === "2") ? (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">CSOSN (Simples Nacional)</label>
+              <select
+                value={form.csosn ?? ""}
+                onChange={(e) => setField("csosn", e.target.value)}
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Selecione CSOSN...</option>
+                {CSOSN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">CST de ICMS</label>
+              <select
+                value={form.cstIcms ?? ""}
+                onChange={(e) => setField("cstIcms", e.target.value)}
+                className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Selecione CST...</option>
+                {CST_ICMS_TRANSPORTE.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Alíquota + Base + Redução + Valor ICMS */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">
+              Alíquota ICMS (%)
+              {(form.ufOrigem && form.ufDestino) && (
+                <button
+                  type="button"
+                  className="ml-2 text-primary hover:underline text-[10px]"
+                  onClick={() => {
+                    const aliq = getAliquotaICMS(form.ufOrigem || "", form.ufDestino || "");
+                    setField("icmsAliquota", aliq);
+                  }}
+                >
+                  ⚡ Auto
+                </button>
+              )}
+            </label>
+            <input
+              type="number"
+              step="0.5"
+              min={0}
+              max={100}
+              value={form.icmsAliquota ?? ""}
+              onChange={(e) => setField("icmsAliquota", Number(e.target.value))}
+              placeholder={form.ufOrigem && form.ufDestino ? String(getAliquotaICMS(form.ufOrigem, form.ufDestino)) : "0"}
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Redução Base Cálculo (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              max={100}
+              value={form.icmsReducaoBase ?? ""}
+              onChange={(e) => setField("icmsReducaoBase", Number(e.target.value))}
+              placeholder="0"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+
+          {/* Painel calculado automaticamente */}
+          {(() => {
+            const regime = form.regimeTributario ?? "3";
+            const isSimples = regime === "1" || regime === "2";
+            const baseCalc = Number(form.valorPrestacao || 0);
+            const aliquota = Number(form.icmsAliquota || (form.ufOrigem && form.ufDestino ? getAliquotaICMS(form.ufOrigem, form.ufDestino) : 0));
+            const reducao = Number(form.icmsReducaoBase || 0);
+            const baseReduzida = baseCalc * (1 - reducao / 100);
+            const valorIcms = isSimples ? 0 : Number(((baseReduzida * aliquota) / 100).toFixed(2));
+            const fcp = getFCP(form.ufOrigem || "");
+            const valorFcp = isSimples ? 0 : Number(((baseReduzida * fcp) / 100).toFixed(2));
+
+            return (
+              <div className="col-span-1 sm:col-span-2 bg-muted/20 border border-border rounded-lg p-3 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Tipo de operação</span>
+                  <span className="font-medium text-foreground">{labelTipoOperacao(form.ufOrigem || "", form.ufDestino || "")}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Base de cálculo</span>
+                  <span className="font-mono text-foreground">R$ {baseReduzida.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Alíquota ICMS</span>
+                  <span className="font-mono text-foreground">{isSimples ? "— (DAS)" : `${aliquota}%`}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs font-semibold border-t border-border pt-1.5 mt-1.5">
+                  <span className="text-foreground">Valor ICMS</span>
+                  <span className={`font-mono ${valorIcms > 0 ? "text-primary" : "text-muted-foreground"}`}>
+                    R$ {valorIcms.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {fcp > 0 && !isSimples && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">FCP {form.ufOrigem} ({fcp}%)</span>
+                    <span className="font-mono text-foreground">R$ {valorFcp.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+                {isSimples && (
+                  <p className="text-[10px] text-muted-foreground pt-1">Simples Nacional — ICMS incluído no DAS. Nenhum destaque em nota.</p>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* RNTRC, IE, Produto */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">RNTRC (Registro ANTT)</label>
+            <input
+              value={form.rntrc ?? ""}
+              onChange={(e) => setField("rntrc", e.target.value)}
+              placeholder="00000000"
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Produto Predominante / Carga</label>
+            <input
+              value={form.produtoPredominante ?? ""}
+              onChange={(e) => setField("produtoPredominante", e.target.value)}
+              placeholder="Ex: Grãos, Aves vivas, Eletrônicos..."
+              className="w-full bg-muted/50 border border-border rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+
+          {/* Separador — campos operacionais */}
+          <div className="col-span-1 sm:col-span-2 mt-1">
+            <div className="border-b border-border pb-1 mb-1">
+              <span className="text-xs font-semibold text-muted-foreground">Dados Operacionais</span>
+            </div>
+          </div>
+
+          {/* CFOP original abaixo agora é o bloco de valor frete */}
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Valor do Frete (R$)</label>
             <input
